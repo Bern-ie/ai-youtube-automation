@@ -1,8 +1,9 @@
 # Development Commands
 
-Status: reflects only what exists after Step 1 (repository scaffolding).
-No Docker Compose stack, database schema, or application code exists yet
-— commands below are either usable today or explicitly marked as future.
+Status: reflects Step 2 — a working local Docker Compose stack (Postgres,
+Redis, n8n, MinIO, Caddy, renderer, approval-api) and multi-arch build
+tooling. No database domain schema, n8n workflows, or Oracle deployment
+exist yet.
 
 ## Environment
 
@@ -10,73 +11,177 @@ No Docker Compose stack, database schema, or application code exists yet
 - Run all commands below **inside your WSL2 distro shell**, not
   PowerShell/cmd.exe — paths, permissions, and Docker socket behavior
   differ.
+- Docker Desktop must be running with WSL integration enabled for your
+  distro (Docker Desktop → Settings → Resources → WSL Integration). If
+  `docker version` reports it can't reach the daemon, start Docker Desktop
+  first.
 
-## Usable today
+## First-time setup
 
 ```bash
-# Clone / enter the repo
 cd ~/personal-projects/ai--youtube-automation
-
-# Copy the environment template and fill in real values locally
 cp .env.example .env
-
-# Inspect repo structure
-find . -not -path './.git*' -type f | sort
+# edit .env — at minimum set real values for:
+#   POSTGRES_USER, POSTGRES_PASSWORD, REDIS_PASSWORD, N8N_ENCRYPTION_KEY,
+#   WEBHOOK_URL, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET
 ```
 
-## Docker Buildx setup (needed once, before any custom image is built)
+`scripts/dev-up.sh` and `scripts/prod-up.sh` refuse to start with a clear
+error if any of these are missing or still say `CHANGE_ME` — see
+`scripts/lib.sh`'s `require_env`.
+
+## Local stack
 
 ```bash
-# Confirm Buildx is available (bundled with modern Docker Desktop)
-docker buildx version
-
-# Create a builder that supports multi-platform output, if one doesn't exist
-docker buildx create --name multiarch --driver docker-container --use
-docker buildx inspect --bootstrap
-
-# Register QEMU emulation so arm64 images can be smoke-tested on the amd64 dev machine
-# (Docker Desktop for Windows typically ships this already; only needed on plain Linux Docker)
-docker run --privileged --rm tonistiigi/binfmt --install all
+scripts/dev-up.sh          # build + start everything, wait for health checks
+scripts/dev-status.sh      # container state + health at a glance
+scripts/logs.sh            # tail all logs
+scripts/logs.sh n8n        # tail one service
+scripts/dev-down.sh        # stop (keeps data volumes)
+scripts/dev-down.sh -v     # stop AND delete all data volumes (destructive)
 ```
 
-## Multi-arch build pattern (for use once Dockerfiles exist under `infrastructure/docker/` or `apps/*`)
+Equivalent raw commands, if you'd rather not use the wrappers:
 
 ```bash
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t <image-name>:<tag> \
-  <path-to-context>
+docker compose config           # validate + print the merged dev config
+docker compose up -d --build
+docker compose ps
+docker compose logs -f [service]
+docker compose down [-v]
 ```
 
-- Local dev iteration: build/run `--platform linux/amd64` only, for speed.
-- Before anything is considered done: build `--platform linux/arm64` (at
-  minimum via QEMU) and run the validation checks in
-  [arm64-compatibility.md](../architecture/arm64-compatibility.md) — a
-  successful build is not sufficient on its own.
+`docker-compose.override.yml` is auto-merged by plain `docker compose`
+commands — that's what makes the dev stack expose admin ports on
+`127.0.0.1`. It is never used in production; see
+[docker-compose.prod.yml](../../docker-compose.prod.yml)'s header comment.
 
-## Planned (not yet implemented — placeholders for later phases)
+### Local URLs (dev only)
 
-These will exist once the corresponding phase lands; listed here so the
-eventual commands are discoverable from one place.
+| Service | URL | Notes |
+|---|---|---|
+| n8n (via proxy) | http://127.0.0.1/ | |
+| n8n (direct) | http://127.0.0.1:5678 | bypasses Caddy |
+| approval-api (via proxy) | http://127.0.0.1/approval/health | |
+| approval-api (direct) | http://127.0.0.1:3001 | bypasses Caddy |
+| MinIO console | http://127.0.0.1:9001 | login: `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` from `.env` |
+| MinIO S3 API | http://127.0.0.1:9000 | |
+| PostgreSQL | `psql -h 127.0.0.1 -p 5433 -U $POSTGRES_USER -d $POSTGRES_DB` | port **5433**, not 5432 — see docker-compose.override.yml |
+| Redis | `redis-cli -h 127.0.0.1 -p 6379 -a $REDIS_PASSWORD` | |
+| renderer | *(no host port — by design)* | reach it via `docker compose exec renderer ...` |
+
+The Postgres dev port is 5433 rather than the default 5432 because this
+project's containers must coexist with whatever else is already running
+on a given dev machine — see the troubleshooting section.
+
+## Multi-arch builds
 
 ```bash
-# Bring up the local stack (Step 2+)
-docker compose up -d
-
-# Tear down
-docker compose down
-
-# Run database migrations (once database/migrations/ has content)
-scripts/db-migrate.sh
-
-# Run the test suite
-scripts/test.sh            # unit + integration
-scripts/test-arm64.sh      # arm64-specific validation (codecs, native addons)
-
-# Import/export n8n workflows
-scripts/n8n-export.sh
-scripts/n8n-import.sh
+scripts/build-amd64.sh       # renderer + approval-api, linux/amd64, loaded locally
+scripts/build-arm64.sh       # same, linux/arm64 via QEMU emulation, loaded locally
+scripts/build-multiarch.sh   # both platforms in one pass (build-only until a registry is configured)
 ```
+
+Raw buildx/bake equivalents:
+
+```bash
+docker buildx bake amd64 --load
+docker buildx bake arm64 --load
+docker buildx bake default            # both platforms, build-only (no --load: see below)
+```
+
+Multi-platform build results cannot be `--load`-ed into the local
+`docker images` store (a Docker engine limitation) — only single-platform
+builds can. `scripts/build-multiarch.sh` therefore validates that both
+platforms build, and pushes only if you set `PUSH=1 REGISTRY=...` (no
+registry is configured yet; that's a later step).
+
+## Testing
+
+```bash
+scripts/test-infrastructure.sh   # full stack smoke test (see below) — requires dev-up.sh first
+scripts/test-arm64.sh            # builds + QEMU-runs both images on arm64, checks arch + FFmpeg
+scripts/security-check.sh        # static checks: no exposed ports, no secrets in git, etc.
+```
+
+`scripts/test-infrastructure.sh` checks, against the running dev stack:
+PostgreSQL health + a real write/read query, Redis health + auth, n8n
+health, MinIO health + an upload/download round-trip, Caddy health, n8n
+and approval-api reachability *through* Caddy, the renderer's health
+endpoint, and the renderer's FFmpeg capability test (see
+[arm64-compatibility.md](../architecture/arm64-compatibility.md) for what
+that test actually exercises).
+
+`scripts/test-arm64.sh` is Level 1 ARM64 validation only (QEMU emulation
+on the AMD64 dev machine) — see
+[arm64-compatibility.md](../architecture/arm64-compatibility.md) for why
+that's not the same as Level 2 (native Oracle Ampere A1) validation.
+
+## Production (local dry-run of the prod overlay)
+
+```bash
+scripts/prod-up.sh
+# equivalent to:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+This does not provision any Oracle infrastructure — it only changes which
+Compose files are used (adds resource limits, publishes 80/443 instead of
+dev's loopback-only admin ports, mounts `Caddyfile.prod`). Running it
+locally is useful to sanity-check the prod overlay itself; it is not a
+substitute for deploying to the actual Oracle VM (a later step).
+
+## Docker networks and volumes
+
+See [repository-architecture.md](../architecture/repository-architecture.md)
+and `docker-compose.yml`'s header comment for the full network rationale.
+Quick reference:
+
+| Network | internal? | Members |
+|---|---|---|
+| `ai-youtube-gateway` | no | caddy, n8n, approval-api |
+| `ai-youtube-application` | no | n8n, renderer, approval-api |
+| `ai-youtube-data` | **yes** — no route out of the Docker host at all | postgres, redis, minio, n8n, renderer |
+| `ai-youtube-debug` (dev override only) | no | postgres, redis, minio — exists solely so their admin ports can be published to 127.0.0.1; not present in production |
+
+| Volume | Holds |
+|---|---|
+| `postgres-data` | PostgreSQL data directory |
+| `redis-data` | Redis AOF file |
+| `minio-data` | Object storage |
+| `n8n-data` | n8n config, encryption key persistence, filesystem-mode binary data |
+| `caddy-data` / `caddy-config` | ACME certs / Caddy's internal state |
+
+## Troubleshooting
+
+**"ports are not available" / "exposing port ... returned unexpected
+status: 500" on `postgres`** — something else on the machine already binds
+that host port. This project's dev override deliberately uses `5433` for
+Postgres (not `5432`) for exactly this reason; if you hit the same error
+for another service, either stop the conflicting process or change the
+host-side port in `docker-compose.override.yml` (only the host side —
+never the container-internal port other services connect to).
+
+**A service's dev-only port never becomes reachable even though the
+container is healthy** — check `docker compose ps`'s PORTS column. If a
+service shows e.g. `5432/tcp` with no `127.0.0.1:xxxx->` prefix, Docker
+silently skipped publishing it. This happens specifically when a
+container's *only* network is `internal: true` (as `ai-youtube-data` is,
+by design) — Docker does not create host-forwarding rules for
+internal-only networks. The fix already applied here: postgres/redis/minio
+also join the dev-only `ai-youtube-debug` network (a normal, non-internal
+bridge) in `docker-compose.override.yml`, which is what actually makes
+their published ports work. If you add a new service to `data` and expect
+to reach it from the host in dev, it needs the same treatment.
+
+**Health check passes but a request through Caddy fails** — check
+`scripts/logs.sh proxy` first; Caddy logs the upstream error. Confirm the
+target service is on the `gateway` network (only gateway members are
+reachable from `proxy`).
+
+**`.env` questions** — never commit it (it's gitignored). If `require_env`
+in a script rejects a value, it's because the variable is unset, empty, or
+still literally `CHANGE_ME`.
 
 ## Git
 

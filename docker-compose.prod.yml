@@ -1,0 +1,78 @@
+# ==============================================================================
+# Production overlay — NEVER auto-merged. Must be passed explicitly:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# (scripts/prod-up.sh does exactly this.) Unlike docker-compose.override.yml,
+# Compose will not pick this file up on its own, specifically so a stray
+# `docker compose up` on the production host can never silently apply the
+# wrong file — the operator must opt in with -f every time.
+#
+# Only the proxy publishes a port here (80/443, unbound = all interfaces —
+# this is the one service meant to be internet-reachable). Every other
+# service keeps the zero-published-ports posture from docker-compose.yml.
+#
+# Resource limits below are ceilings sized against the ~4 OCPU / ~24GB
+# Ampere A1 Always Free allocation — see
+# docs/deployment/oracle-deployment-assumptions.md#cost-controls and the
+# "Approximate resource footprint" section of
+# docs/architecture/arm64-compatibility.md for the reasoning (limits
+# intentionally sum above 4 OCPUs because they are per-service ceilings,
+# not simultaneous reservations — the renderer in particular is idle except
+# during an actual encode).
+# ==============================================================================
+
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  minio:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  n8n:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  approval-api:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  renderer:
+    deploy:
+      resources:
+        limits:
+          cpus: "3.0"
+          memory: 3G
+
+  proxy:
+    volumes:
+      - ./infrastructure/proxy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M

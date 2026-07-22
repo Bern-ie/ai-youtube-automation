@@ -1,5 +1,6 @@
 # tests/arm64
 
-Status: **not implemented.** Reserved for ARM64-specific validation
-(native dependency loading, FFmpeg codec/filter checks) once images exist.
-See [ARM64 compatibility](../../docs/architecture/arm64-compatibility.md).
+See [tests/README.md](../README.md) — this validation currently lives in
+`scripts/test-arm64.sh` and
+`apps/renderer/src/ffmpeg-capability-test.js`, not as files in this
+directory.

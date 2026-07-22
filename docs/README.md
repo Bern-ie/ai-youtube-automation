@@ -6,6 +6,6 @@
 - [deployment/oracle-deployment-assumptions.md](deployment/oracle-deployment-assumptions.md) — Oracle Always Free topology assumptions, cost controls, security posture.
 - [operations/development-commands.md](operations/development-commands.md) — commands for local dev and multi-arch builds.
 
-All of the above are living documents for a project currently at **Step 1
-(repository initialization)**. See the root [README.md](../README.md) for
+All of the above are living documents for a project currently at **Step 2
+(local Docker infrastructure)**. See the root [README.md](../README.md) for
 overall project status.

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Static security checks against the compose configuration and repository
+# state — catches obvious exposure mistakes before they reach production.
+# Does not require the stack to be running.
+set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+require_docker
+
+FAILURES=0
+check() {
+  local desc="$1"
+  if "${@:2}"; then
+    pass "$desc"
+  else
+    printf '\033[1;31m[fail]\033[0m %s\n' "$desc" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
+# Renders the merged config as JSON. Needs *some* .env present (even the
+# committed placeholder-only .env.example, temporarily) purely so variable
+# interpolation doesn't error — no real secret is required for a structural
+# check like "does this service publish a port".
+render_config() {
+  local files=(-f docker-compose.yml)
+  [[ "${1:-}" == "prod" ]] && files+=(-f docker-compose.prod.yml)
+  if [[ -f .env ]]; then
+    docker compose "${files[@]}" config --format json 2>/dev/null
+  else
+    docker compose --env-file .env.example "${files[@]}" config --format json 2>/dev/null
+  fi
+}
+
+service_has_no_ports() {
+  local env="$1" svc="$2"
+  render_config "$env" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+svc = data.get('services', {}).get('$svc', {})
+ports = svc.get('ports', [])
+sys.exit(0 if not ports else 1)
+"
+}
+
+no_service_binds_wildcard_admin_port() {
+  # postgres (5432) / redis (6379) / minio (9000/9001) must never be bound
+  # to a non-loopback address, even in the dev override.
+  docker compose -f docker-compose.yml -f docker-compose.override.yml config --format json 2>/dev/null | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+bad = []
+for name in ('postgres', 'redis', 'minio'):
+    svc = data.get('services', {}).get(name, {})
+    for p in svc.get('ports', []):
+        host_ip = p.get('host_ip', '')
+        if host_ip not in ('127.0.0.1', 'localhost'):
+            bad.append((name, p))
+if bad:
+    print(bad, file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
+n8n_encryption_key_from_env() {
+  ! grep -qE '^\s*N8N_ENCRYPTION_KEY:\s*"?[A-Za-z0-9]{8,}"?\s*$' docker-compose.yml \
+    && grep -q 'N8N_ENCRYPTION_KEY: \${N8N_ENCRYPTION_KEY}' docker-compose.yml
+}
+
+env_is_gitignored() {
+  git check-ignore -q .env
+}
+
+no_real_secrets_in_tracked_files() {
+  local hits
+  hits="$(git grep -nIE "sk-[a-zA-Z0-9]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----" -- . ':!*.md' 2>/dev/null || true)"
+  if [[ -n "$hits" ]]; then
+    warn "Possible secret-shaped strings found in tracked files:"
+    echo "$hits" >&2
+    return 1
+  fi
+  return 0
+}
+
+dotenv_not_tracked() {
+  ! git ls-files --error-unmatch .env >/dev/null 2>&1
+}
+
+check "postgres publishes no port in production config"    service_has_no_ports prod postgres
+check "redis publishes no port in production config"       service_has_no_ports prod redis
+check "renderer publishes no port in production config"    service_has_no_ports prod renderer
+check "minio publishes no port in production config"       service_has_no_ports prod minio
+check "renderer publishes no port in dev config either"    service_has_no_ports dev renderer
+check "dev-exposed admin ports (postgres/redis/minio) are 127.0.0.1-only" no_service_binds_wildcard_admin_port
+check "N8N_ENCRYPTION_KEY is sourced from environment, not hardcoded"     n8n_encryption_key_from_env
+check ".env is gitignored"                                  env_is_gitignored
+check ".env is not tracked in git"                           dotenv_not_tracked
+check "no secret-shaped strings in tracked files"            no_real_secrets_in_tracked_files
+
+echo
+if [[ $FAILURES -eq 0 ]]; then
+  pass "All security checks passed."
+else
+  fail "$FAILURES security check(s) failed. See output above."
+fi

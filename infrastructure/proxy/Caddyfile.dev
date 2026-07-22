@@ -1,0 +1,34 @@
+# Local development Caddyfile. Mounted read-only at /etc/caddy/Caddyfile by
+# docker-compose.override.yml. Plain HTTP on :80 — no TLS in dev.
+{
+	admin off
+}
+
+:80 {
+	encode gzip
+
+	# Used by the proxy container's own Docker healthcheck and by
+	# scripts/test-infrastructure.sh to confirm Caddy itself is up,
+	# independent of whether n8n/approval-api are reachable yet.
+	handle /caddy-health {
+		respond "ok" 200
+	}
+
+	# Caddy's reverse_proxy forwards WebSocket upgrade requests (needed for
+	# the n8n editor UI) and sets X-Forwarded-For/-Proto/-Host automatically
+	# — no extra directives required for either.
+
+	handle_path /approval/* {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy approval-api:3000
+	}
+
+	handle {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy n8n:5678
+	}
+}

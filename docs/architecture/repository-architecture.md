@@ -1,8 +1,10 @@
 # Repository Architecture
 
-Status: **Step 1 — foundation only.** Nothing described here beyond directory
-purpose and conventions has been implemented yet. See each directory's
-`README.md` for its current (empty) state.
+Status: **Step 2 — local Docker infrastructure implemented.** `apps/renderer`
+and `apps/approval-api` are real, running, multi-arch-built services;
+`docker-compose.yml` + overlays are a working local stack. No database
+domain schema, n8n workflows, or Oracle deployment exist yet — see each
+directory's `README.md` for its current state.
 
 ## Design principles
 
@@ -25,14 +27,14 @@ purpose and conventions has been implemented yet. See each directory's
 
 | Path | Purpose |
 |---|---|
-| `apps/renderer/` | FFmpeg-based media rendering worker (video assembly, overlays, subtitles, audio mixing). Native ARM64 required. |
-| `apps/approval-api/` | HTTP API backing human-in-the-loop approval steps referenced by channel approval rules. |
-| `apps/admin/` | Operator-facing UI for managing channel configuration, budgets, and reviewing runs. |
-| `infrastructure/docker/` | Shared Dockerfiles, Buildx bake files, and Compose fragments. |
-| `infrastructure/oracle/` | Oracle Cloud-specific provisioning notes/scripts (Always Free topology, security lists, etc.). Nothing here is imported by application code. |
-| `infrastructure/proxy/` | Reverse proxy / TLS termination config (e.g. Caddy). |
-| `infrastructure/monitoring/` | Health checks, metrics, budget/cost alerting config. |
-| `database/migrations/` | Versioned schema migrations. No domain schema exists yet. |
+| `apps/renderer/` | FFmpeg-based media rendering worker. Health endpoint + FFmpeg capability test implemented; job processing is not. Native ARM64 required. |
+| `apps/approval-api/` | HTTP API that will back human-in-the-loop approval steps. Health endpoint + strict-validated test endpoint implemented; approval-domain persistence is not. |
+| `apps/admin/` | Operator-facing UI for managing channel configuration, budgets, and reviewing runs. Not implemented. |
+| `infrastructure/docker/` | Placeholder for a genuinely shared Dockerfile fragment, if one is ever needed. Each service's actual Dockerfile lives alongside it (`apps/*/Dockerfile`); multi-arch orchestration is `docker-bake.hcl` at the repo root. |
+| `infrastructure/oracle/` | Oracle Cloud-specific provisioning notes/scripts (Always Free topology, security lists, etc.). Nothing here is imported by application code. Not implemented — no Oracle resources provisioned yet. |
+| `infrastructure/proxy/` | Caddy config — `Caddyfile.dev` and `Caddyfile.prod`, implemented and running. |
+| `infrastructure/monitoring/` | Health checks, metrics, budget/cost alerting config. Not implemented (Docker healthchecks exist per-service in `docker-compose.yml`; a dedicated metrics/alerting stack does not). |
+| `database/migrations/` | Infrastructure-only init scripts today (n8n database creation, an infra healthcheck table). No domain schema exists yet. |
 | `database/seeds/` | Idempotent seed data (e.g. reference lookup tables), never per-channel secrets. |
 | `database/queries/` | Hand-maintained reusable SQL used by workflows/services. |
 | `n8n/workflows/` | Exported shared n8n workflows. A workflow appears here once, and operates on any channel via injected identifiers. |

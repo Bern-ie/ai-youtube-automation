@@ -4,13 +4,18 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 1 — Repository initialization (complete)
+## Status: Step 2 — Local Docker infrastructure (complete)
 
-This repository currently contains **foundation only**: directory
-structure, documentation, and configuration templates. No Docker
-infrastructure, database schema, n8n workflows, or application code has
-been implemented yet. Every leaf directory has its own `README.md`
-stating what belongs there and its current (empty) status.
+A working local Docker Compose stack: PostgreSQL, Redis, n8n, MinIO,
+Caddy, and two custom services (`renderer`, `approval-api`) built
+multi-arch and verified on both `linux/amd64` (native) and `linux/arm64`
+(QEMU emulation) — including a real FFmpeg codec/filter capability test on
+both platforms. No database domain schema, n8n workflows, or Oracle
+deployment exist yet. See
+[docs/architecture/arm64-compatibility.md](docs/architecture/arm64-compatibility.md)
+for full validation results and
+[docs/operations/development-commands.md](docs/operations/development-commands.md)
+to bring the stack up yourself.
 
 ## What this framework is
 
@@ -43,36 +48,37 @@ stating what belongs there and its current (empty) status.
 ```text
 .
 ├── apps/
-│   ├── renderer/         # FFmpeg-based rendering worker (native ARM64 required)
-│   ├── approval-api/     # Human-in-the-loop approval API
-│   └── admin/            # Operator UI (channel config, budgets, run history)
+│   ├── renderer/         # FFmpeg-based rendering worker — implemented (health + FFmpeg capability test), job processing not yet
+│   ├── approval-api/     # Human-in-the-loop approval API — implemented (health + test endpoint), persistence not yet
+│   └── admin/            # Operator UI (channel config, budgets, run history) — not implemented
 ├── infrastructure/
-│   ├── docker/           # Shared Dockerfiles / Buildx bake files
-│   ├── oracle/           # Oracle Cloud-specific provisioning (isolated for portability)
-│   ├── proxy/            # Reverse proxy / TLS (Caddy)
-│   └── monitoring/       # Health checks, metrics, cost/budget alerting
+│   ├── docker/           # Placeholder for a shared Dockerfile fragment, if ever needed
+│   ├── oracle/           # Oracle Cloud-specific provisioning (isolated for portability) — not implemented
+│   ├── proxy/            # Caddy config (dev + prod) — implemented, running
+│   └── monitoring/       # Health checks, metrics, cost/budget alerting — not implemented beyond Docker healthchecks
 ├── database/
-│   ├── migrations/       # Versioned schema migrations (none yet)
+│   ├── migrations/       # Infra-only init scripts (n8n DB creation, healthcheck table) — no domain schema yet
 │   ├── seeds/            # Idempotent seed data
 │   └── queries/          # Reusable SQL used by workflows/services
 ├── n8n/
-│   ├── workflows/        # Shared, channel-agnostic workflow exports
+│   ├── workflows/        # Shared, channel-agnostic workflow exports — none yet
 │   └── examples/         # Reference exports and sample payloads (not run in prod)
 ├── prompts/
 │   ├── shared/           # Base prompt templates, parameterized by channel config
 │   └── channels/         # Per-channel prompt overrides, keyed by channel_id
 ├── schemas/               # JSON Schema contracts (channel config, projects, payloads)
-├── scripts/                # Build / migration / workflow tooling
+├── scripts/                # Dev/build/test tooling — implemented (see docs/operations/development-commands.md)
 ├── storage/                 # Documents the storage/channels/{channel_id}/projects/{content_project_id}/ layout
 ├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── arm64/            # Codec + native-dependency validation on ARM64
+│   ├── unit/             # No test framework chosen yet
+│   ├── integration/      # No test framework chosen yet
+│   └── arm64/            # Validation logic lives in scripts/test-arm64.sh instead — see tests/README.md
 ├── docs/
 │   ├── architecture/     # repository-architecture, multi-channel-design, arm64-compatibility
 │   ├── deployment/       # oracle-deployment-assumptions
 │   └── operations/       # development-commands
-├── docker-compose.yml     # Skeleton only — all services commented out
+├── docker-compose.yml, docker-compose.override.yml (dev), docker-compose.prod.yml
+├── docker-bake.hcl        # Multi-arch build targets for renderer + approval-api
 ├── .env.example
 ├── .gitignore
 └── README.md
@@ -90,17 +96,17 @@ Every workflow and every generated record is traceable via:
 All are UUIDs. Full detail:
 [docs/architecture/repository-architecture.md](docs/architecture/repository-architecture.md).
 
-## Getting started (current phase)
+## Getting started
 
 ```bash
 cp .env.example .env    # fill in real values locally — never commit .env
-find . -not -path './.git*' -type f | sort   # see everything that exists so far
+scripts/dev-up.sh       # build + start the full local stack, wait for health
+scripts/test-infrastructure.sh   # run the smoke test suite
 ```
 
-There is nothing to `docker compose up` yet — `docker-compose.yml` is a
-documented skeleton, not a runnable stack. See
+See
 [docs/operations/development-commands.md](docs/operations/development-commands.md)
-for the commands that are usable today versus planned for later phases.
+for the full command reference, local URLs, and troubleshooting.
 
 ## Documentation
 
@@ -114,19 +120,18 @@ Full index: [docs/README.md](docs/README.md)
 
 ## Roadmap
 
-- **Step 1 (this step) — Repository initialization.** Directory
-  structure, documentation, configuration templates. Complete.
-- **Step 2 (next) — Docker infrastructure & local stack.** Implement
-  `docker-compose.yml` for real (Postgres, Redis, n8n, MinIO, proxy),
-  write the `Dockerfile`s for `apps/renderer`, `apps/approval-api`,
-  `apps/admin` as multi-arch Buildx builds, and get a local AMD64 stack
-  running end-to-end plus an ARM64 build validated via QEMU. No database
-  domain schema and no content workflows yet.
-- **Later steps (not yet planned in detail):** database domain schema
-  (channel config, content projects, workflow runs, budgets); n8n shared
-  workflow implementation with dynamic channel-config loading; Oracle
-  Ampere A1 provisioning and deployment; first channel configuration and
-  end-to-end single-channel test.
+- **Step 1 — Repository initialization.** Directory structure,
+  documentation, configuration templates. Complete.
+- **Step 2 (this step) — Local Docker infrastructure.** Working Compose
+  stack (Postgres, Redis, n8n, MinIO, Caddy), `renderer` +
+  `approval-api` built multi-arch and verified on AMD64 + ARM64 (Level 1,
+  QEMU), full infrastructure smoke test suite, security checks. Complete.
+- **Step 3 (next, not yet planned in detail):** database domain schema
+  (channel config, content projects, workflow runs, budgets).
+- **Later steps:** n8n shared workflow implementation with dynamic
+  channel-config loading; Oracle Ampere A1 provisioning and deployment
+  (Level 2 native ARM64 validation happens here); first channel
+  configuration and end-to-end single-channel test.
 
 ## Engineering rules
 

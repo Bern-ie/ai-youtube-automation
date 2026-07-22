@@ -1,0 +1,33 @@
+# Production Caddyfile template. Mounted read-only at /etc/caddy/Caddyfile
+# by docker-compose.prod.yml. {$PUBLIC_DOMAIN} and {$ACME_EMAIL} are read
+# from the environment (see .env.example) — Caddy substitutes {$VAR} at
+# startup.
+#
+# Declaring a real hostname (rather than a bare :80/:443) is what makes
+# Caddy provision a Let's Encrypt certificate automatically and serve an
+# HTTP->HTTPS redirect on :80 with no extra directives.
+{
+	email {$ACME_EMAIL}
+}
+
+{$PUBLIC_DOMAIN} {
+	encode gzip
+
+	handle /caddy-health {
+		respond "ok" 200
+	}
+
+	handle_path /approval/* {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy approval-api:3000
+	}
+
+	handle {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy n8n:5678
+	}
+}

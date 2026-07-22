@@ -1,0 +1,64 @@
+# ==============================================================================
+# Local development overrides — auto-merged by `docker compose` whenever
+# docker-compose.override.yml is present alongside docker-compose.yml. Not
+# used in production (docker-compose.prod.yml is passed explicitly instead
+# and this file is simply not referenced).
+#
+# Every published port here is bound to 127.0.0.1 only, per
+# docs/architecture/repository-architecture.md's port policy — nothing here
+# is reachable from outside the dev machine, even on a shared network.
+# The renderer publishes no port in dev either — it never gets one, in any
+# environment.
+# ==============================================================================
+
+# `data` is `internal: true` in docker-compose.yml (no route out of the
+# Docker host at all — see that file's header comment). Docker does not set
+# up host-port-forwarding NAT rules for a container whose *only* network is
+# internal, by design. `debug` is a second, ordinary bridge network, added
+# to postgres/redis/minio in THIS file only, purely so their admin ports
+# can be published to 127.0.0.1 for local tooling (psql, redis-cli, the
+# MinIO console). It does not exist in docker-compose.prod.yml, so
+# production keeps the full internal-only posture unchanged.
+networks:
+  debug:
+    name: ai-youtube-debug
+
+services:
+  postgres:
+    # Host port 5433, not 5432: this dev machine already runs an unrelated
+    # native PostgreSQL install (and possibly other Docker projects) bound
+    # to 127.0.0.1:5432. Only the host-side port changes — inside the
+    # Docker network every service still reaches this container at
+    # postgres:5432 (POSTGRES_PORT).
+    networks: [data, debug]
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  redis:
+    networks: [data, debug]
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  minio:
+    networks: [data, debug]
+    ports:
+      - "127.0.0.1:9000:9000" # S3 API
+      - "127.0.0.1:9001:9001" # web console
+
+  n8n:
+    environment:
+      # Dev proxy terminates plain HTTP; a Secure-flagged cookie would never
+      # be sent back by the browser and login would silently fail.
+      N8N_SECURE_COOKIE: "false"
+    ports:
+      - "127.0.0.1:5678:5678" # direct access, bypassing the proxy
+
+  approval-api:
+    ports:
+      - "127.0.0.1:3001:3000" # direct access, bypassing the proxy
+
+  proxy:
+    volumes:
+      - ./infrastructure/proxy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:80:80"

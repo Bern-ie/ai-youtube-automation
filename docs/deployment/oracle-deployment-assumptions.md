@@ -73,6 +73,81 @@ deployment time**, not trusted from this document alone.
   application — it requires moving Compute instances into new subnets and
   updating security rules.
 
+## Local-to-Oracle mapping
+
+The Step 2 local Docker Compose stack (`docker-compose.yml` +
+`docker-compose.prod.yml`) already matches the topology this single Ampere
+A1 VM will run — deploying is "run the prod overlay on that VM instead of
+a dev laptop," not a redesign:
+
+```text
+Internet
+   |
+   v
+OCI Public IP
+   |
+80/443
+   |
+Caddy  (only service with a public-facing port)
+   |
+Docker gateway/application network
+   |
++-----------------------------+
+| n8n                         |
+| approval-api                |
+| renderer                    |
++-----------------------------+
+          |
+          v
+Docker data network (internal: true — no route out of the host)
+   |
++-----------------------------+
+| PostgreSQL                  |
+| Redis                       |
+| S3-compatible storage       |
++-----------------------------+
+```
+
+Only Caddy accepts normal public HTTP/HTTPS traffic — enforced today by
+`docker-compose.prod.yml` publishing 80/443 for `proxy` and nothing else,
+and by `scripts/security-check.sh`, which fails the build if postgres,
+redis, renderer, or minio ever gain a published port in the production
+config. No subnet-level separation exists yet (see Topology above); the
+Docker network boundaries are the enforcement mechanism for now.
+
+## Approximate resource footprint
+
+Measured on the actual Step 2 stack (`docker stats`, idle — no renderer
+job running):
+
+| Service | Idle memory | Idle CPU |
+|---|---|---|
+| n8n | ~290 MB | <1% |
+| MinIO | ~80 MB | <1% |
+| PostgreSQL | ~30 MB | <1% |
+| approval-api | ~15 MB | ~0% |
+| renderer (idle, no FFmpeg job) | ~15 MB | ~0% |
+| Redis | ~5 MB | <1% |
+| Caddy | ~10 MB | ~0% |
+| **Total idle** | **~450 MB** | **~1-2%** |
+
+Comfortably inside 24 GB RAM even with generous headroom for the OS,
+Docker itself, and growth. `docker-compose.prod.yml` still sets explicit
+per-service memory/CPU **limits** (ceilings, not reservations) sized well
+above these idle numbers to allow for real workloads — see that file's
+header comment for the exact figures and why the limits intentionally sum
+above 4 OCPUs (the renderer is idle except during an actual encode, so
+ceilings don't need to fit simultaneously).
+
+The one component that doesn't look like this idle table under load is
+the **renderer**: FFmpeg encoding is genuinely CPU-intensive and, unlike
+every other service here, will legitimately try to use most of the box
+while a job runs. `RENDERER_MAX_CONCURRENCY=1` (see `.env.example`) caps
+this to one job at a time — the mechanism exists today, though nothing
+yet enforces it in code, since job processing itself isn't implemented
+until a later step (see `apps/renderer/README.md`). Nothing else in this
+stack is expected to spike Oracle Always Free resource usage.
+
 ## Cost controls
 
 Required before this ever runs unattended in production:
