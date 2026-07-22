@@ -1,10 +1,12 @@
 # Repository Architecture
 
-Status: **Step 2 — local Docker infrastructure implemented.** `apps/renderer`
+Status: **Step 3 — PostgreSQL domain schema implemented.** `apps/renderer`
 and `apps/approval-api` are real, running, multi-arch-built services;
-`docker-compose.yml` + overlays are a working local stack. No database
-domain schema, n8n workflows, or Oracle deployment exist yet — see each
-directory's `README.md` for its current state.
+`docker-compose.yml` + overlays are a working local stack; PostgreSQL now
+has a migration-managed, role-separated, channel-isolated domain schema
+(see [database-architecture.md](database-architecture.md)). No n8n
+workflows or Oracle deployment exist yet — see each directory's
+`README.md` for its current state.
 
 ## Design principles
 
@@ -34,9 +36,11 @@ directory's `README.md` for its current state.
 | `infrastructure/oracle/` | Oracle Cloud-specific provisioning notes/scripts (Always Free topology, security lists, etc.). Nothing here is imported by application code. Not implemented — no Oracle resources provisioned yet. |
 | `infrastructure/proxy/` | Caddy config — `Caddyfile.dev` and `Caddyfile.prod`, implemented and running. |
 | `infrastructure/monitoring/` | Health checks, metrics, budget/cost alerting config. Not implemented (Docker healthchecks exist per-service in `docker-compose.yml`; a dedicated metrics/alerting stack does not). |
-| `database/migrations/` | Infrastructure-only init scripts today (n8n database creation, an infra healthcheck table). No domain schema exists yet. |
-| `database/seeds/` | Idempotent seed data (e.g. reference lookup tables), never per-channel secrets. |
-| `database/queries/` | Hand-maintained reusable SQL used by workflows/services. |
+| `database/bootstrap/` | Cluster bootstrap only (roles, databases) — `docker-entrypoint-initdb.d`, runs once. See [database-architecture.md](database-architecture.md#migration-system). |
+| `database/migrations/` | The real, ledgered, re-runnable domain schema — dbmate migrations. 43 tables across channels, content lifecycle, research, scripts, media production, approvals, analytics, workflow execution, prompts, cost accounting, and audit logs. |
+| `database/seeds/` | Idempotent seed data — 3 example channels (1 active, 2 disabled, each distinctly configured). Never per-channel secrets. |
+| `database/queries/` | Hand-maintained reusable SQL used by workflows/services. Not yet populated — budget/job-claiming/resume queries currently live as SQL functions in `database/migrations/` instead (see database-architecture.md); this directory is for future ad hoc/reporting queries. |
+| `database/tests/` | Automated database test suite (Node + `pg`, 31 checks) — schema, roles, channel isolation, idempotency, cost accounting, job claiming, resume logic. |
 | `n8n/workflows/` | Exported shared n8n workflows. A workflow appears here once, and operates on any channel via injected identifiers. |
 | `n8n/examples/` | Example/reference workflow exports and payload samples — not run in production. |
 | `prompts/shared/` | Base prompt templates common to all channels, parameterized by channel config. |

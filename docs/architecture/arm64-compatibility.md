@@ -11,8 +11,11 @@ build and run correctly on AMD64 (native) and ARM64 (Level 1, QEMU
 emulation) — including the renderer's full FFmpeg codec/filter capability
 test on both platforms. All five official base images
 (n8n/PostgreSQL/Redis/Caddy/MinIO) have confirmed multi-arch manifests.
-**Nothing here is Level 2 (native Oracle Ampere A1) verified yet** — that
-happens once the VM exists, a later step.
+As of Step 3, the migration tool (`dbmate`, official multi-arch image)
+and the new `db-test` custom image are also Level 1 verified — see
+[Migration tooling](#migration-tooling). **Nothing here is Level 2
+(native Oracle Ampere A1) verified yet** — that happens once the VM
+exists, a later step.
 
 ## Two validation levels
 
@@ -51,6 +54,8 @@ linux/arm64` run, both via `scripts/test-arm64.sh`.
 | Python runtime | n/a — not used by any service yet | N/A | N/A | N/A | N/A | N/A | N/A |
 | FFmpeg (`apps/renderer`) | Installed via `apt-get install ffmpeg` on `node:20.20.2-bookworm-slim` (Debian bookworm repo) — **not** a third-party FFmpeg Docker image | **Verified: `ffmpeg version 5.1.9-0+deb12u1`**, full capability test passed — see [FFmpeg validation results](#ffmpeg-validation-results) | **Verified (Level 1, QEMU): same `ffmpeg version 5.1.9-0+deb12u1`**, identical full capability test passed under emulation — see results below | Not verified | libavcodec/libavformat/libx264/libx265/libass and the rest of Debian's ffmpeg package dependency tree | Confirmed on both platforms: `--arch=arm64`/`--arch=amd64` respectively, `--enable-libx264`, `--enable-libass` (subtitles), `--enable-gpl`, native AAC encoder. ARM64 build pulled genuinely native `arm64` `.deb`s (`libx264-164:arm64`, `libavcodec59:arm64`, etc.) — nothing cross-compiled or copied from the amd64 host | AMD64: Verified end-to-end. ARM64 Level 1: Verified end-to-end under QEMU emulation. Level 2 (native Oracle Ampere A1): pending — emulation can hide real hardware/performance differences, so this is not yet a production-ready mark |
 | Monitoring | Not implemented | N/A | N/A | N/A | N/A | N/A | N/A |
+| Migration tool (`migrate` service) | `amacneil/dbmate:2.34.1` | **Verified** — 16/16 migrations applied, idempotent re-run confirmed (0 applied second time) | **Verified via manifest** — official image confirmed `linux/amd64` + `linux/arm64` in Docker Hub (published 2026-07-09, actively maintained); not rebuilt by us (pulled pre-built, like the other official images) | Not verified | None — single static Go binary | None known | AMD64: Verified. ARM64: upstream multi-arch manifest confirmed — not yet run natively in this repo's stack |
+| Database test tool (`db-test`) | Custom image, `database/tests/Dockerfile`, `node:20.20.2-bookworm-slim` base | **Verified** — 31/31 tests pass | **Verified (Level 1, QEMU)** — built via `docker buildx build --platform linux/arm64`, `uname -m` reports `aarch64`, and the full 31-test suite run through the emulated image against the real Postgres database also passes 31/31 (not just an architecture check) | Not verified | `pg` (pure JS, no native bindings) | None observed. Originally attempted as a plain `node` image running `npm install` at container start — that hung forever because the container only has network access to the internal (`internal: true`) `data` network, with no route to the npm registry. Fixed by moving dependency installation into the image build (which runs with normal internet access at build time), so the runtime container needs no internet access at all — see `database/tests/Dockerfile` | AMD64: Verified. ARM64 Level 1: Verified (build, arch report, and full test suite all pass under QEMU). Level 2: pending Oracle VM |
 
 ## FFmpeg validation results
 
@@ -93,6 +98,29 @@ works correctly (verified: health check, upload, download, restart
 persistence all pass). This is a decision point to revisit, not a
 silent risk: if MinIO's Docker Hub channel stays stale, re-evaluate before
 this project scales past single-VM/single-channel.
+
+## Migration tooling {#migration-tooling}
+
+Two pieces of migration/test tooling were introduced in Step 3 — see
+[database-architecture.md](database-architecture.md#migration-system) for
+why dbmate was chosen:
+
+- **`amacneil/dbmate:2.34.1`** — official image, confirmed multi-arch
+  (`linux/amd64` + `linux/arm64`) via live Docker Hub manifest query
+  before pinning, same verification approach as every other base image in
+  this project. Not rebuilt by us — used as-is, like postgres/redis/caddy/
+  n8n/minio.
+- **`ai-youtube-automation/db-test`** — a new custom-built image (this
+  project's test runner). Built and Level 1 (QEMU) validated the same way
+  as `renderer`/`approval-api`: `docker buildx build --platform
+  linux/arm64`, confirmed `uname -m` reports `aarch64`, and — going
+  further than the architecture-only check — the entire 31-test database
+  suite was run *through* the ARM64-emulated image against the real
+  Postgres database on the `data` network, and passed 31/31. This is not
+  wired into `docker-bake.hcl`/`scripts/build-arm64.sh` (it's dev/test
+  tooling, not a production service), but the validation was performed
+  manually and is recorded here per the Step 3 ARM64 requirement that any
+  new custom-built container gets Level 1 validation.
 
 ## Validation notes
 

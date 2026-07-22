@@ -1,9 +1,9 @@
 # Development Commands
 
-Status: reflects Step 2 — a working local Docker Compose stack (Postgres,
-Redis, n8n, MinIO, Caddy, renderer, approval-api) and multi-arch build
-tooling. No database domain schema, n8n workflows, or Oracle deployment
-exist yet.
+Status: reflects Step 3 — a working local Docker Compose stack (Postgres,
+Redis, n8n, MinIO, Caddy, renderer, approval-api), multi-arch build
+tooling, and a migration-managed PostgreSQL domain schema with role
+separation. No n8n workflows or Oracle deployment exist yet.
 
 ## Environment
 
@@ -23,7 +23,8 @@ cd ~/personal-projects/ai--youtube-automation
 cp .env.example .env
 # edit .env — at minimum set real values for:
 #   POSTGRES_USER, POSTGRES_PASSWORD, REDIS_PASSWORD, N8N_ENCRYPTION_KEY,
-#   WEBHOOK_URL, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET
+#   WEBHOOK_URL, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET,
+#   MIGRATOR_DB_PASSWORD, APP_DB_PASSWORD, APP_READONLY_DB_PASSWORD, N8N_DB_PASSWORD
 ```
 
 `scripts/dev-up.sh` and `scripts/prod-up.sh` refuse to start with a clear
@@ -66,13 +67,42 @@ commands — that's what makes the dev stack expose admin ports on
 | approval-api (direct) | http://127.0.0.1:3001 | bypasses Caddy |
 | MinIO console | http://127.0.0.1:9001 | login: `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` from `.env` |
 | MinIO S3 API | http://127.0.0.1:9000 | |
-| PostgreSQL | `psql -h 127.0.0.1 -p 5433 -U $POSTGRES_USER -d $POSTGRES_DB` | port **5433**, not 5432 — see docker-compose.override.yml |
+| PostgreSQL (app role) | `psql -h 127.0.0.1 -p 5433 -U $APP_DB_USER -d $POSTGRES_DB` | port **5433**, not 5432 — see docker-compose.override.yml. Use `$MIGRATOR_DB_USER` for DDL, `$POSTGRES_USER` only for cluster-admin tasks — see [database-architecture.md](../architecture/database-architecture.md#role-permission-model) |
 | Redis | `redis-cli -h 127.0.0.1 -p 6379 -a $REDIS_PASSWORD` | |
 | renderer | *(no host port — by design)* | reach it via `docker compose exec renderer ...` |
 
 The Postgres dev port is 5433 rather than the default 5432 because this
 project's containers must coexist with whatever else is already running
 on a given dev machine — see the troubleshooting section.
+
+## Database
+
+```bash
+scripts/db-migrate.sh            # apply pending migrations (idempotent — safe to re-run)
+scripts/db-migration-status.sh   # show applied vs. pending migrations
+scripts/db-seed.sh                # load example channel seed data (idempotent)
+scripts/db-test.sh                # run the 31-check automated database test suite
+scripts/db-reset-dev.sh --yes     # DESTRUCTIVE — wipes postgres-data, re-bootstraps, re-migrates, re-seeds. Dev only; refuses if NODE_ENV=production.
+```
+
+Raw equivalents:
+
+```bash
+docker compose run --rm migrate up
+docker compose run --rm migrate status
+docker compose run --rm db-test
+```
+
+See [database-architecture.md](../architecture/database-architecture.md)
+for the schema, migration system rationale, role/permission model,
+channel-isolation guarantees, and backup/restore examples.
+
+**First time only:** the roles these scripts use (`migrator`,
+`app_runtime`, `app_readonly`, `n8n_app`) are created by
+`database/bootstrap/` — which, like the old Step 2 mechanism, only runs
+once against an *empty* `postgres-data` volume. If you're upgrading an
+existing Step 2 volume rather than starting fresh, you need
+`scripts/db-reset-dev.sh --yes` once to get the new roles created.
 
 ## Multi-arch builds
 
@@ -173,6 +203,16 @@ also join the dev-only `ai-youtube-debug` network (a normal, non-internal
 bridge) in `docker-compose.override.yml`, which is what actually makes
 their published ports work. If you add a new service to `data` and expect
 to reach it from the host in dev, it needs the same treatment.
+
+**A "tools"-profile container (`migrate`, `db-test`) hangs forever with no
+output** — check whether it's trying to reach the internet (e.g. `npm
+install`, `apt-get`) at *runtime*. Containers on the `data` network have
+no route out of the Docker host by design (`internal: true`) — that's
+exactly what happened building `db-test` initially (see
+`database/tests/Dockerfile`'s header comment). Fix: install dependencies
+at *build* time (a Dockerfile `RUN` step, which runs during `docker
+build`/`buildx build` and does have normal internet access), never in the
+container's runtime `command:`.
 
 **Health check passes but a request through Caddy fails** — check
 `scripts/logs.sh proxy` first; Caddy logs the upstream error. Confirm the

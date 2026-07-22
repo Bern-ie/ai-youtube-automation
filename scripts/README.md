@@ -1,8 +1,8 @@
 # scripts
 
-Status: **implemented (Step 2)** for local infrastructure operations.
-Database migration runner and n8n workflow export/import helpers are
-later-phase work (no domain schema or workflows exist yet).
+Status: **implemented** for local infrastructure operations (Step 2) and
+database operations (Step 3). n8n workflow export/import helpers are
+later-phase work (no workflows exist yet).
 
 All scripts source `lib.sh` for shared helpers (`log`/`warn`/`fail`/`pass`,
 `.env` loading that never echoes secrets, `require_env` preflight checks,
@@ -24,7 +24,11 @@ resolve the repo root themselves regardless of the caller's cwd.
 | `test-arm64.sh` | Builds both images for both platforms, verifies reported architecture, runs the renderer's FFmpeg capability test under QEMU. Level 1 validation only — see arm64-compatibility.md. |
 | `security-check.sh` | Static checks: no service publishes a port it shouldn't, `.env` stays gitignored/untracked, no secret-shaped strings in tracked files, encryption key sourced from environment. |
 | `prod-up.sh` | Starts the stack with `docker-compose.prod.yml` explicitly (never auto-merges the dev override). Does not provision any Oracle infrastructure. |
+| `db-migrate.sh` | Applies pending schema migrations via dbmate, as the `migrator` role. Idempotent — safe to re-run. |
+| `db-migration-status.sh` | Shows applied vs. pending migrations. |
+| `db-seed.sh` | Loads `database/seeds/*.sql` (example channels), as `app_runtime`. Idempotent. |
+| `db-test.sh` | Runs the 31-check automated database test suite — see `database/tests/README.md`. |
+| `db-reset-dev.sh --yes` | **Destructive.** Deletes the `postgres-data` volume and re-bootstraps + re-migrates + re-seeds from scratch. Refuses to run when `NODE_ENV=production`; there is deliberately no production equivalent. |
 
-Not yet implemented: a database migration runner (no migration tool has
-been chosen — see `database/migrations/README.md`) and n8n workflow
-export/import helpers (no workflows exist yet).
+Not yet implemented: n8n workflow export/import helpers (no workflows
+exist yet).

@@ -58,8 +58,21 @@ services:
     image: postgres:16.9@sha256:ddfe3e8713e3ee5b8f286082cb12512488dfbf3f5a1ecb0b74a42e6055af0a5f
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
+      # Bootstrap/admin superuser only, from Step 3 onward — used solely by
+      # database/bootstrap/ to create the real roles below. Never used for
+      # routine migration or application traffic. See
+      # docs/architecture/database-architecture.md#role-permission-model.
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Consumed by database/bootstrap/0000_create_roles_and_databases.sh.
+      MIGRATOR_DB_USER: ${MIGRATOR_DB_USER}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD}
+      APP_DB_USER: ${APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      APP_READONLY_DB_USER: ${APP_READONLY_DB_USER}
+      APP_READONLY_DB_PASSWORD: ${APP_READONLY_DB_PASSWORD}
+      N8N_DB_USER: ${N8N_DB_USER}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD}
       # UTF8 encoding with C collation: predictable byte-order sort, valid
       # and common combination. Revisit if/when channel-language-aware text
       # sorting (accented characters etc.) becomes a real requirement — see
@@ -69,7 +82,10 @@ services:
       PGTZ: ${TZ:-UTC}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+      # Cluster bootstrap only (roles/databases) — real schema migrations
+      # are applied by the `migrate` service below, not this mechanism.
+      # See database/bootstrap/README.md.
+      - ./database/bootstrap:/docker-entrypoint-initdb.d:ro
     networks: [data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
@@ -140,6 +156,49 @@ services:
     restart: "no"
     logging: *default-logging
 
+  # Schema migrations. `profiles: [tools]` keeps it out of normal
+  # `docker compose up` — it's invoked on demand via `docker compose run
+  # --rm migrate <subcommand>` (see scripts/db-migrate.sh etc.). dbmate is
+  # a single static binary with an official multi-arch (amd64/arm64)
+  # image — see docs/architecture/arm64-compatibility.md#migration-tooling.
+  migrate:
+    image: amacneil/dbmate:2.34.1@sha256:3298bdfcb651af608e06d2e13ae12398c4056e5326d38ef31885973d83248d9c
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgres://${MIGRATOR_DB_USER}:${MIGRATOR_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      # dbmate's default migrations/schema paths are the *relative* path
+      # "./db/migrations" from wherever it runs — not configurable via
+      # working_dir alone (setting working_dir: /db made it look for
+      # /db/db/migrations). Overriding both explicitly is more robust
+      # than relying on that convention anyway.
+      DBMATE_MIGRATIONS_DIR: /db/migrations
+      DBMATE_SCHEMA_FILE: /db/schema.sql
+    volumes:
+      - ./database:/db
+    networks: [data]
+    logging: *default-logging
+
+  # Automated database test suite (see database/tests/). Same
+  # tools-profile pattern as `migrate` — never started by `docker compose
+  # up`, only via `scripts/db-test.sh`.
+  db-test:
+    build:
+      context: ./database/tests
+      dockerfile: Dockerfile
+    image: ai-youtube-automation/db-test:local
+    profiles: ["tools"]
+    environment:
+      APP_DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MIGRATOR_DATABASE_URL: postgres://${MIGRATOR_DB_USER}:${MIGRATOR_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      READONLY_DATABASE_URL: postgres://${APP_READONLY_DB_USER}:${APP_READONLY_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      # Migrations mounted read-only purely so the test suite can check
+      # the applied-migrations ledger against the actual file list — the
+      # image itself never needs to reach the internet at runtime.
+      - ./database/migrations:/migrations:ro
+    networks: [data]
+    logging: *default-logging
+
   n8n:
     image: n8nio/n8n:2.32.2@sha256:119afa425cc1ac3e62823c65aae16fcee409ef4c94555ebab3a9dff6eccb9073
     environment:
@@ -153,11 +212,13 @@ services:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: ${POSTGRES_HOST}
       DB_POSTGRESDB_PORT: ${POSTGRES_PORT}
-      # n8n gets its own database on the same Postgres instance — see
-      # database/migrations/0000_create_n8n_database.sh.
+      # n8n gets its own database, owned by its own role (n8n_app) — see
+      # database/bootstrap/0000_create_roles_and_databases.sh. n8n manages
+      # its own internal schema/migrations itself; it is never given
+      # access to the application database.
       DB_POSTGRESDB_DATABASE: n8n
-      DB_POSTGRESDB_USER: ${POSTGRES_USER}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_POSTGRESDB_USER: ${N8N_DB_USER}
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
       # Single instance for now (EXECUTIONS_MODE=regular). Redis connection
       # is wired up so switching to EXECUTIONS_MODE=queue plus an n8n-worker
       # service later is a config change, not a re-architecture.

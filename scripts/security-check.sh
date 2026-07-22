@@ -89,6 +89,42 @@ dotenv_not_tracked() {
   ! git ls-files --error-unmatch .env >/dev/null 2>&1
 }
 
+db_role_passwords_from_env() {
+  for var in MIGRATOR_DB_PASSWORD APP_DB_PASSWORD APP_READONLY_DB_PASSWORD N8N_DB_PASSWORD; do
+    grep -qE "\\\$\{${var}\}" docker-compose.yml || return 1
+    grep -qE "^\s*${var}:\s*\"?[A-Za-z0-9_/+-]{10,}\"?\s*\$" docker-compose.yml && return 1
+  done
+  return 0
+}
+
+# The bootstrap superuser (POSTGRES_USER/POSTGRES_PASSWORD) must only
+# appear in the postgres service's own environment block — n8n and the
+# migration tool must reference their own dedicated, least-privilege
+# roles instead. Checked against the compose SOURCE (unresolved ${VAR}
+# references), not the rendered config — rendered values are the actual
+# resolved secrets, not variable names, so they can't be grepped for this.
+# See docs/architecture/database-architecture.md#role-permission-model.
+no_service_uses_bootstrap_superuser_for_routine_access() {
+  python3 -c "
+import re, sys
+
+text = open('docker-compose.yml').read()
+services = re.split(r'^  (\w[\w-]*):\n', text, flags=re.MULTILINE)[1:]
+blocks = dict(zip(services[0::2], services[1::2]))
+
+bad = []
+for svc in ('n8n', 'migrate'):
+    body = blocks.get(svc, '')
+    if '\${POSTGRES_USER}' in body or '\${POSTGRES_PASSWORD}' in body:
+        bad.append(svc)
+
+if bad:
+    print(f'services referencing the bootstrap superuser: {bad}', file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
 check "postgres publishes no port in production config"    service_has_no_ports prod postgres
 check "redis publishes no port in production config"       service_has_no_ports prod redis
 check "renderer publishes no port in production config"    service_has_no_ports prod renderer
@@ -96,6 +132,10 @@ check "minio publishes no port in production config"       service_has_no_ports 
 check "renderer publishes no port in dev config either"    service_has_no_ports dev renderer
 check "dev-exposed admin ports (postgres/redis/minio) are 127.0.0.1-only" no_service_binds_wildcard_admin_port
 check "N8N_ENCRYPTION_KEY is sourced from environment, not hardcoded"     n8n_encryption_key_from_env
+check "database role passwords are sourced from environment, not hardcoded" db_role_passwords_from_env
+check "n8n/migrate do not use the bootstrap superuser"      no_service_uses_bootstrap_superuser_for_routine_access
+check "migrate tool publishes no port"                      service_has_no_ports dev migrate
+check "db-test tool publishes no port"                       service_has_no_ports dev db-test
 check ".env is gitignored"                                  env_is_gitignored
 check ".env is not tracked in git"                           dotenv_not_tracked
 check "no secret-shaped strings in tracked files"            no_real_secrets_in_tracked_files

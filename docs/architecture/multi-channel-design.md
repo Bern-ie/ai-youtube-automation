@@ -1,8 +1,11 @@
 # Multi-Channel Design
 
-Status: **Design intent only.** No channel config store, database schema, or
-n8n workflow exists yet. This document defines the contract that later
-phases must implement against.
+Status: **The channel config store is implemented (Step 3)** — see
+[database-architecture.md](database-architecture.md). No n8n workflow
+exists yet, so this document still defines the contract those workflows
+must implement against; the "how a shared workflow is expected to work"
+section below is still forward-looking. The database schema now backs
+every item in the "channel configuration surface" section.
 
 ## Core rule
 
@@ -21,8 +24,9 @@ other channel-specific detail is resolved by loading configuration for that
    through (if this is a continuation/retry of one).
 3. The first real step of any shared workflow loads the channel's
    configuration (later: a "Load Channel Config" sub-workflow reading from
-   the `database/` config tables). Nothing downstream reads raw
-   environment variables for channel behavior.
+   the `channels` + `channel_*` tables — implemented, see
+   [database-architecture.md](database-architecture.md)). Nothing
+   downstream reads raw environment variables for channel behavior.
 4. All API calls, prompt selection, storage paths, budget checks, and
    publishing actions use values from the loaded config, never literals.
 5. All logs and generated records carry `channel_id`, `content_project_id`
@@ -30,30 +34,29 @@ other channel-specific detail is resolved by loading configuration for that
 
 ## Channel configuration surface
 
-The following will each be a configurable field on a channel, resolved
-dynamically and never hardcoded in a shared workflow or service:
+The following are configurable fields on a channel, resolved dynamically
+and never hardcoded in a shared workflow or service — each now backed by
+a real table (see [database-architecture.md](database-architecture.md)
+for full column lists):
 
-- Channel name, niche, target audience
-- Content pillars, allowed topics, blocked topics
-- Script tone, hook style, CTA style
-- Language, region
-- Video format, target duration
-- Publishing schedule
-- TTS provider, voice ID, voice configuration
-- Visual style, thumbnail rules, brand colors, fonts, logo, intro, outro
-- Music rules
-- Media providers, source-quality rules
-- Human-approval rules
-- YouTube credential reference (a pointer/name, never the token itself)
-- Storage namespace
-- Per-video budget, monthly budget
-- Provider preferences
-- Prompt versions
-- Analytics benchmarks, strategy insights
+| Configuration surface | Table(s) |
+|---|---|
+| Channel name, niche, target audience, language, region | `channels` |
+| Content pillars, allowed/blocked topics | `channel_content_pillars`, `channel_topic_rules` |
+| Script tone, hook style, CTA style, video format, target duration | `channel_settings` |
+| Publishing schedule | `channel_publish_schedules` |
+| TTS/LLM/image/video provider preferences (voice ID, voice config, etc. live in provider-specific `settings` JSONB) | `channel_provider_settings` |
+| Visual style, thumbnail rules, brand colors, fonts, logo, intro, outro | `channel_branding` |
+| Human-approval rules | `channel_settings.human_approval_required` |
+| YouTube credential reference (a pointer/name, never the token itself) | `channel_credentials` |
+| Storage namespace | `channels.storage_namespace` |
+| Per-video budget, monthly budget | `channel_budget_limits` |
+| Prompt versions | `channel_prompt_assignments` → `prompt_versions` |
+| Analytics benchmarks, strategy insights | `channel_strategy_profiles`, `strategy_insights` |
 
-Where this configuration is persisted (database tables vs. structured
-files) is a decision for the database-schema phase, not this one. This
-document only commits to the fields existing and being dynamically loaded.
+This document originally left "where this configuration is persisted" as
+an open decision for a later phase — it's now settled: PostgreSQL tables,
+not structured files, per the schema above.
 
 ## Storage namespace
 
@@ -91,18 +94,32 @@ workflow definitions.
 
 ## Budgets
 
-Per-video and monthly budgets are enforced per `channel_id`, in addition
-to the global monthly budget ceiling (`GLOBAL_MONTHLY_BUDGET_USD` in
-`.env.example`). Budget enforcement logic is shared; the limits it checks
-against are channel data.
+Per-video and monthly budgets are enforced per `channel_id` via
+`channel_budget_limits`, in addition to the global monthly budget ceiling
+(`GLOBAL_MONTHLY_BUDGET_USD` in `.env.example`). Budget enforcement logic
+is shared; the limits it checks against are channel data. Spend is always
+computed live from `cost_events` — `project_spend_usd()`,
+`channel_month_spend_usd()`, `project_budget_remaining_usd()`,
+`channel_month_budget_remaining_usd()` (SQL functions, see
+[database-architecture.md](database-architecture.md#cost-accounting--budgets))
+— never a cached total.
 
-## Adding a second channel (target end state)
+## Adding a second channel
 
-Adding a channel should require:
+Implemented and proven — `database/seeds/0001_example_channels.sql` is a
+complete worked example: 3 channels (1 active, 2 disabled), each with
+substantially different niches, tones, providers, and budgets, added with
+zero schema or workflow changes. See
+[database-architecture.md](database-architecture.md#adding-a-new-channel)
+for the exact insert pattern. Adding a channel requires:
 
-1. Inserting one row/config object with the fields listed above.
-2. Providing a YouTube OAuth credential and referencing it.
+1. Inserting one `channels` row plus its `channel_*` configuration rows.
+2. Providing a YouTube OAuth credential and referencing it via
+   `channel_credentials`.
 3. Optionally adding `prompts/channels/{channel_id}/` overrides.
+4. Flipping `status` to `active` once configuration is complete — the
+   database itself refuses to let a non-active channel start content
+   projects (`check_channel_active_for_new_project` trigger).
 
-No shared workflow, `apps/*` service, or database migration should need to
+No shared workflow, `apps/*` service, or database migration needs to
 change.

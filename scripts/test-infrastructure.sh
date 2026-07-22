@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/lib.sh"
 
 require_docker
 load_env
-require_env POSTGRES_DB POSTGRES_USER REDIS_PASSWORD STORAGE_ACCESS_KEY STORAGE_SECRET_KEY STORAGE_BUCKET
+require_env POSTGRES_DB APP_DB_USER APP_DB_PASSWORD REDIS_PASSWORD STORAGE_ACCESS_KEY STORAGE_SECRET_KEY STORAGE_BUCKET
 
 FAILURES=0
 
@@ -47,14 +47,20 @@ container_healthy() {
 }
 
 postgres_query_roundtrip() {
-  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  # Runs as app_runtime — the same role real traffic uses — not the
+  # bootstrap superuser, so this also incidentally proves app_runtime's
+  # grants are correct. See docs/architecture/database-architecture.md#role-permission-model.
+  docker compose exec -T -e PGPASSWORD="$APP_DB_PASSWORD" postgres \
+    psql -v ON_ERROR_STOP=1 -U "$APP_DB_USER" -d "$POSTGRES_DB" \
     -c "INSERT INTO _infra.healthcheck (note) VALUES ('smoke-test');" >/dev/null || return 1
 
   local count
-  count="$(docker compose exec -T postgres psql -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  count="$(docker compose exec -T -e PGPASSWORD="$APP_DB_PASSWORD" postgres \
+    psql -tA -U "$APP_DB_USER" -d "$POSTGRES_DB" \
     -c "SELECT count(*) FROM _infra.healthcheck WHERE note = 'smoke-test';" | tr -d '[:space:]')"
 
-  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  docker compose exec -T -e PGPASSWORD="$APP_DB_PASSWORD" postgres \
+    psql -v ON_ERROR_STOP=1 -U "$APP_DB_USER" -d "$POSTGRES_DB" \
     -c "DELETE FROM _infra.healthcheck WHERE note = 'smoke-test';" >/dev/null
 
   [[ "$count" =~ ^[0-9]+$ ]] && [[ "$count" -ge 1 ]]
