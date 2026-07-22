@@ -1,0 +1,88 @@
+# ==============================================================================
+# ai-youtube-automation — Compose skeleton
+#
+# Status: STRUCTURE ONLY. Nothing below is runnable yet — every service is
+# commented out. This file exists so the intended topology is documented and
+# reviewable before infrastructure implementation begins (a later phase).
+#
+# Intended topology (single Oracle Ampere A1 VM for the initial launch):
+#   - postgres, redis, minio  : internal only, never publish ports publicly
+#   - n8n                     : internal in prod, reached only via the proxy
+#   - renderer, approval-api  : internal only, no published ports
+#   - admin                   : internal in prod, reached only via the proxy
+#   - proxy (Caddy)           : the ONLY service with published 80/443
+#
+# All custom-built services (renderer, approval-api, admin) must be built
+# multi-arch via Buildx — see docs/architecture/arm64-compatibility.md and
+# docs/operations/development-commands.md.
+# ==============================================================================
+
+name: ai-youtube-automation
+
+# services:
+#   postgres:
+#     image: postgres:16
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_DB: ${POSTGRES_DB}
+#       POSTGRES_USER: ${POSTGRES_USER}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+#     # No `ports:` — internal network only.
+#
+#   redis:
+#     image: redis:7
+#     restart: unless-stopped
+#     # No `ports:` — internal network only.
+#
+#   minio:
+#     image: minio/minio
+#     restart: unless-stopped
+#     command: server /data
+#     volumes:
+#       - minio-data:/data
+#     # No `ports:` — internal network only; admin console reached via proxy if needed.
+#
+#   n8n:
+#     image: n8nio/n8n
+#     restart: unless-stopped
+#     depends_on:
+#       - postgres
+#       - redis
+#     # No `ports:` published in production — reached via the proxy service.
+#
+#   renderer:
+#     build:
+#       context: ./apps/renderer
+#       platforms: ["linux/amd64", "linux/arm64"]
+#     restart: unless-stopped
+#     # No `ports:` — internal worker only.
+#
+#   approval-api:
+#     build:
+#       context: ./apps/approval-api
+#       platforms: ["linux/amd64", "linux/arm64"]
+#     restart: unless-stopped
+#     # No `ports:` — reached via the proxy service if externally needed.
+#
+#   admin:
+#     build:
+#       context: ./apps/admin
+#       platforms: ["linux/amd64", "linux/arm64"]
+#     restart: unless-stopped
+#     # No `ports:` — reached via the proxy service.
+#
+#   proxy:
+#     image: caddy:2
+#     restart: unless-stopped
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     depends_on:
+#       - n8n
+#       - admin
+#
+# volumes:
+#   postgres-data:
+#   minio-data:
