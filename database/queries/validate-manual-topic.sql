@@ -1,0 +1,22 @@
+-- Canonical query for the "validate_topic" resumable step of the
+-- "Manual Topic Intake" n8n workflow. See
+-- database/migrations/20260722210001_topic_intake_functions.sql and
+-- docs/architecture/topic-intake.md#topic-rule-enforcement.
+--
+-- Normalizes the topic (normalize_topic_text), computes its fingerprint
+-- (topic_fingerprint — the single canonical implementation every future
+-- topic-discovery path must reuse), and enforces only the deterministic
+-- channel_topic_rules types (blocked_topic, blocked_keyword,
+-- allowed_topic, allowed_keyword). No semantic/pillar classification —
+-- that requires an LLM call, which this workflow must not make.
+--
+-- Parameters ($1..$3), all bound:
+--   $1  channel_id       uuid, required
+--   $2  workflow_run_id  uuid, required
+--   $3  topic            text, required — the raw, un-normalized topic
+--
+-- Returns one row, one column (`result`): the standard
+-- success/error/runtime envelope. On success, `data` is
+-- {topic, normalized_topic, topic_fingerprint}.
+
+SELECT validate_manual_topic($1, $2, $3) AS result;

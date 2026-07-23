@@ -49,7 +49,15 @@ ON CONFLICT (channel_id, pillar_name) DO NOTHING;
 INSERT INTO channel_topic_rules (channel_id, rule_type, value, notes)
 VALUES
   ('11111111-1111-1111-1111-111111111111', 'blocked_topic', 'active political conflicts', 'stay clear of current-events politics'),
-  ('11111111-1111-1111-1111-111111111111', 'allowed_topic', 'ancient civilizations', NULL)
+  ('11111111-1111-1111-1111-111111111111', 'allowed_topic', 'ancient civilizations', NULL),
+  -- Broadens the allow-list beyond the single exact phrase above so
+  -- Step 5 (Manual Topic Intake) has a realistic space of distinct
+  -- in-scope topics to exercise (duplicate/similarity/resume testing
+  -- needs more than one valid topic string) — a history channel with
+  -- "forgotten-events"/"myth-busting" pillars plausibly does allow any
+  -- ancient-history-adjacent topic, not just one literal phrase.
+  ('11111111-1111-1111-1111-111111111111', 'allowed_keyword', 'ancient', 'broad allow-list for any ancient-history-adjacent topic'),
+  ('11111111-1111-1111-1111-111111111111', 'blocked_keyword', 'conspiracy', 'no unfounded conspiracy-theory content')
 ON CONFLICT (channel_id, rule_type, value) DO NOTHING;
 
 INSERT INTO channel_provider_settings (channel_id, service_type, provider, enabled, priority, monthly_limit_usd, settings)

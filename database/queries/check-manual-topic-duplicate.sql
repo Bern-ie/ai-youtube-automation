@@ -1,0 +1,26 @@
+-- Canonical query for the "check_duplicate" resumable step of the
+-- "Manual Topic Intake" n8n workflow. See
+-- database/migrations/20260722210001_topic_intake_functions.sql and
+-- docs/architecture/topic-intake.md#duplicate-and-similarity-detection.
+--
+-- Channel-scoped only — never returns matches from another channel.
+-- Checks, in order: (1) exact/fingerprint duplicate among active
+-- (pending/approved) topic_candidates, (2) fingerprint match against a
+-- rejected topic still inside its cooldown window, (3) pg_trgm
+-- similarity against active candidates (reject if >= high threshold,
+-- warn-only if >= moderate threshold). Explicitly not pgvector/embeddings
+-- — deterministic, native PostgreSQL trigram similarity only.
+--
+-- Parameters ($1..$4), all bound:
+--   $1  channel_id        uuid, required
+--   $2  workflow_run_id   uuid, required
+--   $3  normalized_topic  text, required — output of validate_topic
+--   $4  topic_fingerprint text, required — output of validate_topic
+--
+-- Returns one row, one column (`result`): the standard
+-- success/error/runtime envelope. On success, `data` is
+-- {is_duplicate: false, similarity_warning, similar_matches}. On
+-- rejection, `error.code` is DUPLICATE_TOPIC or SIMILAR_TOPIC with a
+-- `details` object describing the match(es).
+
+SELECT check_manual_topic_duplicate($1, $2, $3, $4) AS result;

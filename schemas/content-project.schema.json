@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/content-project.schema.json",
+  "title": "Content Project",
+  "description": "The shape of a content_projects row as returned by any workflow that creates or reads one — introduced by create_manual_topic_project() (Step 5) but intended to be reused as-is by every later stage (research, scripting, rendering, publishing) rather than redefined per-workflow. See docs/architecture/database-architecture.md#content-lifecycle and docs/architecture/topic-intake.md#topic-lifecycle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["content_project_id", "status", "current_stage", "storage_path", "created_at", "already_existed"],
+  "properties": {
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "created", "researching", "awaiting_research_approval", "scripting",
+        "awaiting_script_approval", "voiceover", "asset_planning", "rendering",
+        "awaiting_final_approval", "uploading", "published", "failed", "cancelled"
+      ]
+    },
+    "current_stage": { "type": ["string", "null"] },
+    "storage_path": {
+      "type": "string",
+      "description": "channels/{channel_id}/projects/{content_project_id}/, derived from the channel's canonical storage_namespace."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "already_existed": {
+      "type": "boolean",
+      "description": "true when this response is an idempotent replay of a previously created project (content_projects.(channel_id, idempotency_key) matched), not a fresh row."
+    },
+    "topic_candidate_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Present only on a fresh creation, not an idempotent replay."
+    }
+  }
+}

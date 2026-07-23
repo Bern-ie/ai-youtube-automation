@@ -1,0 +1,22 @@
+-- Canonical query for the "check_budget_and_capacity" resumable step of
+-- the "Manual Topic Intake" n8n workflow. See
+-- database/migrations/20260722210001_topic_intake_functions.sql and
+-- docs/architecture/topic-intake.md#capacity-and-budget-gates.
+--
+-- Active-project count (content_projects.status NOT IN published/failed/
+-- cancelled) vs channel_settings.max_active_projects, then monthly
+-- channel budget via Step 3's channel_month_spend_usd() — spend totals
+-- are always computed live from cost_events here, never in n8n JS.
+--
+-- Parameters ($1..$2), all bound:
+--   $1  channel_id       uuid, required
+--   $2  workflow_run_id  uuid, required
+--
+-- Returns one row, one column (`result`): the standard
+-- success/error/runtime envelope. On success, `data` is
+-- {active_project_count, max_active_projects, budget_warning}
+-- (budget_warning is null unless the soft warning threshold has been
+-- crossed). On rejection, `error.code` is ACTIVE_PROJECT_LIMIT_REACHED
+-- or CHANNEL_BUDGET_EXHAUSTED.
+
+SELECT check_manual_topic_capacity_and_budget($1, $2) AS result;

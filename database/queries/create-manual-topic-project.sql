@@ -1,0 +1,34 @@
+-- Canonical query for the "create_content_project" resumable step of
+-- the "Manual Topic Intake" n8n workflow. See
+-- database/migrations/20260722210001_topic_intake_functions.sql and
+-- docs/architecture/topic-intake.md#topic-lifecycle.
+--
+-- The one atomic write: topic_candidates (immediately 'approved', since
+-- manual submission is itself the approval decision) -> content_projects
+-- -> approved_topics, in a single transaction. Project-level idempotency
+-- is checked via content_projects.(channel_id, idempotency_key) — a
+-- UNIQUE constraint since Step 3 — independent of workflow_runs'
+-- idempotency_key, and re-checked on unique_violation so a concurrent
+-- duplicate request is still safe. storage_path is derived from the
+-- channel's canonical storage_namespace:
+-- {storage_namespace}/projects/{content_project_id}/.
+--
+-- Parameters ($1..$10), all bound:
+--   $1   channel_id                uuid, required
+--   $2   workflow_run_id           uuid, required
+--   $3   topic                     text, required — original, un-normalized
+--   $4   normalized_topic          text, required — output of validate_topic
+--   $5   topic_fingerprint         text, required — output of validate_topic
+--   $6   intended_angle            text, optional (NULL if absent)
+--   $7   target_duration_seconds   integer, optional (NULL if absent)
+--   $8   requested_publish_at      timestamptz, optional (NULL if absent)
+--   $9   idempotency_key           text, optional — the project-level key
+--   $10  source_origin             text, default 'manual'
+--
+-- Returns one row, one column (`result`): the standard
+-- success/error/runtime envelope. On success, `data` is
+-- {content_project_id, status, current_stage, storage_path, created_at,
+-- already_existed}. `already_existed: true` means this call was an
+-- idempotent replay, not a fresh row.
+
+SELECT create_manual_topic_project($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS result;

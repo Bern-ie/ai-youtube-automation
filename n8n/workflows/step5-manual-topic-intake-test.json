@@ -1,0 +1,115 @@
+{
+  "name": "Step5 Manual Topic Intake Test",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "step5-manual-topic-intake-test",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-1",
+      "name": "Dev Test Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OaBGIQb5F99tKgap",
+          "name": "dev-test-webhook-auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.body || {} }];"
+      },
+      "id": "code-extract",
+      "name": "Extract Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "z7rjf2YLY9vBi5lZ"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-manual-topic-intake",
+      "name": "Manual Topic Intake",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": "={{ $json.success ? 200 : ({CHANNEL_NOT_FOUND:404,CHANNEL_DISABLED:409,INVALID_CHANNEL_CONFIG:422,PROJECT_CHANNEL_MISMATCH:409,MISSING_REQUIRED_CONFIG:422,WORKFLOW_RUN_NOT_FOUND:404,INVALID_EXECUTION_CONTEXT:400,STEPS_NOT_COMPLETE:409,INVALID_TOPIC_REQUEST:400,TOPIC_BLOCKED:403,TOPIC_OUTSIDE_CHANNEL_SCOPE:403,DUPLICATE_TOPIC:409,SIMILAR_TOPIC:409,ACTIVE_PROJECT_LIMIT_REACHED:429,CHANNEL_BUDGET_EXHAUSTED:402,PROJECT_CREATION_FAILED:500}[$json.error.code] || 500) }}"
+        }
+      },
+      "id": "rtw-1",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Dev Test Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body": {
+      "main": [
+        [
+          {
+            "node": "Manual Topic Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Topic Intake": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

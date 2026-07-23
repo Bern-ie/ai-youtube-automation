@@ -24,13 +24,22 @@
             "MISSING_REQUIRED_CONFIG",
             "WORKFLOW_RUN_NOT_FOUND",
             "INVALID_EXECUTION_CONTEXT",
-            "STEPS_NOT_COMPLETE"
+            "STEPS_NOT_COMPLETE",
+            "INVALID_TOPIC_REQUEST",
+            "TOPIC_BLOCKED",
+            "TOPIC_OUTSIDE_CHANNEL_SCOPE",
+            "DUPLICATE_TOPIC",
+            "SIMILAR_TOPIC",
+            "ACTIVE_PROJECT_LIMIT_REACHED",
+            "CHANNEL_BUDGET_EXHAUSTED",
+            "PROJECT_CREATION_FAILED"
           ]
         },
         "message": { "type": "string" },
         "retryable": { "type": "boolean" },
         "error_id": { "type": ["string", "null"], "format": "uuid" },
-        "dead_lettered": { "type": "boolean" }
+        "dead_lettered": { "type": "boolean" },
+        "details": { "type": "object", "description": "Error-code-specific, sanitized metadata (e.g. DUPLICATE_TOPIC's matching project). Never raw SQL/stack details — see jsonb_has_no_secret_keys on errors.sanitized_details." }
       }
     },
     "runtime": { "$ref": "https://schemas.ai-youtube-automation.internal/runtime-context.schema.json" }

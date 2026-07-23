@@ -1,0 +1,80 @@
+{
+  "name": "Get Workflow Run Steps",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT get_workflow_run_steps($1) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.workflow_run_id] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call Get Workflow Run Steps",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { steps: $input.first().json.result } }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Get Workflow Run Steps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Get Workflow Run Steps": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

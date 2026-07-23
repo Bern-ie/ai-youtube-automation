@@ -17,10 +17,14 @@ and the new `db-test` custom image are also Level 1 verified — see
 custom-built containers or architecture-sensitive binaries** — the five
 reusable workflows are n8n workflow *definitions* (JSON, run by the
 already-verified `n8nio/n8n` image) and `n8n/tests/` is host-side Node
-tooling (real `pg`/`ajv`, no native bindings), not a container. Nothing
-new to validate here this step. **Nothing in this matrix is Level 2
-(native Oracle Ampere A1) verified yet** — that happens once the VM
-exists, a later step.
+tooling (real `pg`/`ajv`, no native bindings), not a container. **Step 5
+introduced one schema-level addition — `pg_trgm`** — a standard
+PostgreSQL contrib module bundled in the official `postgres:16.9` image
+on both platforms (confirmed via `pg_available_extensions` before use,
+not assumed), not a separately-built or third-party artifact; no new
+container or architecture-sensitive binary either. **Nothing in this
+matrix is Level 2 (native Oracle Ampere A1) verified yet** — that happens
+once the VM exists, a later step.
 
 ## Two validation levels
 

@@ -30,6 +30,20 @@ CREATE SCHEMA _infra;
 
 
 --
+-- Name: pg_trgm; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
+
+
+--
 -- Name: _runtime_error(text, text, boolean, uuid, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -221,6 +235,189 @@ $$;
 
 
 --
+-- Name: check_manual_topic_capacity_and_budget(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.check_manual_topic_capacity_and_budget(p_channel_id uuid, p_workflow_run_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_active_count INTEGER;
+  v_max_active INTEGER;
+  v_limit RECORD;
+  v_remaining NUMERIC;
+  v_warning TEXT;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, NULL, NULL);
+  END IF;
+
+  SELECT count(*) INTO v_active_count FROM content_projects
+    WHERE channel_id = p_channel_id AND status NOT IN ('published', 'failed', 'cancelled');
+
+  SELECT max_active_projects INTO v_max_active FROM channel_settings WHERE channel_id = p_channel_id;
+  v_max_active := COALESCE(v_max_active, 3);
+
+  IF v_active_count >= v_max_active THEN
+    RETURN jsonb_set(
+      _runtime_error('ACTIVE_PROJECT_LIMIT_REACHED',
+        format('channel %s already has %s active project(s), limit is %s', p_channel_id, v_active_count, v_max_active),
+        true, p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('active_count', v_active_count, 'max_active_projects', v_max_active)
+    );
+  END IF;
+
+  v_warning := NULL;
+  SELECT amount_usd, enforcement, warning_threshold_pct INTO v_limit
+    FROM channel_budget_limits
+    WHERE channel_id = p_channel_id AND limit_type = 'monthly_channel' AND enabled = true
+    ORDER BY effective_from DESC LIMIT 1;
+
+  IF FOUND THEN
+    v_remaining := v_limit.amount_usd - channel_month_spend_usd(p_channel_id);
+
+    IF v_remaining <= 0 AND v_limit.enforcement = 'hard' THEN
+      RETURN jsonb_set(
+        _runtime_error('CHANNEL_BUDGET_EXHAUSTED',
+          format('channel %s monthly budget exhausted (remaining $%s of $%s)', p_channel_id, round(v_remaining, 2), v_limit.amount_usd),
+          true, p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+        '{error,details}', jsonb_build_object('remaining_usd', round(v_remaining, 2), 'limit_usd', v_limit.amount_usd)
+      );
+    ELSIF v_remaining <= (v_limit.amount_usd * (1 - v_limit.warning_threshold_pct / 100.0)) THEN
+      v_warning := format('channel monthly budget warning: remaining $%s of $%s (%s%% threshold)',
+        round(v_remaining, 2), v_limit.amount_usd, v_limit.warning_threshold_pct);
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object(
+      'active_project_count', v_active_count, 'max_active_projects', v_max_active,
+      'budget_warning', v_warning
+    ),
+    'error', null,
+    'runtime', jsonb_build_object(
+      'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+      'content_project_id', v_run.content_project_id, 'correlation_id', v_run.correlation_id
+    )
+  );
+END;
+$_$;
+
+
+--
+-- Name: check_manual_topic_duplicate(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.check_manual_topic_duplicate(p_channel_id uuid, p_workflow_run_id uuid, p_normalized_topic text, p_topic_fingerprint text) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_exact RECORD;
+  v_rejected RECORD;
+  v_matches JSONB;
+  v_max_similarity NUMERIC;
+  v_high CONSTANT NUMERIC := 0.55;
+  v_moderate CONSTANT NUMERIC := 0.30;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, NULL, NULL);
+  END IF;
+
+  SELECT tc.id AS topic_candidate_id, tc.status, tc.topic, tc.created_at,
+         at.content_project_id, cp.status AS project_status, cp.completed_at AS project_completed_at
+    INTO v_exact
+  FROM topic_candidates tc
+  LEFT JOIN approved_topics at ON at.topic_candidate_id = tc.id
+  LEFT JOIN content_projects cp ON cp.id = at.content_project_id
+  WHERE tc.channel_id = p_channel_id AND tc.topic_fingerprint = p_topic_fingerprint AND tc.status IN ('pending', 'approved')
+  ORDER BY tc.created_at DESC LIMIT 1;
+
+  IF FOUND THEN
+    RETURN jsonb_set(
+      _runtime_error('DUPLICATE_TOPIC',
+        format('an active topic with the same fingerprint already exists for this channel (candidate %s, status %s)', v_exact.topic_candidate_id, v_exact.status),
+        false, p_channel_id, p_workflow_run_id, v_exact.content_project_id, v_run.correlation_id),
+      '{error,details}', jsonb_build_object(
+        'reason', 'active_duplicate', 'topic_candidate_id', v_exact.topic_candidate_id,
+        'topic_candidate_status', v_exact.status, 'content_project_id', v_exact.content_project_id,
+        'content_project_status', v_exact.project_status, 'created_at', v_exact.created_at,
+        'published_at', v_exact.project_completed_at
+      )
+    );
+  END IF;
+
+  SELECT tc.id AS topic_candidate_id, rt.cooldown_until, rt.rejected_at, rt.rejected_reason
+    INTO v_rejected
+  FROM topic_candidates tc
+  JOIN rejected_topics rt ON rt.topic_candidate_id = tc.id
+  WHERE tc.channel_id = p_channel_id AND tc.topic_fingerprint = p_topic_fingerprint
+    AND tc.status = 'rejected' AND rt.cooldown_until IS NOT NULL AND rt.cooldown_until > now()
+  ORDER BY rt.rejected_at DESC LIMIT 1;
+
+  IF FOUND THEN
+    RETURN jsonb_set(
+      _runtime_error('DUPLICATE_TOPIC',
+        format('topic was previously rejected and is still in cooldown until %s', v_rejected.cooldown_until),
+        true, p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object(
+        'reason', 'rejected_cooldown', 'topic_candidate_id', v_rejected.topic_candidate_id,
+        'cooldown_until', v_rejected.cooldown_until, 'rejected_reason', v_rejected.rejected_reason
+      )
+    );
+  END IF;
+
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'topic_candidate_id', m.id, 'topic', m.topic, 'status', m.status, 'similarity', round(m.sim::numeric, 3)
+    ) ORDER BY m.sim DESC), '[]'::jsonb),
+    COALESCE(MAX(m.sim)::numeric, 0)
+  INTO v_matches, v_max_similarity
+  FROM (
+    SELECT id, topic, status, similarity(normalized_topic, p_normalized_topic) AS sim
+    FROM topic_candidates
+    WHERE channel_id = p_channel_id AND status IN ('pending', 'approved')
+      AND topic_fingerprint != p_topic_fingerprint
+      AND similarity(normalized_topic, p_normalized_topic) >= v_moderate
+    ORDER BY sim DESC LIMIT 5
+  ) m;
+
+  IF v_max_similarity >= v_high THEN
+    RETURN jsonb_set(
+      _runtime_error('SIMILAR_TOPIC',
+        format('topic is highly similar (%s) to an existing active topic for this channel', round(v_max_similarity, 2)),
+        false, p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('matches', v_matches, 'max_similarity', round(v_max_similarity, 3), 'threshold', v_high)
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object(
+      'is_duplicate', false,
+      'similarity_warning', CASE WHEN v_max_similarity >= v_moderate THEN
+        format('topic is moderately similar (%s) to %s existing topic(s)', round(v_max_similarity, 2), jsonb_array_length(v_matches))
+        ELSE NULL END,
+      'similar_matches', v_matches
+    ),
+    'error', null,
+    'runtime', jsonb_build_object(
+      'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+      'content_project_id', v_run.content_project_id, 'correlation_id', v_run.correlation_id
+    )
+  );
+END;
+$$;
+
+
+--
 -- Name: check_prompt_version_matches_prompt(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -292,7 +489,7 @@ BEGIN
     "queued":        ["running", "failed", "cancelled"],
     "running":       ["waiting", "succeeded", "failed", "cancelled", "queued"],
     "waiting":       ["running", "failed", "cancelled"],
-    "failed":        ["queued", "dead_lettered", "cancelled"],
+    "failed":        ["queued", "running", "dead_lettered", "cancelled"],
     "dead_lettered": ["queued"],
     "succeeded":     [],
     "cancelled":     []
@@ -505,6 +702,124 @@ $$;
 
 
 --
+-- Name: create_manual_topic_project(uuid, uuid, text, text, text, text, integer, timestamp with time zone, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_manual_topic_project(p_channel_id uuid, p_workflow_run_id uuid, p_topic text, p_normalized_topic text, p_topic_fingerprint text, p_intended_angle text DEFAULT NULL::text, p_target_duration_seconds integer DEFAULT NULL::integer, p_requested_publish_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_idempotency_key text DEFAULT NULL::text, p_source_origin text DEFAULT 'manual'::text) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_channel channels%ROWTYPE;
+  v_existing content_projects%ROWTYPE;
+  v_project_id UUID;
+  v_candidate_id UUID;
+  v_storage_path TEXT;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, NULL, NULL);
+  END IF;
+
+  SELECT * INTO v_channel FROM channels WHERE id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('CHANNEL_NOT_FOUND', format('channel %s does not exist', p_channel_id), false,
+      p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id);
+  END IF;
+  IF v_channel.status != 'active' THEN
+    RETURN _runtime_error('CHANNEL_DISABLED', format('channel %s is not active (status=%s)', p_channel_id, v_channel.status), false,
+      p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id);
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL THEN
+    SELECT * INTO v_existing FROM content_projects WHERE channel_id = p_channel_id AND idempotency_key = p_idempotency_key;
+    IF FOUND THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'data', jsonb_build_object(
+          'content_project_id', v_existing.id, 'status', v_existing.status, 'current_stage', v_existing.current_stage,
+          'storage_path', v_existing.storage_path, 'created_at', v_existing.created_at, 'already_existed', true
+        ),
+        'error', null,
+        'runtime', jsonb_build_object(
+          'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+          'content_project_id', v_existing.id, 'correlation_id', v_run.correlation_id
+        )
+      );
+    END IF;
+  END IF;
+
+  v_project_id := gen_random_uuid();
+  v_storage_path := v_channel.storage_namespace || '/projects/' || v_project_id || '/';
+
+  BEGIN
+    INSERT INTO topic_candidates (id, channel_id, topic, normalized_topic, topic_fingerprint, source_origin, status)
+    VALUES (gen_random_uuid(), p_channel_id, p_topic, p_normalized_topic, p_topic_fingerprint, p_source_origin, 'approved')
+    RETURNING id INTO v_candidate_id;
+  EXCEPTION WHEN unique_violation THEN
+    RETURN jsonb_set(
+      _runtime_error('DUPLICATE_TOPIC', 'a concurrent request already created an active topic with this fingerprint', true,
+        p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('reason', 'concurrent_duplicate')
+    );
+  END;
+
+  BEGIN
+    INSERT INTO content_projects (
+      id, channel_id, topic, normalized_topic, intended_angle, target_duration_seconds,
+      requested_publish_at, storage_path, idempotency_key, correlation_id
+    ) VALUES (
+      v_project_id, p_channel_id, p_topic, p_normalized_topic, p_intended_angle, p_target_duration_seconds,
+      p_requested_publish_at, v_storage_path, p_idempotency_key, v_run.correlation_id
+    );
+
+    INSERT INTO approved_topics (channel_id, topic_candidate_id, content_project_id, selected_angle, approved_by)
+    VALUES (p_channel_id, v_candidate_id, v_project_id, p_intended_angle, 'manual-intake');
+  EXCEPTION WHEN unique_violation THEN
+    IF p_idempotency_key IS NOT NULL THEN
+      SELECT * INTO v_existing FROM content_projects WHERE channel_id = p_channel_id AND idempotency_key = p_idempotency_key;
+      IF FOUND THEN
+        RETURN jsonb_build_object(
+          'success', true,
+          'data', jsonb_build_object(
+            'content_project_id', v_existing.id, 'status', v_existing.status, 'current_stage', v_existing.current_stage,
+            'storage_path', v_existing.storage_path, 'created_at', v_existing.created_at, 'already_existed', true
+          ),
+          'error', null,
+          'runtime', jsonb_build_object(
+            'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+            'content_project_id', v_existing.id, 'correlation_id', v_run.correlation_id
+          )
+        );
+      END IF;
+    END IF;
+    RETURN jsonb_set(
+      _runtime_error('PROJECT_CREATION_FAILED', 'unique constraint violation creating content project', true,
+        p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('reason', 'unique_violation')
+    );
+  END;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object(
+      'content_project_id', v_project_id, 'status', 'created', 'current_stage', NULL,
+      'storage_path', v_storage_path, 'created_at', now(), 'already_existed', false,
+      'topic_candidate_id', v_candidate_id
+    ),
+    'error', null,
+    'runtime', jsonb_build_object(
+      'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+      'content_project_id', v_project_id, 'correlation_id', v_run.correlation_id
+    )
+  );
+END;
+$$;
+
+
+--
 -- Name: dead_letter_workflow_run(uuid, uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -566,16 +881,6 @@ BEGIN
       WHERE id = p_workflow_step_id AND status = 'running';
   END IF;
 
-  -- Every call here represents one failed attempt and must advance
-  -- retry_count, even if the run's status was already 'failed' (e.g. a
-  -- second failure recorded before anything requeued it) — same-status
-  -- transitions are explicitly allowed by assert_valid_transition, so
-  -- this UPDATE is always safe to run unconditionally. An earlier version
-  -- of this function only ran the UPDATE when the status was *changing*,
-  -- which meant retry_count silently stopped advancing after the first
-  -- failure and the dead-letter threshold could never be reached through
-  -- a realistic retry cycle — fixed before this migration was ever
-  -- committed.
   IF v_run.status NOT IN ('succeeded', 'dead_lettered', 'cancelled') THEN
     UPDATE workflow_runs SET status = 'failed', failed_at = now(), retry_count = retry_count + 1
       WHERE id = p_workflow_run_id
@@ -594,7 +899,8 @@ BEGIN
     'error', jsonb_build_object(
       'code', p_error_code, 'message', p_message,
       'retryable', p_retryable AND NOT v_dead_lettered, 'error_id', v_error_id,
-      'dead_lettered', v_dead_lettered
+      'dead_lettered', v_dead_lettered,
+      'details', p_sanitized_details
     ),
     'runtime', jsonb_build_object(
       'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
@@ -659,6 +965,20 @@ CREATE FUNCTION public.get_resume_state(p_workflow_run_id uuid) RETURNS jsonb
     'retryable_failed_step', (SELECT to_jsonb(s) FROM retryable_failed_workflow_step(p_workflow_run_id) s),
     'dead_letter_threshold_reached', workflow_run_dead_letter_threshold_reached(p_workflow_run_id)
   );
+$$;
+
+
+--
+-- Name: get_workflow_run_steps(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_workflow_run_steps(p_workflow_run_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'step_name', step_name, 'status', status, 'output', output, 'sequence', sequence
+  ) ORDER BY sequence), '[]'::jsonb)
+  FROM workflow_steps WHERE workflow_run_id = p_workflow_run_id;
 $$;
 
 
@@ -943,13 +1263,8 @@ BEGIN
       p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
   END IF;
 
-  -- The run itself only ever starts life as 'queued' (set by
-  -- initialize_workflow_run). The first step to actually start running
-  -- promotes the run to 'running' too, so the run's own lifecycle stays
-  -- in sync with real work happening — otherwise complete_workflow_run
-  -- would later hit an invalid queued->succeeded transition.
-  IF p_status = 'running' AND v_run.status = 'queued' THEN
-    UPDATE workflow_runs SET status = 'running', started_at = now() WHERE id = p_workflow_run_id;
+  IF p_status = 'running' AND v_run.status IN ('queued', 'failed') THEN
+    UPDATE workflow_runs SET status = 'running', started_at = COALESCE(started_at, now()) WHERE id = p_workflow_run_id;
   END IF;
 
   SELECT
@@ -991,6 +1306,22 @@ BEGIN
     )
   );
 END;
+$$;
+
+
+--
+-- Name: normalize_topic_text(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.normalize_topic_text(p_topic text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT trim(
+    regexp_replace(
+      regexp_replace(lower(normalize(p_topic, NFKC)), '[^[:alnum:][:space:]]', ' ', 'g'),
+      '\s+', ' ', 'g'
+    )
+  );
 $$;
 
 
@@ -1100,6 +1431,115 @@ CREATE FUNCTION public.set_updated_at() RETURNS trigger
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: topic_fingerprint(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.topic_fingerprint(p_normalized_topic text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT encode(sha256(convert_to(p_normalized_topic, 'UTF8')), 'hex');
+$$;
+
+
+--
+-- Name: validate_manual_topic(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.validate_manual_topic(p_channel_id uuid, p_workflow_run_id uuid, p_topic text) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_normalized TEXT;
+  v_fingerprint TEXT;
+  v_rule RECORD;
+  v_has_allow_rules BOOLEAN;
+  v_matched_allow BOOLEAN;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, NULL, NULL);
+  END IF;
+
+  IF p_topic IS NULL OR trim(p_topic) = '' THEN
+    RETURN _runtime_error('INVALID_TOPIC_REQUEST', 'topic must not be empty', false,
+      p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id);
+  END IF;
+
+  v_normalized := normalize_topic_text(p_topic);
+  IF v_normalized = '' THEN
+    RETURN _runtime_error('INVALID_TOPIC_REQUEST', 'topic has no meaningful content after normalization', false,
+      p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id);
+  END IF;
+  v_fingerprint := topic_fingerprint(v_normalized);
+
+  SELECT value, notes INTO v_rule FROM channel_topic_rules
+    WHERE channel_id = p_channel_id AND rule_type = 'blocked_topic'
+      AND normalize_topic_text(value) = v_normalized
+    LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_set(
+      _runtime_error('TOPIC_BLOCKED', format('topic matches a blocked_topic rule: %s', v_rule.value), false,
+        p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('rule_type', 'blocked_topic', 'rule_value', v_rule.value)
+    );
+  END IF;
+
+  SELECT value, notes INTO v_rule FROM channel_topic_rules
+    WHERE channel_id = p_channel_id AND rule_type = 'blocked_keyword'
+      AND v_normalized LIKE '%' || normalize_topic_text(value) || '%'
+    LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_set(
+      _runtime_error('TOPIC_BLOCKED', format('topic contains a blocked_keyword: %s', v_rule.value), false,
+        p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('rule_type', 'blocked_keyword', 'rule_value', v_rule.value)
+    );
+  END IF;
+
+  -- Allow-list mode: only activates if the channel has configured at
+  -- least one allowed_topic/allowed_keyword rule. A channel with none
+  -- configured allows any (non-blocked) topic — see
+  -- docs/architecture/topic-intake.md#topic-rule-enforcement.
+  SELECT EXISTS(
+    SELECT 1 FROM channel_topic_rules
+    WHERE channel_id = p_channel_id AND rule_type IN ('allowed_topic', 'allowed_keyword')
+  ) INTO v_has_allow_rules;
+
+  IF v_has_allow_rules THEN
+    SELECT EXISTS(
+      SELECT 1 FROM channel_topic_rules
+      WHERE channel_id = p_channel_id AND rule_type = 'allowed_topic' AND normalize_topic_text(value) = v_normalized
+      UNION ALL
+      SELECT 1 FROM channel_topic_rules
+      WHERE channel_id = p_channel_id AND rule_type = 'allowed_keyword' AND v_normalized LIKE '%' || normalize_topic_text(value) || '%'
+    ) INTO v_matched_allow;
+
+    IF NOT v_matched_allow THEN
+      RETURN _runtime_error('TOPIC_OUTSIDE_CHANNEL_SCOPE',
+        'topic does not match any allowed_topic/allowed_keyword rule configured for this channel', false,
+        p_channel_id, p_workflow_run_id, NULL, v_run.correlation_id);
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object(
+      'topic', p_topic, 'normalized_topic', v_normalized, 'topic_fingerprint', v_fingerprint
+    ),
+    'error', null,
+    'runtime', jsonb_build_object(
+      'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+      'content_project_id', v_run.content_project_id, 'correlation_id', v_run.correlation_id
+    )
+  );
 END;
 $$;
 
@@ -1410,6 +1850,8 @@ CREATE TABLE public.channel_settings (
     target_duration_seconds integer,
     human_approval_required boolean DEFAULT true NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    max_active_projects integer DEFAULT 3 NOT NULL,
+    CONSTRAINT channel_settings_max_active_projects_check CHECK ((max_active_projects > 0)),
     CONSTRAINT channel_settings_target_duration_seconds_check CHECK (((target_duration_seconds IS NULL) OR (target_duration_seconds > 0)))
 );
 
@@ -2953,6 +3395,13 @@ CREATE INDEX idx_topic_candidates_fingerprint ON public.topic_candidates USING b
 
 
 --
+-- Name: idx_topic_candidates_normalized_topic_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_topic_candidates_normalized_topic_trgm ON public.topic_candidates USING gin (normalized_topic public.gin_trgm_ops);
+
+
+--
 -- Name: idx_voiceover_chunks_voiceover; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3850,4 +4299,8 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260722190015'),
     ('20260722200000'),
     ('20260722200001'),
-    ('20260722200002');
+    ('20260722200002'),
+    ('20260722210000'),
+    ('20260722210001'),
+    ('20260722210002'),
+    ('20260722210003');

@@ -1,11 +1,13 @@
 # Development Commands
 
-Status: reflects Step 4 — a working local Docker Compose stack (Postgres,
+Status: reflects Step 5 — a working local Docker Compose stack (Postgres,
 Redis, n8n, MinIO, Caddy, renderer, approval-api), multi-arch build
 tooling, a migration-managed PostgreSQL domain schema with role
-separation, and five reusable n8n workflows providing channel-config
-loading and workflow-run tracking. No content-generation workflow or
-Oracle deployment exist yet.
+separation, five reusable n8n workflows providing channel-config loading
+and workflow-run tracking (Step 4), and the `Manual Topic Intake`
+workflow (Step 5) — see
+[topic-intake.md](../architecture/topic-intake.md). No research/
+rendering/publishing workflow or Oracle deployment exist yet.
 
 ## Environment
 
@@ -111,22 +113,28 @@ existing Step 2 volume rather than starting fresh, you need
 
 ```bash
 scripts/n8n-setup-dev.sh              # owner account, API key (saved to .env), credentials — idempotent
-node scripts/n8n-import-workflows.mjs  # imports + publishes all 6 workflows from n8n/workflows/
-scripts/n8n-test.sh                    # runs the 12-check workflow-runtime test suite
+node scripts/n8n-import-workflows.mjs  # imports + publishes all 13 workflows from n8n/workflows/
+scripts/n8n-test.sh                    # runs the Step 4 (12-check) + Step 5 (27-check) test suites
 ```
 
 Requires `scripts/db-migrate.sh` and `scripts/db-seed.sh` to have already
 run (the workflows load real seeded channel config). See
-[workflow-runtime.md](../architecture/workflow-runtime.md) for what each
-script does and the manual-UI alternative to `n8n-setup-dev.sh`.
+[workflow-runtime.md](../architecture/workflow-runtime.md) and
+[topic-intake.md](../architecture/topic-intake.md) for what each script
+does and the manual-UI alternative to `n8n-setup-dev.sh`.
 
-Manual test call, once set up:
+Manual test calls, once set up:
 
 ```bash
 curl -X POST http://127.0.0.1:5678/webhook/step4-config-loader-test \
   -H "Content-Type: application/json" \
   -H "X-Dev-Test-Token: $DEV_TEST_TOKEN" \
   -d '{"channel_id":"11111111-1111-1111-1111-111111111111","workflow_name":"my-test","idempotency_key":"my-test-001"}'
+
+curl -X POST http://127.0.0.1:5678/webhook/step5-manual-topic-intake-test \
+  -H "Content-Type: application/json" \
+  -H "X-Dev-Test-Token: $DEV_TEST_TOKEN" \
+  -d '{"channel_id":"11111111-1111-1111-1111-111111111111","topic":"Ancient Civilizations","idempotency_key":"my-topic-test-001"}'
 ```
 
 ## Multi-arch builds

@@ -4,24 +4,27 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 4 — Workflow runtime foundation (complete)
+## Status: Step 5 — Manual topic intake (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
 role-separated, channel-isolated PostgreSQL domain schema (43 tables —
-Step 3), and now five reusable n8n workflows (`Initialize Workflow Run`,
-`Load Channel Configuration`, `Mark Workflow Step`, `Complete Workflow
-Run`, `Fail Workflow Run`) providing the common entry point every future
-content workflow will build on. Each is a thin wrapper around a tested
-SQL function — real validation, idempotency, resume logic, and
-dead-lettering, not opaque n8n node logic. Verified end to end with a
-real webhook call against real seeded channels: active channel loads its
-full config in one request; disabled/missing/malformed channels are
-rejected with structured errors *before* any unsafe SQL runs; two
-independently-configured channels never leak into each other's response.
-No content-generation workflow or Oracle deployment exist yet. See
+Step 3), five reusable n8n workflows providing the common workflow-run
+entry point every content workflow builds on (Step 4), and now the first
+real content workflow: **`Manual Topic Intake`**. Given a channel and a
+topic, it answers "should this become a content project?" — deterministic
+topic-rule enforcement, PostgreSQL-native duplicate/similarity detection
+(`pg_trgm`, not embeddings), active-project and budget gating, and an
+atomic project-creation step — then genuinely resumes a failed run from
+its last completed step (proven via a dev-only failure-injection
+mechanism exercised through real n8n execution, not just SQL). No
+research/script-generation/rendering/publishing workflow or Oracle
+deployment exist yet — this step only decides whether a topic becomes a
+project. See
+[docs/architecture/topic-intake.md](docs/architecture/topic-intake.md)
+for the full contract,
 [docs/architecture/workflow-runtime.md](docs/architecture/workflow-runtime.md)
-for the full contract and
+for the Step 4 foundation it's built on, and
 [docs/operations/development-commands.md](docs/operations/development-commands.md)
 to run it yourself.
 
@@ -71,13 +74,13 @@ to run it yourself.
 │   ├── queries/          # Canonical SQL the n8n workflow-runtime layer calls
 │   └── tests/            # Automated database test suite (31 checks)
 ├── n8n/
-│   ├── workflows/        # 5 reusable shared workflows + 1 dev test harness — implemented
+│   ├── workflows/        # 11 reusable shared workflows + 2 dev test harnesses — implemented
 │   ├── examples/         # Reference exports and sample payloads (not run in prod)
-│   └── tests/            # Automated workflow-runtime test suite (12 checks)
+│   └── tests/            # Automated workflow-runtime (12) + manual topic intake (27) test suites
 ├── prompts/
 │   ├── shared/           # Base prompt templates, parameterized by channel config
 │   └── channels/         # Per-channel prompt overrides, keyed by channel_id
-├── schemas/               # JSON Schema contracts — workflow-runtime request/response/config shapes
+├── schemas/               # JSON Schema contracts — workflow-runtime + topic-intake request/response/config shapes
 ├── scripts/                # Dev/build/test tooling — implemented (see docs/operations/development-commands.md)
 ├── storage/                 # Documents the storage/channels/{channel_id}/projects/{content_project_id}/ layout
 ├── tests/
@@ -129,6 +132,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Multi-channel design](docs/architecture/multi-channel-design.md)
 - [Database architecture](docs/architecture/database-architecture.md)
 - [Workflow runtime architecture](docs/architecture/workflow-runtime.md)
+- [Manual topic intake architecture](docs/architecture/topic-intake.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -146,15 +150,24 @@ Full index: [docs/README.md](docs/README.md)
   (`migrator`/`app_runtime`/`app_readonly`/`n8n_app`), database-enforced
   channel isolation, cost/budget accounting, job claiming (`SKIP LOCKED`)
   and resume logic, 31-check automated test suite. Complete.
-- **Step 4 (this step) — Workflow runtime foundation.** Five reusable n8n
+- **Step 4 — Workflow runtime foundation.** Five reusable n8n
   workflows (SQL-backed, not opaque node logic), a dev webhook test
   harness, 8 JSON Schemas validated against real captured output, 6
   additional migrations (workflow-runtime functions + 2 real bugs fixed
   along the way), reproducible n8n setup/import automation, 12-check
   automated test suite. Complete.
-- **Step 5 (next, not yet planned in detail):** the first real
-  content-generation workflow stage (topic intake or research) built on
-  this runtime foundation.
+- **Step 5 (this step) — Manual topic intake.** The `Manual Topic
+  Intake` reusable workflow (6 new SQL-backed n8n wrappers, a
+  74-node orchestrator with real per-step resume/skip logic), 4
+  additional migrations (topic normalization/fingerprinting,
+  `pg_trgm`-based duplicate/similarity detection, active-project
+  capacity, and 2 more real bugs fixed via live n8n testing — a
+  `failed → running` transition gap and a dropped `error.details`
+  field), 3 new JSON Schemas, a 27-check automated test suite proving
+  resume through real n8n execution (not just SQL). Complete.
+- **Step 6 (next, not yet planned in detail):** topic research — the
+  first workflow stage allowed to call an LLM/web search, building on
+  the `content_projects` row this step creates.
 - **Later steps:** Oracle Ampere A1 provisioning and deployment (Level 2
   native ARM64 validation happens here); first channel configuration and
   end-to-end single-channel test.

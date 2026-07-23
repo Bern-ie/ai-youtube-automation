@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/manual-topic-intake-request.schema.json",
+  "title": "Manual Topic Intake — Request",
+  "description": "Input to the 'Manual Topic Intake' reusable n8n workflow (Step 5). Answers only 'should this topic become a content project?' — no research, no LLM calls. See docs/architecture/topic-intake.md. This is the PUBLIC contract; the dev test webhook accepts one additional, undocumented, testing-only field (_dev_fail_after_step) not part of this schema — see topic-intake.md#resume-behavior.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "topic", "idempotency_key"],
+  "properties": {
+    "channel_id": { "type": "string", "format": "uuid" },
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "Raw, un-normalized topic text. Rejected if empty after trimming — see validate_manual_topic()."
+    },
+    "intended_angle": { "type": ["string", "null"], "maxLength": 500 },
+    "target_duration_seconds": { "type": ["integer", "null"], "exclusiveMinimum": 0, "maximum": 36000 },
+    "notes": { "type": ["string", "null"], "maxLength": 2000 },
+    "requested_publish_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "RFC3339 timestamp. Stored only — no scheduling is implemented by this workflow."
+    },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "source_origin": {
+      "type": "string",
+      "const": "manual",
+      "default": "manual",
+      "description": "Reserved for future automated-discovery callers of the same underlying create_manual_topic_project() path — always 'manual' for this workflow."
+    }
+  }
+}

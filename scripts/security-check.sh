@@ -166,6 +166,64 @@ dev_test_token_from_env() {
     && ! grep -qE '^\s*DEV_TEST_TOKEN=[A-Za-z0-9_/+-]{10,}\s*$' scripts/n8n-setup-dev.sh
 }
 
+# Every dev webhook entrypoint (Step 4's config loader test, Step 5's
+# manual topic intake test — including its dev-only failure-injection
+# field, which has no separate gate of its own; this webhook's
+# X-Dev-Test-Token auth IS the gate) must require headerAuth, never
+# "none" — this is the entire production-exposure argument documented in
+# docs/architecture/workflow-runtime.md#local-testing, so it must hold
+# for every webhook node, not just the one that existed when it was written.
+n8n_dev_webhooks_require_header_auth() {
+  python3 -c "
+import json, sys, glob
+
+bad = []
+for path in glob.glob('n8n/workflows/*.json'):
+    data = json.load(open(path))
+    for node in data.get('nodes', []):
+        if node.get('type') == 'n8n-nodes-base.webhook':
+            if node.get('parameters', {}).get('authentication') != 'headerAuth':
+                bad.append((path, node.get('name')))
+
+if bad:
+    print(bad, file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
+# Every Postgres node must bind parameters via queryReplacement (\$1, \$2,
+# ...) rather than interpolating values into the query text itself —
+# spot-checks that no future workflow reintroduces string-built SQL.
+n8n_postgres_queries_are_parameterized() {
+  python3 -c "
+import json, sys, glob, re
+
+bad = []
+for path in glob.glob('n8n/workflows/*.json'):
+    data = json.load(open(path))
+    for node in data.get('nodes', []):
+        if node.get('type') != 'n8n-nodes-base.postgres':
+            continue
+        params = node.get('parameters', {})
+        query = params.get('query', '')
+        if '\$1' not in query and re.search(r'(SELECT|INSERT|UPDATE|DELETE)', query, re.IGNORECASE):
+            # A handful of Step 4/5 wrappers take zero arguments — only
+            # flag a query that both takes no \$N placeholders AND looks
+            # like it interpolates an expression directly.
+            if '{{' in query or '\" +' in query or \"' +\" in query:
+                bad.append((path, node.get('name')))
+        qr = params.get('options', {}).get('queryReplacement', '')
+        if qr and not qr.strip().startswith('={{'):
+            bad.append((path, node.get('name'), 'queryReplacement not an n8n expression'))
+
+if bad:
+    print(bad, file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
 check "postgres publishes no port in production config"    service_has_no_ports prod postgres
 check "redis publishes no port in production config"       service_has_no_ports prod redis
 check "renderer publishes no port in production config"    service_has_no_ports prod renderer
@@ -183,6 +241,8 @@ check "no secret-shaped strings in tracked files"            no_real_secrets_in_
 check "n8n workflow exports carry credential references only, no values" n8n_workflow_exports_have_no_credential_values
 check "n8n's Postgres credential uses app_runtime, not an elevated role" n8n_credential_uses_app_runtime_not_elevated_role
 check "DEV_TEST_TOKEN is sourced from environment, not hardcoded"        dev_test_token_from_env
+check "every n8n dev webhook requires headerAuth"                        n8n_dev_webhooks_require_header_auth
+check "n8n Postgres nodes bind parameters, never interpolate SQL"        n8n_postgres_queries_are_parameterized
 
 echo
 if [[ $FAILURES -eq 0 ]]; then

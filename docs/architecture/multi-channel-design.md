@@ -1,14 +1,19 @@
 # Multi-Channel Design
 
-Status: **The channel config store (Step 3) and the runtime layer
-described below (Step 4) are both implemented** — see
-[database-architecture.md](database-architecture.md) and
-[workflow-runtime.md](workflow-runtime.md). No content-generation
-workflow exists yet, so this document still defines the contract those
-future workflows must implement against — but the "how a shared workflow
-is expected to work" list below is no longer aspirational: `Initialize
+Status: **The channel config store (Step 3), the runtime layer described
+below (Step 4), and the first real content workflow (`Manual Topic
+Intake`, Step 5) are all implemented** — see
+[database-architecture.md](database-architecture.md),
+[workflow-runtime.md](workflow-runtime.md), and
+[topic-intake.md](topic-intake.md). The "how a shared workflow is
+expected to work" list below is no longer aspirational: `Initialize
 Workflow Run` and `Load Channel Configuration` are real, tested, reusable
-n8n workflows any future workflow calls exactly this way.
+n8n workflows any future workflow calls exactly this way, and `Manual
+Topic Intake` is the first proof — the same two channels used throughout
+this document (`channel_topic_rules`, `channel_settings.
+max_active_projects`, `channel_budget_limits`) drive genuinely different
+accept/reject decisions for the same topic text with zero workflow code
+difference.
 
 ## Core rule
 

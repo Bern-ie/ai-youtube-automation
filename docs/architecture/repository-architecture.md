@@ -1,15 +1,19 @@
 # Repository Architecture
 
-Status: **Step 4 — workflow runtime foundation implemented.** `apps/renderer`
+Status: **Step 5 — manual topic intake implemented.** `apps/renderer`
 and `apps/approval-api` are real, running, multi-arch-built services;
 `docker-compose.yml` + overlays are a working local stack; PostgreSQL has
 a migration-managed, role-separated, channel-isolated domain schema (see
 [database-architecture.md](database-architecture.md)); five reusable n8n
-workflows now provide channel-config loading and workflow-run tracking
-for every future content workflow to build on (see
-[workflow-runtime.md](workflow-runtime.md)). No content-generation
-workflow or Oracle deployment exist yet — see each directory's
-`README.md` for its current state.
+workflows provide channel-config loading and workflow-run tracking for
+every future content workflow to build on (see
+[workflow-runtime.md](workflow-runtime.md)); and `Manual Topic Intake`
+(see [topic-intake.md](topic-intake.md)) is the first real content
+workflow, answering "should this topic become a content project?" with
+deterministic rule enforcement, duplicate/similarity detection, and
+budget/capacity gating. No research/rendering/publishing workflow or
+Oracle deployment exist yet — see each directory's `README.md` for its
+current state.
 
 ## Design principles
 

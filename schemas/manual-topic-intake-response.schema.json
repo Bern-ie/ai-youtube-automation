@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/manual-topic-intake-response.schema.json",
+  "title": "Manual Topic Intake — Success Response",
+  "description": "The 'data' payload of the success envelope returned by the 'Manual Topic Intake' n8n workflow on success. See docs/architecture/topic-intake.md. Non-blocking warnings (similarity, budget) surface here rather than as an error — see #duplicate-and-similarity-detection and #capacity-and-budget-gates for the reject-vs-warn policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["content_project", "topic", "warnings"],
+  "properties": {
+    "content_project": { "$ref": "https://schemas.ai-youtube-automation.internal/content-project.schema.json" },
+    "topic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "normalized_topic", "topic_fingerprint"],
+      "properties": {
+        "topic": { "type": "string" },
+        "normalized_topic": { "type": "string" },
+        "topic_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "warnings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["similarity_warning", "budget_warning"],
+      "properties": {
+        "similarity_warning": { "type": ["string", "null"] },
+        "budget_warning": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

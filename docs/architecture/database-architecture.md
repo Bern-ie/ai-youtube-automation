@@ -119,6 +119,16 @@ Every persistent domain ID is a UUID, generated with
 IDs are used for anything externally referenced. Consistent everywhere:
 `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`.
 
+The only contrib extension enabled anywhere in this schema is
+[`pg_trgm`](https://www.postgresql.org/docs/current/pgtrgm.html) (Step 5,
+`20260722210000_topic_intake_schema.sql`) — deterministic, character-
+trigram topic similarity for duplicate detection, explicitly not
+pgvector/embeddings. Standard PostgreSQL contrib, bundled in the official
+Docker image on both `linux/amd64` and `linux/arm64` — confirmed via
+`pg_available_extensions` before use, so it needed no separate ARM64
+validation. See
+[topic-intake.md#duplicate-and-similarity-detection](topic-intake.md#duplicate-and-similarity-detection).
+
 ## Schema overview (ER diagram)
 
 Core entities and their primary relationships — config/lookup tables

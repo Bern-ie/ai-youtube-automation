@@ -79,6 +79,13 @@ const IMPORT_ORDER = [
   'complete-workflow-run.json',
   'fail-workflow-run.json',
   'step4-config-loader-test.json',
+  'validate-manual-topic.json',
+  'check-manual-topic-duplicate.json',
+  'check-manual-topic-capacity-and-budget.json',
+  'create-manual-topic-project.json',
+  'get-workflow-run-steps.json',
+  'manual-topic-intake.json',
+  'step5-manual-topic-intake-test.json',
 ];
 
 async function main() {
@@ -158,6 +165,24 @@ const EXECUTE_WORKFLOW_TARGETS = {
   'Complete Workflow Run': 'complete-workflow-run.json',
   'Mark Step Failed': 'mark-workflow-step.json',
   'Fail Workflow Run': 'fail-workflow-run.json',
+  // Step 5 — "Manual Topic Intake" reusable orchestrator.
+  'Mark Step Running (load_config)': 'mark-workflow-step.json',
+  'Mark Step Succeeded (load_config)': 'mark-workflow-step.json',
+  'Get Workflow Run Steps': 'get-workflow-run-steps.json',
+  'Mark Step Running: validate_topic': 'mark-workflow-step.json',
+  'Call: validate_topic': 'validate-manual-topic.json',
+  'Mark Step Succeeded: validate_topic': 'mark-workflow-step.json',
+  'Mark Step Running: check_duplicate': 'mark-workflow-step.json',
+  'Call: check_duplicate': 'check-manual-topic-duplicate.json',
+  'Mark Step Succeeded: check_duplicate': 'mark-workflow-step.json',
+  'Mark Step Running: check_budget_and_capacity': 'mark-workflow-step.json',
+  'Call: check_budget_and_capacity': 'check-manual-topic-capacity-and-budget.json',
+  'Mark Step Succeeded: check_budget_and_capacity': 'mark-workflow-step.json',
+  'Mark Step Running: create_content_project': 'mark-workflow-step.json',
+  'Call: create_content_project': 'create-manual-topic-project.json',
+  'Mark Step Succeeded: create_content_project': 'mark-workflow-step.json',
+  // Step 5 — "Step5 Manual Topic Intake Test" dev webhook.
+  'Manual Topic Intake': 'manual-topic-intake.json',
 };
 const FILE_TO_WORKFLOW_NAME = {
   'initialize-workflow-run.json': 'Initialize Workflow Run',
@@ -165,6 +190,12 @@ const FILE_TO_WORKFLOW_NAME = {
   'mark-workflow-step.json': 'Mark Workflow Step',
   'complete-workflow-run.json': 'Complete Workflow Run',
   'fail-workflow-run.json': 'Fail Workflow Run',
+  'validate-manual-topic.json': 'Validate Manual Topic',
+  'check-manual-topic-duplicate.json': 'Check Manual Topic Duplicate',
+  'check-manual-topic-capacity-and-budget.json': 'Check Manual Topic Capacity And Budget',
+  'create-manual-topic-project.json': 'Create Manual Topic Project',
+  'get-workflow-run-steps.json': 'Get Workflow Run Steps',
+  'manual-topic-intake.json': 'Manual Topic Intake',
 };
 
 main().catch((err) => {
