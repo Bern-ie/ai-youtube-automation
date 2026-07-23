@@ -1,0 +1,784 @@
+{
+  "name": "Step4 Config Loader Test",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "step4-config-loader-test",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-1",
+      "name": "Dev Test Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OaBGIQb5F99tKgap",
+          "name": "dev-test-webhook-auth"
+        }
+      },
+      "webhookId": "1ab32a10-d08a-4b1e-b758-058e6f8cee55"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $input.first().json.body || {};\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst errors = [];\nif (!body.channel_id || !uuidRe.test(body.channel_id)) errors.push('channel_id must be a valid UUID');\nif (!body.workflow_name) errors.push('workflow_name is required');\nif (!body.idempotency_key) errors.push('idempotency_key is required');\nif (body.content_project_id && !uuidRe.test(body.content_project_id)) errors.push('content_project_id must be a valid UUID if provided');\nif (body.correlation_id && !uuidRe.test(body.correlation_id)) errors.push('correlation_id must be a valid UUID if provided');\nreturn [{ json: { valid: errors.length === 0, validation_errors: errors, ...body } }];"
+      },
+      "id": "code-validate",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valid",
+      "name": "Is Request Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst validUuid = (v) => (typeof v === 'string' && uuidRe.test(v)) ? v : null;\nreturn [{ json: { success: false, data: null, error: { code: 'INVALID_EXECUTION_CONTEXT', message: $json.validation_errors.join('; '), retryable: false, error_id: null }, runtime: { channel_id: validUuid($json.channel_id), workflow_run_id: null, content_project_id: validUuid($json.content_project_id), correlation_id: validUuid($json.correlation_id) } } }];"
+      },
+      "id": "code-invalid-response",
+      "name": "Build Validation Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "N1jht6bJ6jUs13np"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-init",
+      "name": "Initialize Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-init-ok",
+      "name": "Did Initialize Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $json }];"
+      },
+      "id": "code-init-fail-response",
+      "name": "Build Init Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $('Initialize Workflow Run').first().json.data;\nreturn [{ json: { workflow_run_id: run.workflow_run_id, channel_id: run.channel_id, content_project_id: run.content_project_id, step_name: 'load_channel_configuration', sequence: 1, status: 'running' } }];"
+      },
+      "id": "code-prep-mark-running",
+      "name": "Prepare Mark-Running Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "FBBLuaR8SvxsnMdf"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-mark-running",
+      "name": "Mark Step Running",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $('Initialize Workflow Run').first().json.data;\nreturn [{ json: { channel_id: run.channel_id, workflow_run_id: run.workflow_run_id, content_project_id: run.content_project_id } }];"
+      },
+      "id": "code-prep-load-config",
+      "name": "Prepare Load-Config Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "fHifeT3SH7xxOUEn"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-load-config",
+      "name": "Load Channel Configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-load-ok",
+      "name": "Did Load Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $('Initialize Workflow Run').first().json.data;\nreturn [{ json: { workflow_run_id: run.workflow_run_id, channel_id: run.channel_id, content_project_id: run.content_project_id, step_name: 'load_channel_configuration', sequence: 1, status: 'succeeded' } }];"
+      },
+      "id": "code-prep-mark-succeeded",
+      "name": "Prepare Mark-Succeeded Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "FBBLuaR8SvxsnMdf"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-mark-succeeded",
+      "name": "Mark Step Succeeded",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $('Initialize Workflow Run').first().json.data;\nreturn [{ json: { workflow_run_id: run.workflow_run_id, channel_id: run.channel_id, output: { config_loaded: true } } }];"
+      },
+      "id": "code-prep-complete",
+      "name": "Prepare Complete Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "BISY6zxwAfAKWMi7"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-complete",
+      "name": "Complete Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const completion = $json;\nconst config = $('Load Channel Configuration').first().json.data;\nreturn [{ json: { success: true, data: { run: completion.data, config }, error: null, runtime: completion.runtime } }];"
+      },
+      "id": "code-build-success",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $('Initialize Workflow Run').first().json.data;\nreturn [{ json: { workflow_run_id: run.workflow_run_id, channel_id: run.channel_id, content_project_id: run.content_project_id, step_name: 'load_channel_configuration', sequence: 1, status: 'failed' } }];"
+      },
+      "id": "code-prep-mark-failed",
+      "name": "Prepare Mark-Failed Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "FBBLuaR8SvxsnMdf"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-mark-failed",
+      "name": "Mark Step Failed",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $('Initialize Workflow Run').first().json.data;\nconst loadError = $('Load Channel Configuration').first().json.error;\nconst step = $('Mark Step Failed').first().json.data;\nreturn [{ json: { workflow_run_id: run.workflow_run_id, channel_id: run.channel_id, error_code: loadError.code, message: loadError.message, workflow_step_id: step.workflow_step_id, error_type: 'config_load_failure', retryable: loadError.retryable } }];"
+      },
+      "id": "code-prep-fail-run",
+      "name": "Prepare Fail-Run Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "kuK8rnMbXdUHcN5x"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "ew-fail-run",
+      "name": "Fail Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $json }];"
+      },
+      "id": "code-build-failure",
+      "name": "Build Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": "={{ $json.success ? 200 : ({CHANNEL_NOT_FOUND:404,CHANNEL_DISABLED:409,INVALID_CHANNEL_CONFIG:422,PROJECT_CHANNEL_MISMATCH:409,MISSING_REQUIRED_CONFIG:422,WORKFLOW_RUN_NOT_FOUND:404,INVALID_EXECUTION_CONTEXT:400,STEPS_NOT_COMPLETE:409}[$json.error.code] || 500) }}"
+        }
+      },
+      "id": "rtw-1",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        3520,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.data.status }}",
+              "rightValue": "queued",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-fresh-run",
+      "name": "Is This a Fresh Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const run = $json.data;\nreturn [{ json: { success: true, data: { run, idempotent_replay: true, note: 'existing workflow_run returned unchanged - idempotency_key already completed' }, error: null, runtime: $json.runtime } }];"
+      },
+      "id": "code-idempotent-response",
+      "name": "Build Idempotent Replay Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -20
+      ]
+    }
+  ],
+  "connections": {
+    "Dev Test Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Is Request Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Request Valid?": {
+      "main": [
+        [
+          {
+            "node": "Initialize Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Validation Error Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Did Initialize Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Initialize Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Is This a Fresh Run?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Init Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Init Failure Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running": {
+      "main": [
+        [
+          {
+            "node": "Prepare Load-Config Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Load-Config Input": {
+      "main": [
+        [
+          {
+            "node": "Load Channel Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Channel Configuration": {
+      "main": [
+        [
+          {
+            "node": "Did Load Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Load Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Failed Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded": {
+      "main": [
+        [
+          {
+            "node": "Prepare Complete Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Complete Input": {
+      "main": [
+        [
+          {
+            "node": "Complete Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is This a Fresh Run?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Running Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Idempotent Replay Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Idempotent Replay Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

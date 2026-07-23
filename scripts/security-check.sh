@@ -125,6 +125,47 @@ sys.exit(0)
 "
 }
 
+# n8n workflow exports must only ever carry credential {id, name}
+# references (how n8n itself represents them in an export) — never an
+# actual secret value. A real leak would show up as a "data"/"value" key
+# holding something other than an id/name pair inside a credentials block.
+n8n_workflow_exports_have_no_credential_values() {
+  python3 -c "
+import json, sys, glob
+
+bad = []
+for path in glob.glob('n8n/workflows/*.json'):
+    data = json.load(open(path))
+    for node in data.get('nodes', []):
+        creds = node.get('credentials', {})
+        for cred_type, ref in creds.items():
+            extra = set(ref.keys()) - {'id', 'name'}
+            if extra:
+                bad.append((path, node.get('name'), cred_type, sorted(extra)))
+
+if bad:
+    print(bad, file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
+# Confirm the dev n8n credential the shared workflows use is built from
+# app_runtime, never the migrator role or the bootstrap superuser —
+# n8n must run domain queries with the same least-privilege role
+# approval-api/renderer would use, not an elevated one just because it's
+# convenient. See docs/architecture/database-architecture.md#role-permission-model.
+n8n_credential_uses_app_runtime_not_elevated_role() {
+  grep -q 'APP_DB_USER' scripts/n8n-setup-dev.sh \
+    && grep -q 'APP_DB_PASSWORD' scripts/n8n-setup-dev.sh \
+    && ! grep -qE 'MIGRATOR_DB_(USER|PASSWORD)|POSTGRES_USER|POSTGRES_PASSWORD' <(grep -A3 'postgres-app-runtime' scripts/n8n-setup-dev.sh)
+}
+
+dev_test_token_from_env() {
+  grep -q 'DEV_TEST_TOKEN' scripts/n8n-setup-dev.sh \
+    && ! grep -qE '^\s*DEV_TEST_TOKEN=[A-Za-z0-9_/+-]{10,}\s*$' scripts/n8n-setup-dev.sh
+}
+
 check "postgres publishes no port in production config"    service_has_no_ports prod postgres
 check "redis publishes no port in production config"       service_has_no_ports prod redis
 check "renderer publishes no port in production config"    service_has_no_ports prod renderer
@@ -139,6 +180,9 @@ check "db-test tool publishes no port"                       service_has_no_port
 check ".env is gitignored"                                  env_is_gitignored
 check ".env is not tracked in git"                           dotenv_not_tracked
 check "no secret-shaped strings in tracked files"            no_real_secrets_in_tracked_files
+check "n8n workflow exports carry credential references only, no values" n8n_workflow_exports_have_no_credential_values
+check "n8n's Postgres credential uses app_runtime, not an elevated role" n8n_credential_uses_app_runtime_not_elevated_role
+check "DEV_TEST_TOKEN is sourced from environment, not hardcoded"        dev_test_token_from_env
 
 echo
 if [[ $FAILURES -eq 0 ]]; then

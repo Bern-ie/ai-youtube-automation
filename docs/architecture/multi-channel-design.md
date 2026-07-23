@@ -1,11 +1,14 @@
 # Multi-Channel Design
 
-Status: **The channel config store is implemented (Step 3)** — see
-[database-architecture.md](database-architecture.md). No n8n workflow
-exists yet, so this document still defines the contract those workflows
-must implement against; the "how a shared workflow is expected to work"
-section below is still forward-looking. The database schema now backs
-every item in the "channel configuration surface" section.
+Status: **The channel config store (Step 3) and the runtime layer
+described below (Step 4) are both implemented** — see
+[database-architecture.md](database-architecture.md) and
+[workflow-runtime.md](workflow-runtime.md). No content-generation
+workflow exists yet, so this document still defines the contract those
+future workflows must implement against — but the "how a shared workflow
+is expected to work" list below is no longer aspirational: `Initialize
+Workflow Run` and `Load Channel Configuration` are real, tested, reusable
+n8n workflows any future workflow calls exactly this way.
 
 ## Core rule
 
@@ -18,15 +21,20 @@ other channel-specific detail is resolved by loading configuration for that
 ## How a shared workflow is expected to work
 
 1. A trigger (schedule, webhook, manual) starts a workflow with at least a
-   `channel_id` and, once work is underway, a `content_project_id`.
-2. A `workflow_run_id` is minted for this execution; a `correlation_id` is
-   either minted (if this is the start of a logical operation) or passed
-   through (if this is a continuation/retry of one).
-3. The first real step of any shared workflow loads the channel's
-   configuration (later: a "Load Channel Config" sub-workflow reading from
-   the `channels` + `channel_*` tables — implemented, see
-   [database-architecture.md](database-architecture.md)). Nothing
-   downstream reads raw environment variables for channel behavior.
+   `channel_id` and, once work is underway, a `content_project_id`. In
+   practice this means calling the `Initialize Workflow Run` shared
+   workflow first — it validates the channel/project, mints a
+   `workflow_run_id`, and either creates a new run or (idempotently)
+   returns an existing one for the same `idempotency_key`.
+2. A `correlation_id` is either minted (if this is the start of a logical
+   operation) or passed through (if this is a continuation/retry of one)
+   — `Initialize Workflow Run` does this automatically.
+3. The first real step of any shared workflow calls `Load Channel
+   Configuration` — a reusable n8n workflow reading from the `channels` +
+   `channel_*` tables and returning one normalized object
+   (`schemas/channel-config.schema.json`). Nothing downstream reads raw
+   environment variables for channel behavior. See
+   [workflow-runtime.md](workflow-runtime.md) for the full contract.
 4. All API calls, prompt selection, storage paths, budget checks, and
    publishing actions use values from the loaded config, never literals.
 5. All logs and generated records carry `channel_id`, `content_project_id`

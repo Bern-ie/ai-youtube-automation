@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/error-envelope.schema.json",
+  "title": "Error Envelope",
+  "description": "The consistent error response shape returned by every workflow-runtime function/workflow. Internal stack traces are never exposed here — only a code, a sanitized message, and whether the failure is retryable. See docs/architecture/workflow-runtime.md#error-contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["success", "data", "error", "runtime"],
+  "properties": {
+    "success": { "const": false },
+    "data": { "const": null },
+    "error": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code", "message", "retryable", "error_id"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "CHANNEL_NOT_FOUND",
+            "CHANNEL_DISABLED",
+            "INVALID_CHANNEL_CONFIG",
+            "PROJECT_CHANNEL_MISMATCH",
+            "MISSING_REQUIRED_CONFIG",
+            "WORKFLOW_RUN_NOT_FOUND",
+            "INVALID_EXECUTION_CONTEXT",
+            "STEPS_NOT_COMPLETE"
+          ]
+        },
+        "message": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "error_id": { "type": ["string", "null"], "format": "uuid" },
+        "dead_lettered": { "type": "boolean" }
+      }
+    },
+    "runtime": { "$ref": "https://schemas.ai-youtube-automation.internal/runtime-context.schema.json" }
+  }
+}

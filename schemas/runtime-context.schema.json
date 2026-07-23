@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/runtime-context.schema.json",
+  "title": "Runtime Context",
+  "description": "The core execution identifiers threaded through every workflow-runtime call and response. Reused (via $ref) by the request and envelope schemas rather than redefined — see docs/architecture/workflow-runtime.md#core-runtime-identifiers. channel_id is nullable, not just the other three: the INVALID_EXECUTION_CONTEXT case (e.g. a caller sends a non-UUID channel_id) is exactly the scenario where no valid channel_id exists to report — echoing the malformed input back here would itself violate this schema, so the runtime context reports null rather than the invalid raw value.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "workflow_run_id", "content_project_id", "correlation_id"],
+  "properties": {
+    "channel_id": { "type": ["string", "null"], "format": "uuid" },
+    "workflow_run_id": { "type": ["string", "null"], "format": "uuid" },
+    "content_project_id": { "type": ["string", "null"], "format": "uuid" },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" }
+  }
+}

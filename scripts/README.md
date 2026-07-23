@@ -1,8 +1,7 @@
 # scripts
 
-Status: **implemented** for local infrastructure operations (Step 2) and
-database operations (Step 3). n8n workflow export/import helpers are
-later-phase work (no workflows exist yet).
+Status: **implemented** for local infrastructure operations (Step 2),
+database operations (Step 3), and n8n workflow setup/testing (Step 4).
 
 All scripts source `lib.sh` for shared helpers (`log`/`warn`/`fail`/`pass`,
 `.env` loading that never echoes secrets, `require_env` preflight checks,
@@ -29,6 +28,11 @@ resolve the repo root themselves regardless of the caller's cwd.
 | `db-seed.sh` | Loads `database/seeds/*.sql` (example channels), as `app_runtime`. Idempotent. |
 | `db-test.sh` | Runs the 31-check automated database test suite — see `database/tests/README.md`. |
 | `db-reset-dev.sh --yes` | **Destructive.** Deletes the `postgres-data` volume and re-bootstraps + re-migrates + re-seeds from scratch. Refuses to run when `NODE_ENV=production`; there is deliberately no production equivalent. |
+| `n8n-setup-dev.sh` | Creates the n8n owner account, an API key (saved to `.env`), and the `postgres-app-runtime`/`dev-test-webhook-auth` credentials. Idempotent. |
+| `n8n-import-workflows.mjs` | Imports + publishes all 6 workflows from `n8n/workflows/`, resolving credential and sub-workflow IDs by name. Zero npm dependencies (Node's built-in `fetch`). Run directly: `node scripts/n8n-import-workflows.mjs`. |
+| `n8n-test.sh` | Runs the 12-check workflow-runtime test suite — see `n8n/tests/README.md`. |
 
-Not yet implemented: n8n workflow export/import helpers (no workflows
-exist yet).
+All scripts here are implemented; n8n workflow *export* automation (round-tripping
+edits made in the n8n UI back into `n8n/workflows/`) doesn't exist yet —
+today that's a manual `GET /api/v1/workflows/{id}` + sanitize step (see
+[workflow-runtime.md](../docs/architecture/workflow-runtime.md)).

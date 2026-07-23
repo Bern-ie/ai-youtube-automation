@@ -1,0 +1,25 @@
+-- Canonical query for the "Initialize Workflow Run" n8n workflow.
+-- This is the exact text the workflow's Postgres node runs (as
+-- app_runtime) — see n8n/workflows/initialize-workflow-run.json and
+-- docs/architecture/workflow-runtime.md#sql-organization for the
+-- synchronization convention: if you change the function signature in
+-- database/migrations/20260722200000_workflow_runtime_functions.sql,
+-- update this file AND the n8n workflow JSON to match.
+--
+-- All logic (channel/project validation, idempotency, run creation)
+-- lives in the initialize_workflow_run() function — see that migration
+-- for the implementation. This file is intentionally thin.
+--
+-- Parameters ($1..$7), all bound — never string-interpolated:
+--   $1  channel_id          uuid, required
+--   $2  workflow_name       text, required
+--   $3  idempotency_key     text, required
+--   $4  content_project_id  uuid, optional (pass NULL if absent)
+--   $5  correlation_id      uuid, optional (pass NULL to auto-generate)
+--   $6  input               jsonb, optional (defaults to '{}')
+--   $7  max_retries         integer, optional (defaults to 3)
+--
+-- Returns one row, one column (`result`), a JSONB envelope:
+--   {"success": bool, "data": {...}|null, "error": {...}|null, "runtime": {...}}
+
+SELECT initialize_workflow_run($1, $2, $3, $4, $5, $6, $7) AS result;

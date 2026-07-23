@@ -1,11 +1,14 @@
 # Repository Architecture
 
-Status: **Step 3 — PostgreSQL domain schema implemented.** `apps/renderer`
+Status: **Step 4 — workflow runtime foundation implemented.** `apps/renderer`
 and `apps/approval-api` are real, running, multi-arch-built services;
-`docker-compose.yml` + overlays are a working local stack; PostgreSQL now
-has a migration-managed, role-separated, channel-isolated domain schema
-(see [database-architecture.md](database-architecture.md)). No n8n
-workflows or Oracle deployment exist yet — see each directory's
+`docker-compose.yml` + overlays are a working local stack; PostgreSQL has
+a migration-managed, role-separated, channel-isolated domain schema (see
+[database-architecture.md](database-architecture.md)); five reusable n8n
+workflows now provide channel-config loading and workflow-run tracking
+for every future content workflow to build on (see
+[workflow-runtime.md](workflow-runtime.md)). No content-generation
+workflow or Oracle deployment exist yet — see each directory's
 `README.md` for its current state.
 
 ## Design principles
@@ -39,13 +42,14 @@ workflows or Oracle deployment exist yet — see each directory's
 | `database/bootstrap/` | Cluster bootstrap only (roles, databases) — `docker-entrypoint-initdb.d`, runs once. See [database-architecture.md](database-architecture.md#migration-system). |
 | `database/migrations/` | The real, ledgered, re-runnable domain schema — dbmate migrations. 43 tables across channels, content lifecycle, research, scripts, media production, approvals, analytics, workflow execution, prompts, cost accounting, and audit logs. |
 | `database/seeds/` | Idempotent seed data — 3 example channels (1 active, 2 disabled, each distinctly configured). Never per-channel secrets. |
-| `database/queries/` | Hand-maintained reusable SQL used by workflows/services. Not yet populated — budget/job-claiming/resume queries currently live as SQL functions in `database/migrations/` instead (see database-architecture.md); this directory is for future ad hoc/reporting queries. |
+| `database/queries/` | Canonical, documented copies of the SQL the n8n workflow-runtime layer calls (thin `SELECT function(...)` wrappers — the actual logic lives in `database/migrations/`, see database-architecture.md and workflow-runtime.md). |
 | `database/tests/` | Automated database test suite (Node + `pg`, 31 checks) — schema, roles, channel isolation, idempotency, cost accounting, job claiming, resume logic. |
-| `n8n/workflows/` | Exported shared n8n workflows. A workflow appears here once, and operates on any channel via injected identifiers. |
+| `n8n/workflows/` | The five reusable shared workflows (`initialize-workflow-run`, `load-channel-configuration`, `mark-workflow-step`, `complete-workflow-run`, `fail-workflow-run`) plus the dev test harness orchestrator (`step4-config-loader-test`). Each operates on any channel via injected identifiers — see [workflow-runtime.md](workflow-runtime.md). |
 | `n8n/examples/` | Example/reference workflow exports and payload samples — not run in production. |
+| `n8n/tests/` | Automated workflow-runtime test suite (Node + `pg` + `ajv`, 12 checks) — real n8n webhook calls, real PostgreSQL, schema-validated responses. |
 | `prompts/shared/` | Base prompt templates common to all channels, parameterized by channel config. |
 | `prompts/channels/` | Per-channel prompt overrides/extensions, keyed by `channel_id`. Versioned (see multi-channel design doc). |
-| `schemas/` | JSON Schema definitions for cross-service contracts (channel config, content project, workflow payloads). None defined yet. |
+| `schemas/` | JSON Schema (Draft 2020-12) contracts for the workflow-runtime layer — request/response shapes for all five reusable workflows, the normalized channel config, and the shared success/error envelopes. See [workflow-runtime.md](workflow-runtime.md). |
 | `scripts/` | Operator/build tooling (multi-arch builds, migrations runner, etc.). |
 | `storage/` | Documents the runtime object-storage layout (`channels/{channel_id}/projects/{content_project_id}/`). Actual media is gitignored. |
 | `tests/` | `unit/`, `integration/`, and `arm64/` (architecture-specific validation: codec availability, native addon loading). |

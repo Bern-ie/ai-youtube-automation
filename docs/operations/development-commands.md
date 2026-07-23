@@ -1,9 +1,11 @@
 # Development Commands
 
-Status: reflects Step 3 — a working local Docker Compose stack (Postgres,
+Status: reflects Step 4 — a working local Docker Compose stack (Postgres,
 Redis, n8n, MinIO, Caddy, renderer, approval-api), multi-arch build
-tooling, and a migration-managed PostgreSQL domain schema with role
-separation. No n8n workflows or Oracle deployment exist yet.
+tooling, a migration-managed PostgreSQL domain schema with role
+separation, and five reusable n8n workflows providing channel-config
+loading and workflow-run tracking. No content-generation workflow or
+Oracle deployment exist yet.
 
 ## Environment
 
@@ -24,7 +26,8 @@ cp .env.example .env
 # edit .env — at minimum set real values for:
 #   POSTGRES_USER, POSTGRES_PASSWORD, REDIS_PASSWORD, N8N_ENCRYPTION_KEY,
 #   WEBHOOK_URL, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET,
-#   MIGRATOR_DB_PASSWORD, APP_DB_PASSWORD, APP_READONLY_DB_PASSWORD, N8N_DB_PASSWORD
+#   MIGRATOR_DB_PASSWORD, APP_DB_PASSWORD, APP_READONLY_DB_PASSWORD, N8N_DB_PASSWORD,
+#   N8N_ADMIN_EMAIL, N8N_ADMIN_PASSWORD, DEV_TEST_TOKEN
 ```
 
 `scripts/dev-up.sh` and `scripts/prod-up.sh` refuse to start with a clear
@@ -104,6 +107,28 @@ once against an *empty* `postgres-data` volume. If you're upgrading an
 existing Step 2 volume rather than starting fresh, you need
 `scripts/db-reset-dev.sh --yes` once to get the new roles created.
 
+## n8n workflows
+
+```bash
+scripts/n8n-setup-dev.sh              # owner account, API key (saved to .env), credentials — idempotent
+node scripts/n8n-import-workflows.mjs  # imports + publishes all 6 workflows from n8n/workflows/
+scripts/n8n-test.sh                    # runs the 12-check workflow-runtime test suite
+```
+
+Requires `scripts/db-migrate.sh` and `scripts/db-seed.sh` to have already
+run (the workflows load real seeded channel config). See
+[workflow-runtime.md](../architecture/workflow-runtime.md) for what each
+script does and the manual-UI alternative to `n8n-setup-dev.sh`.
+
+Manual test call, once set up:
+
+```bash
+curl -X POST http://127.0.0.1:5678/webhook/step4-config-loader-test \
+  -H "Content-Type: application/json" \
+  -H "X-Dev-Test-Token: $DEV_TEST_TOKEN" \
+  -d '{"channel_id":"11111111-1111-1111-1111-111111111111","workflow_name":"my-test","idempotency_key":"my-test-001"}'
+```
+
 ## Multi-arch builds
 
 ```bash
@@ -131,6 +156,8 @@ registry is configured yet; that's a later step).
 ```bash
 scripts/test-infrastructure.sh   # full stack smoke test (see below) — requires dev-up.sh first
 scripts/test-arm64.sh            # builds + QEMU-runs both images on arm64, checks arch + FFmpeg
+scripts/db-test.sh                # 31-check database test suite (see database-architecture.md)
+scripts/n8n-test.sh                # 12-check workflow-runtime test suite (see workflow-runtime.md)
 scripts/security-check.sh        # static checks: no exposed ports, no secrets in git, etc.
 ```
 
@@ -213,6 +240,22 @@ exactly what happened building `db-test` initially (see
 at *build* time (a Dockerfile `RUN` step, which runs during `docker
 build`/`buildx build` and does have normal internet access), never in the
 container's runtime `command:`.
+
+**"Cannot publish workflow: Node ... references workflow ... which is not
+published"** when activating an n8n workflow — this n8n version requires
+every workflow referenced by an `Execute Workflow` node to itself be
+*activated* first, even if it has no trigger of its own and would never
+otherwise need activating. `scripts/n8n-import-workflows.mjs` imports and
+activates the five reusable workflows before the orchestrator that calls
+them, in that order, for exactly this reason.
+
+**A webhook request body's fields aren't where you expect
+(`$json.channel_id` is `undefined`)** — n8n's Webhook node nests the
+actual POST body under `$json.body`, not at the top level (headers/query
+params are siblings: `$json.headers`, `$json.query`). The orchestrator's
+"Validate Request" Code node does `$input.first().json.body` for exactly
+this reason — copy that pattern rather than referencing webhook fields
+directly.
 
 **Health check passes but a request through Caddy fails** — check
 `scripts/logs.sh proxy` first; Caddy logs the upstream error. Confirm the

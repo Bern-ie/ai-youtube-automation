@@ -13,7 +13,12 @@ test on both platforms. All five official base images
 (n8n/PostgreSQL/Redis/Caddy/MinIO) have confirmed multi-arch manifests.
 As of Step 3, the migration tool (`dbmate`, official multi-arch image)
 and the new `db-test` custom image are also Level 1 verified — see
-[Migration tooling](#migration-tooling). **Nothing here is Level 2
+[Migration tooling](#migration-tooling). **Step 4 introduced no new
+custom-built containers or architecture-sensitive binaries** — the five
+reusable workflows are n8n workflow *definitions* (JSON, run by the
+already-verified `n8nio/n8n` image) and `n8n/tests/` is host-side Node
+tooling (real `pg`/`ajv`, no native bindings), not a container. Nothing
+new to validate here this step. **Nothing in this matrix is Level 2
 (native Oracle Ampere A1) verified yet** — that happens once the VM
 exists, a later step.
 

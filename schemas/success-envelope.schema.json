@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/success-envelope.schema.json",
+  "title": "Success Envelope",
+  "description": "The consistent success response shape returned by every workflow-runtime function/workflow. See docs/architecture/workflow-runtime.md#success-contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["success", "data", "error", "runtime"],
+  "properties": {
+    "success": { "const": true },
+    "data": { "type": "object" },
+    "error": { "const": null },
+    "runtime": { "$ref": "https://schemas.ai-youtube-automation.internal/runtime-context.schema.json" }
+  }
+}

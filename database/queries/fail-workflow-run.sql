@@ -1,0 +1,30 @@
+-- Canonical query for the "Fail Workflow Run" n8n workflow. See
+-- n8n/workflows/fail-workflow-run.json.
+--
+-- Creates an `errors` row, transitions the step (if given) and the run
+-- to 'failed', increments retry_count, and — reusing Step 3's
+-- dead_letter_workflow_run()/workflow_run_dead_letter_threshold_reached()
+-- rather than duplicating that logic — dead-letters the run if the
+-- retry threshold is reached OR this specific failure was marked
+-- non-retryable. See fail_workflow_run() in
+-- database/migrations/20260722200000_workflow_runtime_functions.sql.
+--
+-- Parameters ($1..$10), all bound:
+--   $1  workflow_run_id       uuid, required
+--   $2  channel_id            uuid, required
+--   $3  error_code            text, required
+--   $4  message               text, required — human-readable, never a
+--       secret or raw stack trace; goes into errors.message
+--   $5  workflow_step_id      uuid, optional
+--   $6  error_type            text, optional
+--   $7  sanitized_details     jsonb, optional (defaults to '{}') —
+--       guarded by jsonb_has_no_secret_keys; never put secrets here
+--   $8  retryable             boolean, optional (defaults to true)
+--   $9  provider              text, optional
+--   $10 provider_request_id   text, optional
+--
+-- Returns the standard envelope with success=false and
+-- error.dead_lettered indicating whether this call pushed the run into
+-- dead_letter_jobs.
+
+SELECT fail_workflow_run($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS result;

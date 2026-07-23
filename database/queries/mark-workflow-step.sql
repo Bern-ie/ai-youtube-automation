@@ -1,0 +1,25 @@
+-- Canonical query for the "Mark Workflow Step" n8n workflow. See
+-- n8n/workflows/mark-workflow-step.json.
+--
+-- UPSERTs on (workflow_run_id, step_name) — calling this twice for the
+-- same logical step updates one row, it never creates a duplicate (see
+-- mark_workflow_step() in
+-- database/migrations/20260722200000_workflow_runtime_functions.sql).
+-- Marking a step 'running' for the first time on a still-'queued' run
+-- also promotes the run itself to 'running'.
+--
+-- Parameters ($1..$10), all bound:
+--   $1  workflow_run_id     uuid, required
+--   $2  channel_id          uuid, required
+--   $3  step_name           text, required
+--   $4  sequence            integer, required
+--   $5  status              text, required — pending|running|succeeded|failed|skipped|cancelled
+--   $6  content_project_id  uuid, optional
+--   $7  attempt             integer, optional (defaults to 1)
+--   $8  idempotency_key     text, optional
+--   $9  input_checksum      text, optional
+--   $10 output              jsonb, optional (defaults to '{}')
+--
+-- Returns the standard success/error/runtime envelope.
+
+SELECT mark_workflow_step($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS result;

@@ -1,0 +1,23 @@
+-- Canonical query answering "where should this workflow_run resume from"
+-- — a thin aggregator over Step 3's four resume helpers
+-- (last_successful_workflow_step, first_incomplete_workflow_step,
+-- retryable_failed_workflow_step, workflow_run_dead_letter_threshold_reached)
+-- in database/migrations/20260722190013_job_claiming_and_resume.sql, so a
+-- caller needs one round trip instead of four. Not currently wired into
+-- a dedicated n8n workflow (see
+-- docs/architecture/workflow-runtime.md#resume-behavior for why) — used
+-- directly by database/tests-style assertions and available for a future
+-- workflow to call once resumable pipeline stages exist.
+--
+-- Parameters ($1):
+--   $1  workflow_run_id  uuid, required
+--
+-- Returns one row, one column (`result`):
+--   {
+--     "last_successful_step": <workflow_steps row as JSON, or null>,
+--     "first_incomplete_step": <workflow_steps row as JSON, or null>,
+--     "retryable_failed_step": <workflow_steps row as JSON, or null>,
+--     "dead_letter_threshold_reached": boolean
+--   }
+
+SELECT get_resume_state($1) AS result;

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/workflow-step-update.schema.json",
+  "title": "Mark Workflow Step — Request",
+  "description": "Input to the 'Mark Workflow Step' shared n8n workflow. See mark_workflow_step() in database/migrations/20260722200000_workflow_runtime_functions.sql.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workflow_run_id", "channel_id", "step_name", "sequence", "status"],
+  "properties": {
+    "workflow_run_id": { "type": "string", "format": "uuid" },
+    "channel_id": { "type": "string", "format": "uuid" },
+    "content_project_id": { "type": ["string", "null"], "format": "uuid" },
+    "step_name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "succeeded", "failed", "skipped", "cancelled"]
+    },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "idempotency_key": { "type": ["string", "null"] },
+    "input_checksum": { "type": ["string", "null"] },
+    "output": { "type": "object" }
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/channel-config.schema.json",
+  "title": "Normalized Channel Configuration",
+  "description": "The 'data' payload returned by load_channel_configuration() / the 'Load Channel Configuration' n8n workflow — every future content workflow's common entry point. Adapted to the actual Step 3 schema rather than forced into a generic shape — see docs/architecture/database-architecture.md for the source tables behind each section. Credentials expose safe references only — never secret values, enforced independently by the database, not just this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "channel", "content", "style", "branding", "providers", "budgets",
+    "publishing", "prompts", "credentials", "strategy", "runtime"
+  ],
+  "properties": {
+    "channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug", "display_name", "status", "language", "storage_namespace"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "slug": { "type": "string" },
+        "display_name": { "type": "string" },
+        "status": { "const": "active", "description": "Always 'active' here — load_channel_configuration() refuses to return config for a non-active channel (error code CHANNEL_DISABLED)." },
+        "language": { "type": "string" },
+        "target_region": { "type": ["string", "null"] },
+        "niche": { "type": ["string", "null"] },
+        "target_audience": { "type": ["string", "null"] },
+        "storage_namespace": { "type": "string" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pillars", "topic_rules", "default_target_duration_seconds"],
+      "properties": {
+        "pillars": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pillar_name": { "type": "string" },
+              "description": { "type": ["string", "null"] },
+              "priority": { "type": "integer" }
+            }
+          }
+        },
+        "topic_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule_type": { "type": "string", "enum": ["allowed_topic", "blocked_topic", "allowed_keyword", "blocked_keyword"] },
+              "value": { "type": "string" },
+              "notes": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "default_target_duration_seconds": { "type": ["integer", "null"] }
+      }
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "script_tone": { "type": ["string", "null"] },
+        "hook_style": { "type": ["string", "null"] },
+        "cta_style": { "type": ["string", "null"] },
+        "video_format": { "type": ["string", "null"] },
+        "visual_style": { "type": ["string", "null"] },
+        "thumbnail_rules": { "type": "object" }
+      }
+    },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brand_colors": { "type": "object" },
+        "fonts": {
+          "type": "object",
+          "properties": {
+            "primary": { "type": ["string", "null"] },
+            "secondary": { "type": ["string", "null"] }
+          }
+        },
+        "logo": { "type": ["string", "null"] },
+        "intro_asset": { "type": ["string", "null"] },
+        "outro_asset": { "type": ["string", "null"] }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "Keyed by service_type (llm, tts, image_gen, video_gen, stock_media, search — see channel_provider_settings.service_type) — only categories with at least one configured provider appear.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["provider", "enabled", "priority"],
+          "properties": {
+            "provider": { "type": "string" },
+            "enabled": { "type": "boolean" },
+            "priority": { "type": "integer" },
+            "monthly_limit_usd": { "type": ["number", "null"] },
+            "settings": { "type": "object", "description": "Provider-specific JSONB — model parameters etc. Never secrets (jsonb_has_no_secret_keys enforced at the database)." }
+          }
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limits", "current_month_spend_usd"],
+      "properties": {
+        "limits": {
+          "type": "object",
+          "description": "Keyed by limit_type (per_video, monthly_channel) — only configured limits appear.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "amount_usd": { "type": "number" },
+              "enforcement": { "type": "string", "enum": ["hard", "soft"] },
+              "warning_threshold_pct": { "type": "number" },
+              "enabled": { "type": "boolean" }
+            }
+          }
+        },
+        "current_month_spend_usd": {
+          "type": "number",
+          "description": "Computed live via channel_month_spend_usd() — never a cached total."
+        }
+      }
+    },
+    "publishing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schedules", "human_approval_required"],
+      "properties": {
+        "schedules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day_of_week": { "type": ["integer", "null"] },
+              "time_of_day": { "type": ["string", "null"] },
+              "timezone": { "type": "string" },
+              "cadence": { "type": "string", "enum": ["daily", "weekly", "biweekly", "monthly", "custom"] }
+            }
+          }
+        },
+        "human_approval_required": {
+          "type": "boolean",
+          "description": "Policy only — no approval_requests are created by this loader. Prepares for research/script/final approval stages implemented in a later step."
+        }
+      }
+    },
+    "prompts": {
+      "type": "array",
+      "description": "References only — prompt_id/version, not the template text. A future content workflow loads the template by prompt_version_id when it actually needs it.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "prompt_name": { "type": "string" },
+          "prompt_id": { "type": "string", "format": "uuid" },
+          "prompt_version_id": { "type": "string", "format": "uuid" },
+          "version": { "type": "integer" },
+          "checksum": { "type": ["string", "null"] },
+          "status": { "type": "string", "enum": ["draft", "active", "deprecated"] }
+        }
+      }
+    },
+    "credentials": {
+      "type": "array",
+      "description": "Safe references only. Never present: api_key, apikey, secret, token, password, client_secret, access_token, refresh_token, or any raw credential value.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "credential_type": { "type": "string", "enum": ["youtube_oauth", "tts_provider", "llm_provider", "other"] },
+          "provider": { "type": "string" },
+          "n8n_credential_reference": { "type": ["string", "null"] },
+          "external_secret_reference": { "type": ["string", "null"] },
+          "status": { "type": "string", "enum": ["active", "revoked", "expired", "pending"] }
+        }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "analytics_benchmarks": { "type": "object" },
+        "strategy_notes": { "type": ["string", "null"] }
+      }
+    },
+    "runtime": { "$ref": "https://schemas.ai-youtube-automation.internal/runtime-context.schema.json" }
+  }
+}

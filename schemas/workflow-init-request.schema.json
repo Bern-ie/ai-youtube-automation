@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/workflow-init-request.schema.json",
+  "title": "Initialize Workflow Run — Request",
+  "description": "Input to the 'Initialize Workflow Run' shared n8n workflow. See docs/architecture/workflow-runtime.md#workflow-1--initialize-workflow-run and initialize_workflow_run() in database/migrations/20260722200000_workflow_runtime_functions.sql.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "workflow_name", "idempotency_key"],
+  "properties": {
+    "channel_id": { "type": "string", "format": "uuid" },
+    "workflow_name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "content_project_id": { "type": ["string", "null"], "format": "uuid" },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "input": { "type": "object" },
+    "max_retries": { "type": "integer", "minimum": 0, "maximum": 20 }
+  }
+}

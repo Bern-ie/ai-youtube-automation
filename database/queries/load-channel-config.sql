@@ -1,0 +1,23 @@
+-- Canonical query for the "Load Channel Configuration" n8n workflow —
+-- the primary Step 4 deliverable. See
+-- n8n/workflows/load-channel-configuration.json and
+-- docs/architecture/workflow-runtime.md#load-channel-configuration.
+--
+-- All normalization (channel + 9 config tables + live budget spend +
+-- prompt/credential references, safe-fields-only) happens inside
+-- load_channel_configuration() — see
+-- database/migrations/20260722200000_workflow_runtime_functions.sql.
+-- This file is intentionally thin; the shape of the returned config
+-- object is documented in schemas/channel-config.schema.json.
+--
+-- Parameters ($1..$3), all bound:
+--   $1  channel_id          uuid, required
+--   $2  workflow_run_id     uuid, required — must be a run already
+--                           created by initialize-workflow-run.sql
+--   $3  content_project_id  uuid, optional (pass NULL if absent)
+--
+-- Returns one row, one column (`result`), the same success/error/runtime
+-- envelope as every other function here — `data` is the normalized
+-- config object (schemas/channel-config.schema.json) on success.
+
+SELECT load_channel_configuration($1, $2, $3) AS result;

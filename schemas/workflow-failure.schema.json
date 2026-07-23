@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/workflow-failure.schema.json",
+  "title": "Fail Workflow Run — Request",
+  "description": "Input to the 'Fail Workflow Run' shared n8n workflow. See fail_workflow_run() in database/migrations/20260722200000_workflow_runtime_functions.sql. sanitized_details must never contain secrets — enforced independently by a database CHECK constraint (jsonb_has_no_secret_keys), not just this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workflow_run_id", "channel_id", "error_code", "message"],
+  "properties": {
+    "workflow_run_id": { "type": "string", "format": "uuid" },
+    "channel_id": { "type": "string", "format": "uuid" },
+    "error_code": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "message": { "type": "string", "minLength": 1 },
+    "workflow_step_id": { "type": ["string", "null"], "format": "uuid" },
+    "error_type": { "type": ["string", "null"] },
+    "sanitized_details": { "type": "object" },
+    "retryable": { "type": "boolean", "default": true },
+    "provider": { "type": ["string", "null"] },
+    "provider_request_id": { "type": ["string", "null"] }
+  }
+}

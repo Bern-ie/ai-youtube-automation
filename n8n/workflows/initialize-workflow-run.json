@@ -1,0 +1,80 @@
+{
+  "name": "Initialize Workflow Run",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT initialize_workflow_run($1, $2, $3, $4, $5, $6, $7) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.workflow_name, $json.idempotency_key, $json.content_project_id || null, $json.correlation_id || null, $json.input || {}, $json.max_retries || 3] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call initialize_workflow_run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call initialize_workflow_run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call initialize_workflow_run": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
