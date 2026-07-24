@@ -1,0 +1,71 @@
+{
+  "research_package_id": "99999999-cccc-4ccc-8ccc-999999999999",
+  "revision": 1,
+  "revision_trigger": "initial",
+  "revision_reason": null,
+  "synthesis": {
+    "project_summary": "The Example Lighthouse Service ran a nationally coordinated network of 47 coastal stations for nearly a century, with keepers held to strict operational routines that shaped both daily life and station design.",
+    "research_question": "How did the Example Lighthouse Service standardize operations across 47 coastal stations?",
+    "important_statistics": [
+      { "statistic": "47 stations operated between 1852 and 1939.", "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"] }
+    ],
+    "chronology": [],
+    "open_questions": ["The exact rationale for the 1925 electrification timeline is not detailed in the collected sources."],
+    "research_gaps": ["No source in this batch covers keeper training procedures directly."],
+    "suggested_script_angles": ["Frame around a single keeper's daily routine as a lens into the whole system."],
+    "prohibited_unsafe_assertions": ["Do not claim all 47 stations electrified simultaneously — the sources do not support a single uniform date."],
+    "cited_source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"]
+  },
+  "qc_score": 88.5,
+  "qc_status": "passed",
+  "qc_details": {},
+  "created_at": "2026-07-20T12:00:00Z",
+  "source_summary": {
+    "total": 2,
+    "by_type": { "government": 1, "academic": 1 },
+    "average_authority": 84,
+    "average_relevance": 88.5,
+    "sources": [
+      {
+        "source_id": "11111111-bbbb-4bbb-8bbb-111111111111",
+        "canonical_url": "https://www.nps.gov/articles/example-lighthouse-history.htm",
+        "title": "Example Lighthouse Service Historical Overview",
+        "publisher": "U.S. National Park Service (fabricated example)",
+        "source_type": "government",
+        "authority_score": 88,
+        "relevance_score": 92,
+        "published_at": null,
+        "provider": "tavily",
+        "relevant_excerpt": "The Example Lighthouse Service operated 47 stations along the eastern coast between 1852 and 1939, transitioning from oil lamps to electric beacons by 1925."
+      },
+      {
+        "source_id": "22222222-bbbb-4bbb-8bbb-222222222222",
+        "canonical_url": "https://example-maritime-journal.org/articles/keeper-life",
+        "title": "Daily Life of a 19th-Century Lighthouse Keeper",
+        "publisher": "Example Maritime History Journal",
+        "source_type": "academic",
+        "authority_score": 80,
+        "relevance_score": 85,
+        "published_at": null,
+        "provider": "tavily",
+        "relevant_excerpt": "Keepers were required to log weather conditions every four hours and maintain a two-year supply of oil on isolated stations, a requirement that shaped station architecture."
+      }
+    ]
+  },
+  "claims": {
+    "verified_fact": [
+      { "claim_id": "33333333-bbbb-4bbb-8bbb-333333333333", "claim_text": "The Example Lighthouse Service operated 47 stations along the eastern coast between 1852 and 1939.", "confidence": 0.9 },
+      { "claim_id": "44444444-bbbb-4bbb-8bbb-444444444444", "claim_text": "Lighthouse keepers were required to log weather conditions every four hours.", "confidence": 0.85 }
+    ],
+    "likely_fact": [
+      { "claim_id": "55555555-bbbb-4bbb-8bbb-555555555555", "claim_text": "Stations transitioned from oil lamps to electric beacons by 1925.", "confidence": 0.7 }
+    ],
+    "opinion": [],
+    "inference": [],
+    "unsupported": [],
+    "conflicting": [],
+    "time_sensitive": [
+      { "claim_id": "55555555-bbbb-4bbb-8bbb-555555555555", "claim_text": "Stations transitioned from oil lamps to electric beacons by 1925." }
+    ]
+  }
+}

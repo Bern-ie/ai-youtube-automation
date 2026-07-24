@@ -1,0 +1,107 @@
+{
+  "title_concept": "The Coastline That Ran on a Logbook: Inside America's Forgotten Lighthouse Network",
+  "target_duration_seconds": 300,
+  "hook": {
+    "opening_line": "Forty-seven lighthouses. One set of rules. Zero room for error.",
+    "tension_or_question": "How do you keep a hundred miles of coastline safe with nothing but oil, glass, and a very strict logbook?",
+    "viewer_promise": "By the end of this video you'll know exactly how one government service turned a scattered chain of lighthouses into a single, coordinated machine.",
+    "curiosity_loop": "And the answer starts with a rule so strict it dictated how the buildings themselves were designed.",
+    "transition_into_body": "Let's start with the network itself.",
+    "narration": "Forty-seven lighthouses. One set of rules. Zero room for error. How do you keep a hundred miles of coastline safe with nothing but oil, glass, and a very strict logbook? By the end of this video you'll know exactly how one government service turned a scattered chain of lighthouses into a single, coordinated machine — and the answer starts with a rule so strict it dictated how the buildings themselves were designed. Let's start with the network itself.",
+    "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+    "claim_ids": ["33333333-bbbb-4bbb-8bbb-333333333333"],
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 22
+  },
+  "intro": {
+    "narration": "The Example Lighthouse Service ran forty-seven stations along the eastern coast, a network that stayed in continuous operation from 1852 all the way to 1939. That's not a handful of scattered towers — that's a genuinely national system, built and maintained under one administrative roof.",
+    "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+    "claim_ids": ["33333333-bbbb-4bbb-8bbb-333333333333"],
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 15
+  },
+  "sections": [
+    {
+      "section_id": "the-logbook-rule",
+      "section_type": "explainer",
+      "heading": "The Four-Hour Rule",
+      "narration": "Every keeper on every one of those forty-seven stations was bound by the same requirement: log the weather conditions every four hours, day and night, without exception. It sounds bureaucratic, and honestly, it was — but that single rule is why we still have such a detailed record of what coastal weather looked like across nearly a century of American history.",
+      "purpose": "Establish the central operational constraint the rest of the video builds on.",
+      "source_ids": ["22222222-bbbb-4bbb-8bbb-222222222222"],
+      "claim_ids": ["44444444-bbbb-4bbb-8bbb-444444444444"],
+      "visual_direction": "Archival photo of a keeper's logbook, close-up on handwritten entries.",
+      "b_roll_queries": ["19th century lighthouse keeper logbook", "coastal weather archive photograph"],
+      "on_screen_text": "Log every 4 hours",
+      "transition": "But the rules didn't stop at paperwork.",
+      "sound_design_notes": "Low ambient wind, page-turning foley under narration.",
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": 28
+    },
+    {
+      "section_id": "supply-and-architecture",
+      "section_type": "explainer",
+      "heading": "Built Around the Oil Supply",
+      "narration": "Isolated stations were required to keep a two-year supply of oil on hand at all times, since resupply ships couldn't always reach them on schedule. That single requirement shaped how the stations themselves were built — bigger storage rooms, reinforced foundations, everything designed around keeping enough fuel on site to never let the light go dark.",
+      "purpose": "Show a concrete, physical consequence of the operational rules.",
+      "source_ids": ["22222222-bbbb-4bbb-8bbb-222222222222"],
+      "claim_ids": [],
+      "visual_direction": "Cutaway diagram of a lighthouse storage room.",
+      "b_roll_queries": ["lighthouse oil storage room historical diagram"],
+      "on_screen_text": "2-year oil supply required",
+      "transition": "And by the 20th century, the system itself started to change.",
+      "sound_design_notes": null,
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": 26
+    },
+    {
+      "section_id": "electrification-era",
+      "section_type": "explainer",
+      "heading": "The Shift to Electric Beacons",
+      "narration": "By 1925, stations across the network had reportedly begun transitioning from oil lamps to electric beacons, though the surviving records don't spell out a single uniform switch-over date for every station. It's likely this rolled out unevenly, station by station, rather than all at once.",
+      "purpose": "Preserve the time-sensitive/uncertain claim honestly rather than overstating it.",
+      "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+      "claim_ids": ["55555555-bbbb-4bbb-8bbb-555555555555"],
+      "visual_direction": "Split screen: oil lamp mechanism vs. early electric beacon.",
+      "b_roll_queries": ["early 20th century lighthouse electric beacon"],
+      "on_screen_text": "Electrification began ~1925",
+      "transition": "So what does all of this add up to?",
+      "sound_design_notes": null,
+      "pronunciation_notes": [{ "term": "beacon", "note": "standard pronunciation, no special guidance needed" }],
+      "estimated_duration_seconds": 24
+    },
+    {
+      "section_id": "why-it-mattered",
+      "section_type": "commentary",
+      "heading": "Why a Boring Rule Built a Great System",
+      "narration": "None of this is glamorous. Nobody remembers lighthouses for their paperwork. But that's kind of the point — it's the boring, repeated, four-times-a-day discipline of an ordinary keeper that actually held this whole coastline-spanning system together for nearly ninety years.",
+      "purpose": "Editorial reflection tying the details back to the hook's promise.",
+      "source_ids": [],
+      "claim_ids": [],
+      "visual_direction": "Wide shot of coastline at dusk with a lighthouse beam sweeping across.",
+      "b_roll_queries": ["lighthouse beam sweeping coastline dusk"],
+      "on_screen_text": null,
+      "transition": "Which brings us to today.",
+      "sound_design_notes": "Swell of ambient score.",
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": 20
+    }
+  ],
+  "outro": {
+    "narration": "The Example Lighthouse Service shut down as an independent agency in 1939, but the record it left behind — all those four-hour logs, all that quietly enforced discipline — is still one of the best windows we have into daily life on the American coast.",
+    "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+    "claim_ids": ["33333333-bbbb-4bbb-8bbb-333333333333"],
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 16
+  },
+  "cta": {
+    "cta_type": "subscribe",
+    "narration": "If you want more deep dives like this one, subscribe — new episodes go up every week.",
+    "source_ids": [],
+    "claim_ids": [],
+    "estimated_duration_seconds": 7
+  },
+  "estimated_word_count": 760,
+  "estimated_duration_seconds": 294,
+  "cited_source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111", "22222222-bbbb-4bbb-8bbb-222222222222"],
+  "cited_claim_ids": ["33333333-bbbb-4bbb-8bbb-333333333333", "44444444-bbbb-4bbb-8bbb-444444444444", "55555555-bbbb-4bbb-8bbb-555555555555"]
+}

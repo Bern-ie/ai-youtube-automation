@@ -1,0 +1,26 @@
+[
+  {
+    "id": "33333333-bbbb-4bbb-8bbb-333333333333",
+    "claim_text": "The Example Lighthouse Service operated 47 stations along the eastern coast between 1852 and 1939.",
+    "classification": "verified_fact",
+    "confidence": 0.9,
+    "time_sensitive": false,
+    "supporting_source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"]
+  },
+  {
+    "id": "44444444-bbbb-4bbb-8bbb-444444444444",
+    "claim_text": "Lighthouse keepers were required to log weather conditions every four hours.",
+    "classification": "verified_fact",
+    "confidence": 0.85,
+    "time_sensitive": false,
+    "supporting_source_ids": ["22222222-bbbb-4bbb-8bbb-222222222222"]
+  },
+  {
+    "id": "55555555-bbbb-4bbb-8bbb-555555555555",
+    "claim_text": "Stations transitioned from oil lamps to electric beacons by 1925.",
+    "classification": "likely_fact",
+    "confidence": 0.7,
+    "time_sensitive": true,
+    "supporting_source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"]
+  }
+]

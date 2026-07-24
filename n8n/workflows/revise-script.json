@@ -1,0 +1,840 @@
+{
+  "name": "Revise Script",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-70",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, prompt_name: 'script-revision', _ctx: b } }];"
+      },
+      "id": "code-71",
+      "name": "Prepare Get-Prompt Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-channel-prompt.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-72",
+      "name": "Get Channel Prompt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-73",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-74",
+      "name": "Did Get Prompt Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-75",
+      "name": "Build Prompt Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst userPayload = {\n  current_script: ctx.current_content, deterministic_metrics: ctx.deterministic_qc || null,\n  reviewer_feedback: ctx.llm_qc || null, revision_instructions: ctx.revision_instructions || null,\n  research_package: ctx.research_package,\n  channel: { script_tone: ctx.script_tone || null, target_audience: ctx.target_audience || null, cta_type: ctx.cta_type || null },\n  target_duration_seconds: ctx.target_duration_seconds || null\n};\nconst schema = {\"title\":\"YouTube Script\",\"description\":\"Structured output of the script-generation (and script-revision) LLM call — the JSONB stored in script_versions.content. Every factual narration-bearing unit must carry source_ids/claim_ids copied exactly from the approved research package; `cited_source_ids`/`cited_claim_ids` must list the union of every id referenced anywhere in this document — checked by script_grounding_report() against `sources`/`research_claims`, never trusted from the LLM. Structured enough for later TTS/visual-planning/captioning/rendering stages without redesign; nothing here fetches or generates media — visual/on-screen-text fields are planning metadata only. See docs/architecture/script-pipeline.md#structured-script-contract.\",\"$defs\":{\"narrationUnit\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"narration\",\"source_ids\",\"claim_ids\"],\"properties\":{\"narration\":{\"type\":\"string\",\"description\":\"Natural spoken narration text. May be an empty string only for a purely visual beat — deterministic QC penalizes this.\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"source_id values (from the approved research package) that ground any factual content in this unit's narration.\"},\"claim_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"claim_id values (from the approved research package) that ground any factual content in this unit's narration.\"},\"pronunciation_notes\":{\"type\":\"array\",\"description\":\"Acronyms, uncommon names, technical terms, or foreign words in this unit's narration that Step 8 (TTS) should be aware of. No pronunciation conversion happens here — just preserved for later use.\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"term\"],\"properties\":{\"term\":{\"type\":\"string\"},\"note\":{\"type\":[\"string\",\"null\"],\"description\":\"e.g. a phonetic hint or 'pronounced as written' — free text, no fixed IPA/phoneme system enforced.\"}}}},\"estimated_duration_seconds\":{\"type\":[\"number\",\"null\"]}}},\"section\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"section_id\",\"section_type\",\"narration\",\"source_ids\",\"claim_ids\"],\"properties\":{\"section_id\":{\"type\":\"string\",\"description\":\"Stable within this script version — Step 8/9 workflows depend on it. Not derived from array position.\"},\"section_type\":{\"type\":\"string\",\"enum\":[\"explainer\",\"narrative\",\"comparison\",\"statistic_highlight\",\"opinion\",\"commentary\",\"transition\",\"recap\"],\"description\":\"'opinion' and 'commentary' are the only types exempt from the missing-reference deterministic check — see docs/architecture/script-pipeline.md#unsupported-fact-detection.\"},\"heading\":{\"type\":[\"string\",\"null\"]},\"narration\":{\"type\":\"string\"},\"purpose\":{\"type\":[\"string\",\"null\"],\"description\":\"Why this section exists in the narrative — retention/pacing rationale, not shown to the viewer.\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"claim_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"visual_direction\":{\"type\":[\"string\",\"null\"]},\"b_roll_queries\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"on_screen_text\":{\"type\":[\"string\",\"null\"],\"description\":\"Concise — a statistic, key term, date, or name, not a narration duplicate. Deterministic QC flags entries over ~60 characters.\"},\"transition\":{\"type\":[\"string\",\"null\"],\"description\":\"How this section transitions to the next — deterministic QC flags identical transitions repeated across consecutive sections.\"},\"sound_design_notes\":{\"type\":[\"string\",\"null\"]},\"pronunciation_notes\":{\"$ref\":\"#/$defs/narrationUnit/properties/pronunciation_notes\"},\"estimated_duration_seconds\":{\"type\":[\"number\",\"null\"]}}},\"hook\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"opening_line\",\"viewer_promise\",\"transition_into_body\",\"narration\",\"source_ids\",\"claim_ids\"],\"properties\":{\"opening_line\":{\"type\":\"string\"},\"tension_or_question\":{\"type\":[\"string\",\"null\"]},\"viewer_promise\":{\"type\":\"string\",\"description\":\"What the viewer gets for staying — must be honest, not a fabricated stake.\"},\"curiosity_loop\":{\"type\":[\"string\",\"null\"]},\"transition_into_body\":{\"type\":\"string\"},\"narration\":{\"type\":\"string\",\"description\":\"The hook's full spoken narration (opening_line + tension_or_question + viewer_promise + curiosity_loop + transition_into_body, composed into natural speech). Factual assertions here are NOT exempt from grounding — see docs/architecture/script-pipeline.md#hook-structure.\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"claim_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"pronunciation_notes\":{\"$ref\":\"#/$defs/narrationUnit/properties/pronunciation_notes\"},\"estimated_duration_seconds\":{\"type\":[\"number\",\"null\"]}}},\"cta\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"cta_type\",\"narration\"],\"properties\":{\"cta_type\":{\"type\":\"string\",\"enum\":[\"subscribe\",\"comment\",\"affiliate_link\",\"newsletter\",\"next_video\",\"product\",\"community\"],\"description\":\"Must match the channel's configured CTA goal — the generator scripts only the configured type, never an unconfigured monetization offer.\"},\"narration\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"claim_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"estimated_duration_seconds\":{\"type\":[\"number\",\"null\"]}}}},\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"title_concept\",\"target_duration_seconds\",\"hook\",\"intro\",\"sections\",\"outro\",\"cta\",\"estimated_word_count\",\"estimated_duration_seconds\",\"cited_source_ids\",\"cited_claim_ids\"],\"properties\":{\"title_concept\":{\"type\":\"string\",\"description\":\"A working title/concept — not final YouTube metadata (title/description/tags are a later step).\"},\"target_duration_seconds\":{\"type\":\"number\"},\"hook\":{\"$ref\":\"#/$defs/hook\"},\"intro\":{\"$ref\":\"#/$defs/narrationUnit\"},\"sections\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"$ref\":\"#/$defs/section\"}},\"outro\":{\"$ref\":\"#/$defs/narrationUnit\"},\"cta\":{\"$ref\":\"#/$defs/cta\"},\"estimated_word_count\":{\"type\":\"integer\",\"description\":\"The LLM's own estimate — deterministic QC independently recomputes this from narration_text and compares.\"},\"estimated_duration_seconds\":{\"type\":\"number\",\"description\":\"The LLM's own estimate — not trusted alone; deterministic QC computes an independent word-count-based estimate and penalizes large deviations between the two.\"},\"cited_source_ids\":{\"type\":\"array\",\"description\":\"Union of every source_id referenced anywhere in this document (hook, intro, every section, outro, cta). Checked against `sources` by script_grounding_report() — never trusted as-is.\",\"items\":{\"type\":\"string\"}},\"cited_claim_ids\":{\"type\":\"array\",\"description\":\"Union of every claim_id referenced anywhere in this document. Checked against `research_claims` by script_grounding_report() — never trusted as-is.\",\"items\":{\"type\":\"string\"}}}};\nreturn [{ json: {\n  ctx, model, prompt_version_id: prompt.prompt_version_id,\n  requestBody: {\n    model, max_tokens: 8192,\n    system: prompt.content,\n    messages: [{ role: 'user', content: JSON.stringify(userPayload) }],\n    output_config: { format: { type: 'json_schema', schema } }\n  }\n} }];"
+      },
+      "id": "code-76",
+      "name": "Prepare Anthropic Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-77",
+      "name": "Call Anthropic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Anthropic Request').first().json.ctx;\nconst model = $('Prepare Anthropic Request').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, script: result, usage: resp.usage || {}, provider_request_id: resp.id || null, _raw_text: textBlock ? textBlock.text : null, repaired: false } }];"
+      },
+      "id": "code-78",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-79",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-80",
+      "name": "Did Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Parse Response').first().json;\nconst orig = $('Prepare Anthropic Request').first().json.requestBody;\nconst repairMessages = orig.messages.concat([\n  { role: 'assistant', content: p._raw_text || '' },\n  { role: 'user', content: 'Your previous response was not valid JSON matching the required schema. Return ONLY the corrected JSON object matching the schema -- no prose, no markdown fences.' }\n]);\nreturn [{ json: { ctx: p.ctx, model: p.model, requestBody: { ...orig, messages: repairMessages } } }];"
+      },
+      "id": "code-81",
+      "name": "Prepare Repair Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-82",
+      "name": "Call Anthropic: Repair",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Repair Request').first().json.ctx;\nconst model = $('Prepare Repair Request').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, script: result, usage: resp.usage || {}, provider_request_id: resp.id || null, repaired: true } }];"
+      },
+      "id": "code-83",
+      "name": "Parse Repair Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-84",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-85",
+      "name": "Did Repair Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json.ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'SCRIPT_SCHEMA_INVALID', message: 'LLM response was not valid structured JSON, even after one repair attempt', retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-86",
+      "name": "Build Parse Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-87",
+      "name": "Parsed Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-88",
+      "name": "Prepare Usage Event: Input Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-89",
+      "name": "Record Usage: Input Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-90",
+      "name": "Prepare Usage Event: Output Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-91",
+      "name": "Record Usage: Output Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nconst inputTokens = j.usage.input_tokens || 0;\nconst outputTokens = j.usage.output_tokens || 0;\nconst inputCost = (inputTokens / 1000000) * 5;\nconst outputCost = (outputTokens / 1000000) * 25;\nconst totalCost = Math.round((inputCost + outputCost) * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: 'anthropic', service_type: 'llm', model: j.model,\n  quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null,\n  total_cost_usd: totalCost, provider_request_id: j.provider_request_id, estimated: false, metadata: { repaired: !!j.repaired }\n} }];"
+      },
+      "id": "code-92",
+      "name": "Prepare Cost Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-93",
+      "name": "Record Cost Event",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  research_package_id: ctx.research_package && ctx.research_package.research_package_id, generation_prompt_version_id: ctx.prompt_version_id,\n  content: j.script,\n  estimated_duration_seconds: j.script ? j.script.estimated_duration_seconds : null,\n  provider: 'anthropic', model: j.model, provider_request_id: j.provider_request_id,\n  revision_trigger: ctx.revision_trigger, revision_reason: ctx.revision_instructions || (ctx.llm_qc && ctx.llm_qc.feedback) || null\n} }];"
+      },
+      "id": "code-94",
+      "name": "Prepare Create-Script-Version Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const inp = $input.first().json;\nconst s = inp.content;\nconst parts = [s.hook && s.hook.narration, s.intro && s.intro.narration];\nfor (const sec of (s.sections || [])) parts.push(sec.narration);\nparts.push(s.outro && s.outro.narration, s.cta && s.cta.narration);\ninp.narration_text = parts.filter((p) => p && String(p).trim() !== '').join('\\n\\n');\nreturn [{ json: inp }];"
+      },
+      "id": "code-95",
+      "name": "Flatten Narration Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-script-version.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-96",
+      "name": "Create Script Version",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-97",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-98",
+      "name": "Did Version Create Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-99",
+      "name": "Build Version Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5500,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-100",
+      "name": "Build Revise Script Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Prompt Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Prompt Input": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Prompt": {
+      "main": [
+        [
+          {
+            "node": "Did Get Prompt Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get Prompt Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prompt Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Anthropic Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Did Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Repair Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Repair Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Repair",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Repair": {
+      "main": [
+        [
+          {
+            "node": "Parse Repair Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Repair Response": {
+      "main": [
+        [
+          {
+            "node": "Did Repair Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Repair Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Parse Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsed Result": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Create-Script-Version Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Create-Script-Version Input": {
+      "main": [
+        [
+          {
+            "node": "Flatten Narration Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten Narration Text": {
+      "main": [
+        [
+          {
+            "node": "Create Script Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Script Version": {
+      "main": [
+        [
+          {
+            "node": "Did Version Create Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Version Create Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Build Revise Script Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Version Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

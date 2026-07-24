@@ -1,0 +1,15 @@
+{
+  "id": "msg_01FixtureScriptQcPass001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"overall_score\": 90, \"dimension_scores\": {\"factual_grounding\": 9, \"source_coverage\": 9, \"hook_quality\": 8, \"first_30_seconds_strength\": 8, \"pacing\": 9, \"clarity\": 9, \"repetition_and_filler\": 9, \"transitions\": 8, \"retention_structure\": 8, \"clickbait_restraint\": 9, \"tone_fit\": 9, \"audience_fit\": 9, \"cta_fit\": 9, \"runtime_fit\": 9, \"brand_safety\": 10}, \"unsupported_claims\": [], \"misleading_statements\": [], \"pronunciation_concerns\": [], \"youtube_policy_concerns\": [], \"hard_fail\": false, \"hard_fail_reasons\": [], \"feedback\": \"Strong, well-grounded script. The hook earns attention honestly and every factual beat traces to a real source or claim. No changes needed.\"}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": { "input_tokens": 1850, "output_tokens": 210 }
+}

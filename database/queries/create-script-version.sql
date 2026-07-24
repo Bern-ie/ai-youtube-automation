@@ -1,0 +1,25 @@
+-- Canonical query for the "generate_script" step (and, with a different
+-- revision_trigger, every automatic/human revision). Rejects
+-- (SCRIPT_GROUNDING_FAILED) before writing anything if the script cites a
+-- source_id/claim_id not present for this project — citation integrity is
+-- never trusted from the LLM. Creates the logical `scripts` row on first
+-- use, then appends an immutable `script_versions` row and repoints
+-- `scripts.current_script_version_id` at it. See
+-- schemas/youtube-script.schema.json.
+--
+-- Parameters ($1..$13):
+--   $1   channel_id                     uuid, required
+--   $2   workflow_run_id                uuid, required
+--   $3   content_project_id             uuid, required
+--   $4   research_package_id            uuid, nullable
+--   $5   generation_prompt_version_id   uuid, nullable
+--   $6   content                        jsonb, required — the structured script (schemas/youtube-script.schema.json)
+--   $7   narration_text                 text, nullable — flattened narration used for word-count/runtime QC
+--   $8   estimated_duration_seconds     integer, nullable
+--   $9   provider                       text, nullable
+--   $10  model                          text, nullable
+--   $11  provider_request_id            text, nullable
+--   $12  revision_trigger               text, default 'initial_generation' — 'initial_generation' | 'automatic_qc_revision' | 'human_revision_request' | 'format_repair'
+--   $13  revision_reason                text, nullable
+
+SELECT create_script_version($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) AS result;

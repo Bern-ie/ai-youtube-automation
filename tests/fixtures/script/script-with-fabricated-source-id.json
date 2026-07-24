@@ -1,0 +1,36 @@
+{
+  "title_concept": "Fabricated Source Test Script",
+  "target_duration_seconds": 300,
+  "hook": {
+    "opening_line": "Here's a claim.",
+    "tension_or_question": null,
+    "viewer_promise": "You'll learn something.",
+    "curiosity_loop": null,
+    "transition_into_body": "Let's begin.",
+    "narration": "Here's a claim. You'll learn something. Let's begin.",
+    "source_ids": [],
+    "claim_ids": [],
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 6
+  },
+  "intro": { "narration": "An introduction.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 4 },
+  "sections": [
+    {
+      "section_id": "fabricated-section",
+      "section_type": "explainer",
+      "heading": "A Fabricated Citation",
+      "narration": "This sentence cites a source that was never actually provided by the approved research package.",
+      "purpose": "Trigger SCRIPT_GROUNDING_FAILED.",
+      "source_ids": ["deadbeef-0000-4000-8000-000000000000"],
+      "claim_ids": [],
+      "visual_direction": null, "b_roll_queries": [], "on_screen_text": null, "transition": null, "sound_design_notes": null,
+      "pronunciation_notes": [], "estimated_duration_seconds": 8
+    }
+  ],
+  "outro": { "narration": "An outro.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 4 },
+  "cta": { "cta_type": "subscribe", "narration": "Subscribe.", "source_ids": [], "claim_ids": [], "estimated_duration_seconds": 3 },
+  "estimated_word_count": 40,
+  "estimated_duration_seconds": 25,
+  "cited_source_ids": ["deadbeef-0000-4000-8000-000000000000"],
+  "cited_claim_ids": []
+}

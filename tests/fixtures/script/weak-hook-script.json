@@ -1,0 +1,39 @@
+{
+  "content": {
+    "title_concept": "Weak Hook Test Script",
+    "target_duration_seconds": 300,
+    "hook": {
+      "opening_line": "In today's video...",
+      "tension_or_question": null,
+      "viewer_promise": "we'll cover the topic.",
+      "curiosity_loop": null,
+      "transition_into_body": "Let's begin.",
+      "narration": "",
+      "source_ids": [],
+      "claim_ids": [],
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": null
+    },
+    "intro": { "narration": "An introduction to the topic.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 10 },
+    "sections": [
+      {
+        "section_id": "body-1",
+        "section_type": "explainer",
+        "heading": "Body",
+        "narration": "The Example Lighthouse Service operated forty-seven stations, according to the approved research.",
+        "purpose": "Body content grounded correctly, to isolate the hook-only weakness being tested.",
+        "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+        "claim_ids": ["33333333-bbbb-4bbb-8bbb-333333333333"],
+        "visual_direction": null, "b_roll_queries": [], "on_screen_text": null, "transition": null, "sound_design_notes": null,
+        "pronunciation_notes": [], "estimated_duration_seconds": 15
+      }
+    ],
+    "outro": { "narration": "That's the story.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 5 },
+    "cta": { "cta_type": "subscribe", "narration": "Subscribe.", "source_ids": [], "claim_ids": [], "estimated_duration_seconds": 3 },
+    "estimated_word_count": 60,
+    "estimated_duration_seconds": 33,
+    "cited_source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+    "cited_claim_ids": ["33333333-bbbb-4bbb-8bbb-333333333333"]
+  },
+  "narration_text": "In today's video... we'll cover the topic. Let's begin. An introduction to the topic. The Example Lighthouse Service operated forty-seven stations, according to the approved research. That's the story. Subscribe."
+}

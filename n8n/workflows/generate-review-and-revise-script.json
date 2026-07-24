@@ -1,0 +1,1442 @@
+{
+  "name": "Generate Review And Revise Script",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-2",
+      "name": "Prepare Generate-Script Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Generate Script",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Did Generation Succeed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-6",
+      "name": "Build Generation Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:review-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-8",
+      "name": "Review Script (initial)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-9",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-10",
+      "name": "Did Review Succeed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-11",
+      "name": "Build Review Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst v = $('Generate Script').first().json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  script_version_id: v.script_version_id, schema_valid: true,\n  target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null,\n  speaking_rate_wpm: ctx.speaking_rate_wpm || 155,\n  content: v.content, narration_text: v.narration_text, research_package: ctx.research_package,\n  script_tone: ctx.script_tone, target_audience: ctx.target_audience, cta_type: ctx.cta_type\n} }];"
+      },
+      "id": "code-12",
+      "name": "Prepare Review-Script Input (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-13",
+              "leftValue": "={{ $json.data.status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-14",
+      "name": "Is QC Failed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'SCRIPT_QC_FAILED', message: 'script quality control failed a hard gate or scored below the minimum threshold (< 70) -- escalating for human intervention rather than approving a low-quality script', retryable: false, error_id: null, details: r.data },\n  runtime: r.runtime\n} }];"
+      },
+      "id": "code-15",
+      "name": "Build QC Hard-Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-16",
+              "leftValue": "={{ $json.data.status === 'revision_needed' && $json.data.automatic_retry_allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-17",
+      "name": "Does QC Need Revision? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst review = $('Did Review Succeed? (initial)').first().json.data;\nconst prevInput = $('Prepare Review-Script Input (initial)').first().json;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  current_content: prevInput.content, deterministic_qc: review.deterministic || null,\n  llm_qc: review.llm_qc || null, revision_instructions: null, revision_trigger: 'automatic_qc_revision',\n  research_package: ctx.research_package, script_tone: ctx.script_tone, target_audience: ctx.target_audience,\n  cta_type: ctx.cta_type, target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null\n} }];"
+      },
+      "id": "code-18",
+      "name": "Prepare Revise-Script Input (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:revise-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-19",
+      "name": "Revise Script (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-20",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-21",
+      "name": "Did Revision Succeed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-22",
+      "name": "Build Revision Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst v = $('Revise Script (retry_1)').first().json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  script_version_id: v.script_version_id, schema_valid: true,\n  target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null,\n  speaking_rate_wpm: ctx.speaking_rate_wpm || 155,\n  content: v.content, narration_text: v.narration_text, research_package: ctx.research_package,\n  script_tone: ctx.script_tone, target_audience: ctx.target_audience, cta_type: ctx.cta_type\n} }];"
+      },
+      "id": "code-23",
+      "name": "Prepare Review-Script Input (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:review-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-24",
+      "name": "Review Script (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-25",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-26",
+      "name": "Did Review Succeed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-27",
+      "name": "Build Review Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-28",
+              "leftValue": "={{ $json.data.status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-29",
+      "name": "Is QC Failed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'SCRIPT_QC_FAILED', message: 'script quality control failed a hard gate or scored below the minimum threshold (< 70) -- escalating for human intervention rather than approving a low-quality script', retryable: false, error_id: null, details: r.data },\n  runtime: r.runtime\n} }];"
+      },
+      "id": "code-30",
+      "name": "Build QC Hard-Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-31",
+              "leftValue": "={{ $json.data.status === 'revision_needed' && $json.data.automatic_retry_allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-32",
+      "name": "Does QC Need Revision? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst review = $('Did Review Succeed? (retry_1)').first().json.data;\nconst prevInput = $('Prepare Review-Script Input (retry_1)').first().json;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  current_content: prevInput.content, deterministic_qc: review.deterministic || null,\n  llm_qc: review.llm_qc || null, revision_instructions: null, revision_trigger: 'automatic_qc_revision',\n  research_package: ctx.research_package, script_tone: ctx.script_tone, target_audience: ctx.target_audience,\n  cta_type: ctx.cta_type, target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null\n} }];"
+      },
+      "id": "code-33",
+      "name": "Prepare Revise-Script Input (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:revise-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-34",
+      "name": "Revise Script (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-35",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-36",
+      "name": "Did Revision Succeed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-37",
+      "name": "Build Revision Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst v = $('Revise Script (retry_2)').first().json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  script_version_id: v.script_version_id, schema_valid: true,\n  target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null,\n  speaking_rate_wpm: ctx.speaking_rate_wpm || 155,\n  content: v.content, narration_text: v.narration_text, research_package: ctx.research_package,\n  script_tone: ctx.script_tone, target_audience: ctx.target_audience, cta_type: ctx.cta_type\n} }];"
+      },
+      "id": "code-38",
+      "name": "Prepare Review-Script Input (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:review-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-39",
+      "name": "Review Script (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-40",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-41",
+      "name": "Did Review Succeed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-42",
+      "name": "Build Review Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-43",
+              "leftValue": "={{ $json.data.status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-44",
+      "name": "Is QC Failed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'SCRIPT_QC_FAILED', message: 'script quality control failed a hard gate or scored below the minimum threshold (< 70) -- escalating for human intervention rather than approving a low-quality script', retryable: false, error_id: null, details: r.data },\n  runtime: r.runtime\n} }];"
+      },
+      "id": "code-45",
+      "name": "Build QC Hard-Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-46",
+              "leftValue": "={{ $json.data.status === 'revision_needed' && $json.data.automatic_retry_allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-47",
+      "name": "Does QC Need Revision? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst review = $('Did Review Succeed? (retry_2)').first().json.data;\nconst prevInput = $('Prepare Review-Script Input (retry_2)').first().json;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  current_content: prevInput.content, deterministic_qc: review.deterministic || null,\n  llm_qc: review.llm_qc || null, revision_instructions: null, revision_trigger: 'automatic_qc_revision',\n  research_package: ctx.research_package, script_tone: ctx.script_tone, target_audience: ctx.target_audience,\n  cta_type: ctx.cta_type, target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null\n} }];"
+      },
+      "id": "code-48",
+      "name": "Prepare Revise-Script Input (retry_3)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:revise-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-49",
+      "name": "Revise Script (retry_3)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-50",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-51",
+      "name": "Did Revision Succeed? (retry_3)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-52",
+      "name": "Build Revision Failure Response (retry_3)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8140,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Generate-Script Input').first().json;\nconst v = $('Revise Script (retry_3)').first().json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  script_version_id: v.script_version_id, schema_valid: true,\n  target_duration_seconds: ctx.target_duration_seconds || ctx.channel_target_duration_seconds || null,\n  speaking_rate_wpm: ctx.speaking_rate_wpm || 155,\n  content: v.content, narration_text: v.narration_text, research_package: ctx.research_package,\n  script_tone: ctx.script_tone, target_audience: ctx.target_audience, cta_type: ctx.cta_type\n} }];"
+      },
+      "id": "code-53",
+      "name": "Prepare Review-Script Input (retry_3)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:review-script.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-54",
+      "name": "Review Script (retry_3)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-55",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-56",
+      "name": "Did Review Succeed? (retry_3)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-57",
+      "name": "Build Review Failure Response (retry_3)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9020,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-58",
+              "leftValue": "={{ $json.data.status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-59",
+      "name": "Is QC Failed? (retry_3)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'SCRIPT_QC_FAILED', message: 'script quality control failed a hard gate or scored below the minimum threshold (< 70) -- escalating for human intervention rather than approving a low-quality script', retryable: false, error_id: null, details: r.data },\n  runtime: r.runtime\n} }];"
+      },
+      "id": "code-60",
+      "name": "Build QC Hard-Failure Response (retry_3)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9460,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-61",
+      "name": "Build Generate-Review-Revise Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9680,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Generate-Script Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Generate-Script Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script": {
+      "main": [
+        [
+          {
+            "node": "Did Generation Succeed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Generation Succeed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review-Script Input (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Generation Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review-Script Input (initial)": {
+      "main": [
+        [
+          {
+            "node": "Review Script (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Script (initial)": {
+      "main": [
+        [
+          {
+            "node": "Did Review Succeed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Review Succeed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Review Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Does QC Need Revision? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Does QC Need Revision? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Revise-Script Input (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Generate-Review-Revise Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Revise-Script Input (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Revise Script (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revise Script (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Did Revision Succeed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Revision Succeed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review-Script Input (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Revision Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review-Script Input (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Review Script (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Script (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Did Review Succeed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Review Succeed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Review Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Does QC Need Revision? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Does QC Need Revision? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Revise-Script Input (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Generate-Review-Revise Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Revise-Script Input (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Revise Script (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revise Script (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Did Revision Succeed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Revision Succeed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review-Script Input (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Revision Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review-Script Input (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Review Script (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Script (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Did Review Succeed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Review Succeed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Review Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Does QC Need Revision? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Does QC Need Revision? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Revise-Script Input (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Generate-Review-Revise Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Revise-Script Input (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Revise Script (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revise Script (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Did Revision Succeed? (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Revision Succeed? (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review-Script Input (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Revision Failure Response (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review-Script Input (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Review Script (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Script (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Did Review Succeed? (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Review Succeed? (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Review Failure Response (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (retry_3)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (retry_3)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Generate-Review-Revise Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

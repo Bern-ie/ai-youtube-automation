@@ -4,29 +4,36 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 6 — Source-backed research (complete)
+## Status: Step 7 — Source-grounded script generation (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
 role-separated, channel-isolated PostgreSQL domain schema (Step 3), five
 reusable n8n workflows providing the common workflow-run entry point
 every content workflow builds on (Step 4), manual topic intake (Step 5),
-and now the first workflow allowed to call paid external APIs:
-**`Research Project`**. Given a `content_project_id`, it plans what to
-research (LLM), collects real sources (Tavily, Brave fallback),
-extracts and verifies atomic claims against those sources
-(citation integrity enforced structurally, never trusted from the LLM),
-synthesizes a versioned research package, runs deterministic quality
-control (0–100, up to 2 automatic revision cycles), and pauses for a
-human approval that survives an n8n/Docker restart because the wait is
-DB-backed, not a hung n8n execution. No script-generation/TTS/media/
-rendering/publishing workflow or Oracle deployment exist yet — this step
-ends with an approved, source-backed research package ready for script
-generation. See
-[docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
+source-backed research (Step 6 — **`Research Project`**: plans what to
+research, collects real sources, extracts and verifies claims against
+them, synthesizes a versioned research package, runs deterministic QC,
+and pauses for DB-backed human approval), and now the second workflow
+allowed to call paid external APIs: **`Script Project`**. Given a
+`content_project_id` whose research has already been approved, it
+writes a structured, spoken-language script grounded *only* in that
+research (every factual narration unit must cite a real `source_id`/
+`claim_id` — fabricated citations are rejected structurally, never
+trusted from the LLM), estimates runtime deterministically from word
+count, runs deterministic + independent LLM quality control (0–100,
+hard gates for fabricated citations/unsupported quotes/plagiarism risk
+that no score can override, up to 3 automatic revision cycles), and
+pauses for a human approval that survives an n8n/Docker restart the same
+DB-backed way research approval does. No TTS/media/rendering/publishing
+workflow or Oracle deployment exist yet — this step ends with an
+approved, source-grounded script ready for voiceover. See
+[docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md)
 for the full contract,
+[docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
+for the Step 6 foundation it consumes,
 [docs/architecture/workflow-runtime.md](docs/architecture/workflow-runtime.md)
-for the Step 4 foundation it's built on, and
+for the Step 4 foundation both build on, and
 [docs/operations/development-commands.md](docs/operations/development-commands.md)
 to run it yourself.
 
@@ -72,17 +79,17 @@ to run it yourself.
 ├── database/
 │   ├── bootstrap/        # Cluster bootstrap only (roles/databases) — runs once
 │   ├── migrations/       # The real domain schema — dbmate-managed, ledgered, idempotent
-│   ├── seeds/            # Idempotent seed data — 3 example channels + Step 6 research prompts
+│   ├── seeds/            # Idempotent seed data — 3 example channels + Step 6/7 research/script prompts
 │   ├── queries/          # Canonical SQL the n8n workflow-runtime layer calls
 │   └── tests/            # Automated database test suite
 ├── n8n/
-│   ├── workflows/        # 39 workflows (Steps 4-6) — implemented
+│   ├── workflows/        # 59 workflows (Steps 4-7) — implemented
 │   ├── examples/         # Reference exports and sample payloads (not run in prod)
-│   └── tests/            # Automated workflow-runtime + manual topic intake + research pipeline test suites
+│   └── tests/            # Automated workflow-runtime + manual topic intake + research/script pipeline test suites
 ├── prompts/
-│   ├── shared/           # Base prompt templates + Step 6 research prompts (versioned, in prompts/prompt_versions)
+│   ├── shared/           # Base prompt templates + Step 6/7 research/script prompts (versioned, in prompts/prompt_versions)
 │   └── channels/         # Per-channel prompt overrides, keyed by channel_id
-├── schemas/               # JSON Schema contracts — workflow-runtime + topic-intake + research-pipeline request/response/config shapes
+├── schemas/               # JSON Schema contracts — workflow-runtime + topic-intake + research-pipeline + script-pipeline request/response/config shapes
 ├── scripts/                # Dev/build/test tooling — implemented (see docs/operations/development-commands.md)
 ├── storage/                 # Documents the storage/channels/{channel_id}/projects/{content_project_id}/ layout
 ├── tests/
@@ -136,6 +143,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Workflow runtime architecture](docs/architecture/workflow-runtime.md)
 - [Manual topic intake architecture](docs/architecture/topic-intake.md)
 - [Research pipeline architecture](docs/architecture/research-pipeline.md)
+- [Script pipeline architecture](docs/architecture/script-pipeline.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -168,9 +176,9 @@ Full index: [docs/README.md](docs/README.md)
   `failed → running` transition gap and a dropped `error.details`
   field), 3 new JSON Schemas, a 27-check automated test suite proving
   resume through real n8n execution (not just SQL). Complete.
-- **Step 6 (this step) — Source-backed research.** The `Research
+- **Step 6 — Source-backed research.** The `Research
   Project` reusable workflow (25 new SQL-backed/composite n8n
-  workflows, a 166-node orchestrator, a 74-node self-contained QC-retry
+  workflows, a 164-node orchestrator, a 74-node self-contained QC-retry
   sub-workflow), 2 migrations (research plan/package versioning,
   citation-integrity/QC/cost-tracking functions), 8 new JSON Schemas, 3
   versioned research prompts, Tavily (primary) + Brave (fallback) search
@@ -182,7 +190,29 @@ Full index: [docs/README.md](docs/README.md)
   pending real API credentials (fixture suite fully passes without
   them). See
   [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md).
-- **Later steps:** script generation, TTS, media/rendering, thumbnails,
+- **Step 7 (this step) — Source-grounded script generation.** The
+  `Script Project` reusable workflow (20 new SQL-backed/composite n8n
+  workflows, a 107-node orchestrator, a 45-node self-contained
+  generate/review/revise sub-workflow with up to 3 automatic revisions),
+  3 migrations (script version grounding/QC/versioning columns, a
+  `script_stage` budget ceiling, a `channel_settings.cta_type` column),
+  3 new JSON Schemas, 3 versioned script prompts, structural citation
+  integrity for every script (fabricated `source_id`/`claim_id`
+  rejected, never trusted from the LLM), deterministic word-count-based
+  runtime estimation, deterministic + independent LLM quality control
+  with documented 50/50 weighting and hard gates a numeric score cannot
+  override, a 49-check automated test suite proving resume (including
+  skipping an already-succeeded paid step entirely), DB-backed approval
+  waiting, and **n8n/Docker restart survival** through real n8n
+  execution. One genuine defect found and fixed in both this step's
+  orchestrator and Step 6's (`research-project.json`): the final step
+  was unconditionally calling `Complete Workflow Run` after an approval
+  step had already left the run `waiting`, an invalid status transition
+  Step 6's own tests never happened to exercise. Complete — live-provider
+  validation pending real API credentials (fixture suite fully passes
+  without them). See
+  [docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md).
+- **Later steps:** TTS/voiceover, media/rendering, thumbnails,
   YouTube upload, analytics; Oracle Ampere A1 provisioning and deployment
   (Level 2 native ARM64 validation happens here); first channel
   configuration and end-to-end single-channel test.

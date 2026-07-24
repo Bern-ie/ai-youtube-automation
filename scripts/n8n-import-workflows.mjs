@@ -115,6 +115,30 @@ const IMPORT_ORDER = [
   'dev-list-pending-research-approvals.json',
   'dev-get-research-approval-package.json',
   'dev-decide-research-approval.json',
+  // Step 7 — script pipeline. Leaf SQL wrappers first (get-channel-prompt.json
+  // is reused from Step 6), then the composite provider-calling
+  // sub-workflows, then the self-contained retry loop, the orchestrator,
+  // and everything that references it.
+  'load-approved-research-for-script.json',
+  'script-budget-preflight.json',
+  'create-script-version.json',
+  'get-current-script-version.json',
+  'script-deterministic-qc.json',
+  'script-quality-control.json',
+  'create-script-approval.json',
+  'resolve-script-approval.json',
+  'get-script-approval-package.json',
+  'get-flattened-script-narration.json',
+  'generate-script.json',
+  'revise-script.json',
+  'review-script.json',
+  'generate-review-and-revise-script.json',
+  'script-project.json',
+  'resolve-script-approval-workflow.json',
+  'step7-script-project-test.json',
+  'dev-list-pending-script-approvals.json',
+  'dev-get-script-approval-package.json',
+  'dev-decide-script-approval.json',
 ];
 
 async function main() {
@@ -295,6 +319,51 @@ const EXECUTE_WORKFLOW_TARGETS = {
   'Mark Step Succeeded: create_content_project': 'mark-workflow-step.json',
   // Step 5 — "Step5 Manual Topic Intake Test" dev webhook.
   'Manual Topic Intake': 'manual-topic-intake.json',
+  // Step 7 — script pipeline. "Get Channel Prompt", "Record Usage: Input
+  // Tokens", "Record Usage: Output Tokens", "Record Cost Event" reuse the
+  // Step 6 entries above (same target files).
+  'Create Script Version': 'create-script-version.json',
+  'Script Deterministic QC': 'script-deterministic-qc.json',
+  'Script Quality Control': 'script-quality-control.json',
+  'Generate Script': 'generate-script.json',
+  'Review Script (initial)': 'review-script.json',
+  'Revise Script (retry_1)': 'revise-script.json',
+  'Review Script (retry_1)': 'review-script.json',
+  'Revise Script (retry_2)': 'revise-script.json',
+  'Review Script (retry_2)': 'review-script.json',
+  'Revise Script (retry_3)': 'revise-script.json',
+  'Review Script (retry_3)': 'review-script.json',
+  // "Script Project" orchestrator (5 unrolled resumable steps, same
+  // Mark Running/Call/Mark Failed/Fail Workflow Run/Mark Succeeded
+  // cluster pattern as "Research Project"). "Mark Step Running/Failed/
+  // Succeeded: load_channel_configuration", "Call: load_channel_configuration",
+  // and "Fail Workflow Run: load_channel_configuration" reuse the Step 6
+  // entries above.
+  'Mark Step Running: load_approved_research': 'mark-workflow-step.json',
+  'Call: load_approved_research': 'load-approved-research-for-script.json',
+  'Mark Step Failed: load_approved_research': 'mark-workflow-step.json',
+  'Fail Workflow Run: load_approved_research': 'fail-workflow-run.json',
+  'Mark Step Succeeded: load_approved_research': 'mark-workflow-step.json',
+  'Mark Step Running: script_budget_preflight': 'mark-workflow-step.json',
+  'Call: script_budget_preflight': 'script-budget-preflight.json',
+  'Mark Step Failed: script_budget_preflight': 'mark-workflow-step.json',
+  'Fail Workflow Run: script_budget_preflight': 'fail-workflow-run.json',
+  'Mark Step Succeeded: script_budget_preflight': 'mark-workflow-step.json',
+  'Mark Step Running: generate_review_and_revise_script': 'mark-workflow-step.json',
+  'Call: generate_review_and_revise_script': 'generate-review-and-revise-script.json',
+  'Mark Step Failed: generate_review_and_revise_script': 'mark-workflow-step.json',
+  'Fail Workflow Run: generate_review_and_revise_script': 'fail-workflow-run.json',
+  'Mark Step Succeeded: generate_review_and_revise_script': 'mark-workflow-step.json',
+  'Mark Step Running: create_script_approval': 'mark-workflow-step.json',
+  'Call: create_script_approval': 'create-script-approval.json',
+  'Mark Step Failed: create_script_approval': 'mark-workflow-step.json',
+  'Fail Workflow Run: create_script_approval': 'fail-workflow-run.json',
+  'Mark Step Succeeded: create_script_approval': 'mark-workflow-step.json',
+  // Step 7 — "Resolve Script Approval" orchestrator + dev webhooks.
+  'Resolve Script Approval SQL': 'resolve-script-approval.json',
+  'Resume: Script Project': 'script-project.json',
+  'Resolve Script Approval': 'resolve-script-approval-workflow.json',
+  'Script Project': 'script-project.json',
 };
 const FILE_TO_WORKFLOW_NAME = {
   'initialize-workflow-run.json': 'Initialize Workflow Run',
@@ -331,6 +400,23 @@ const FILE_TO_WORKFLOW_NAME = {
   'build-research-package-and-qc.json': 'Build Research Package And QC',
   'research-project.json': 'Research Project',
   'resolve-research-approval-workflow.json': 'Resolve Research Approval',
+  // Step 7 — script pipeline.
+  'load-approved-research-for-script.json': 'Load Approved Research For Script',
+  'script-budget-preflight.json': 'Script Budget Preflight',
+  'create-script-version.json': 'Create Script Version',
+  'get-current-script-version.json': 'Get Current Script Version',
+  'script-deterministic-qc.json': 'Script Deterministic QC',
+  'script-quality-control.json': 'Script Quality Control',
+  'create-script-approval.json': 'Create Script Approval',
+  'resolve-script-approval.json': 'Resolve Script Approval SQL',
+  'get-script-approval-package.json': 'Get Script Approval Package',
+  'get-flattened-script-narration.json': 'Get Flattened Script Narration',
+  'generate-script.json': 'Generate Script',
+  'revise-script.json': 'Revise Script',
+  'review-script.json': 'Review Script',
+  'generate-review-and-revise-script.json': 'Generate Review And Revise Script',
+  'script-project.json': 'Script Project',
+  'resolve-script-approval-workflow.json': 'Resolve Script Approval',
 };
 
 main().catch((err) => {

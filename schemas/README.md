@@ -1,6 +1,6 @@
 # schemas
 
-Status: **implemented (Steps 4–6).** JSON Schema, Draft 2020-12
+Status: **implemented (Steps 4–7).** JSON Schema, Draft 2020-12
 (`"$schema": "https://json-schema.org/draft/2020-12/schema"` on every
 file) — chosen since nothing in this project had standardized an earlier
 draft yet.
@@ -39,16 +39,28 @@ draft yet.
 | `research-approval-package.schema.json` | The human-facing payload served by the development approval endpoint. |
 | `approval-decision.schema.json` | Request body for approve/reject/request-revision. |
 
-All nineteen compile together via `ajv` with cross-file `$ref` resolution
-(`$id` + `addSchema`, see `n8n/tests/run.js`, `run-step5.js`, and
-`run-step6.js`) and are validated against **real captured output**, not
-just checked for internal consistency — every JSON response the test
-suites get back from the live webhooks is asserted against these schemas
-on every run.
+## Step 7 — script generation
+
+| File | Validates |
+|---|---|
+| `youtube-script.schema.json` | Structured output of the script-generation/script-revision LLM call — the JSONB stored in `script_versions.content`. `cited_source_ids`/`cited_claim_ids` are checked against `sources`/`research_claims` by `script_grounding_report()`, never trusted as-is. |
+| `script-qc.schema.json` | Three related shapes: `$defs/deterministic` (`script_deterministic_qc()`'s fully-computed result), `$defs/llm_review` (the script-qc-review LLM call's structured-output contract), `$defs/combined` (`script_quality_control()`'s final merged score/status). |
+| `script-approval-package.schema.json` | The human-facing payload served by the development script-approval endpoint. |
+
+`approval-decision.schema.json` (Step 6) is reused as-is for script
+approval decisions — the request shape is identical for both stages.
+
+All twenty-two compile together via `ajv` with cross-file `$ref`
+resolution (`$id` + `addSchema`, see `n8n/tests/run.js`, `run-step5.js`,
+`run-step6.js`, and `run-step7.js`) and are validated against **real
+captured output**, not just checked for internal consistency — every JSON
+response the test suites get back from the live webhooks is asserted
+against these schemas on every run.
 
 See
 [docs/architecture/workflow-runtime.md](../docs/architecture/workflow-runtime.md),
 [docs/architecture/topic-intake.md](../docs/architecture/topic-intake.md),
+[docs/architecture/research-pipeline.md](../docs/architecture/research-pipeline.md),
 and
-[docs/architecture/research-pipeline.md](../docs/architecture/research-pipeline.md)
+[docs/architecture/script-pipeline.md](../docs/architecture/script-pipeline.md)
 for the full contracts these schemas encode.

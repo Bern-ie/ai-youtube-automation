@@ -1,0 +1,80 @@
+{
+  "name": "Create Script Version",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT create_script_version($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.workflow_run_id, $json.content_project_id, $json.research_package_id || null, $json.generation_prompt_version_id || null, $json.content, $json.narration_text || null, $json.estimated_duration_seconds || null, $json.provider || null, $json.model || null, $json.provider_request_id || null, $json.revision_trigger || 'initial_generation', $json.revision_reason || null] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call Create Script Version",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Create Script Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Create Script Version": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

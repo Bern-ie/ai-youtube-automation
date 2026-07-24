@@ -1,12 +1,14 @@
 # Multi-Channel Design
 
 Status: **The channel config store (Step 3), the runtime layer described
-below (Step 4), and two real content workflows (`Manual Topic Intake`,
-Step 5; `Research Project`, Step 6) are all implemented** — see
+below (Step 4), and three real content workflows (`Manual Topic Intake`,
+Step 5; `Research Project`, Step 6; `Script Project`, Step 7) are all
+implemented** — see
 [database-architecture.md](database-architecture.md),
 [workflow-runtime.md](workflow-runtime.md),
-[topic-intake.md](topic-intake.md), and
-[research-pipeline.md](research-pipeline.md). The "how a shared workflow
+[topic-intake.md](topic-intake.md),
+[research-pipeline.md](research-pipeline.md), and
+[script-pipeline.md](script-pipeline.md). The "how a shared workflow
 is expected to work" list below is no longer aspirational: `Initialize
 Workflow Run` and `Load Channel Configuration` are real, tested, reusable
 n8n workflows any future workflow calls exactly this way. `Manual Topic
@@ -19,7 +21,15 @@ to read `channel_provider_settings` for *search* providers (Tavily
 primary, Brave fallback) and an LLM provider/model, and the first to
 check a `channel_budget_limits.limit_type = 'research_stage'` ceiling —
 both resolved per-`channel_id` with zero workflow code difference
-between channels.
+between channels. `Script Project` is the third: it reuses the same LLM
+provider/model resolution as `Research Project` (no separate script-LLM
+provider concept), checks its own `channel_budget_limits.limit_type =
+'script_stage'` ceiling, and is the first workflow to read
+`channel_settings.hook_style`/`cta_type`/`cta_style` and
+`channel_content_pillars` to shape generated narration — the same
+channel that gets a documentary tone and a "subscribe" CTA for one
+project gets whatever a completely different channel's configuration
+specifies for another, with zero workflow code difference.
 
 ## Core rule
 

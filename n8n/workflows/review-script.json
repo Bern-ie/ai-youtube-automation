@@ -1,0 +1,1014 @@
+{
+  "name": "Review Script",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-32",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id,\n  script_version_id: b.script_version_id, schema_valid: b.schema_valid !== false,\n  target_duration_seconds: b.target_duration_seconds || null, speaking_rate_wpm: b.speaking_rate_wpm || 155, _ctx: b\n} }];"
+      },
+      "id": "code-33",
+      "name": "Prepare Deterministic QC Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:script-deterministic-qc.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-34",
+      "name": "Script Deterministic QC",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-35",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-36",
+      "name": "Did Deterministic QC Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-37",
+      "name": "Build Deterministic-QC Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-38",
+              "leftValue": "={{ $json.data.hard_fail === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-39",
+      "name": "Is Deterministic Hard Fail?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Deterministic QC Input').first().json._ctx;\nconst det = $('Script Deterministic QC').first().json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  script_version_id: ctx.script_version_id,\n  llm_qc: { overall_score: 0, dimension_scores: {}, unsupported_claims: [], misleading_statements: [], hard_fail: true, hard_fail_reasons: ['deterministic_hard_fail_skipped_llm_review'], feedback: 'LLM QC skipped: deterministic grounding/schema hard-fail (' + (det.hard_fail_reasons || []).join(', ') + ') makes review moot.' }\n} }];"
+      },
+      "id": "code-40",
+      "name": "Prepare Skip-LLM Combine Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Deterministic QC Input').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, prompt_name: 'script-qc-review', _ctx: ctx } }];"
+      },
+      "id": "code-41",
+      "name": "Prepare Get-Prompt Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-channel-prompt.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-42",
+      "name": "Get Channel Prompt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-43",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-44",
+      "name": "Did Get Prompt Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-45",
+      "name": "Build Prompt Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst det = $('Script Deterministic QC').first().json.data;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst userPayload = {\n  script: ctx.content, narration_text: ctx.narration_text, research_package: ctx.research_package,\n  channel: { script_tone: ctx.script_tone || null, target_audience: ctx.target_audience || null, cta_type: ctx.cta_type || null },\n  target_duration_seconds: ctx.target_duration_seconds || null, deterministic_metrics: det\n};\nconst schema = {\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"overall_score\",\"dimension_scores\",\"unsupported_claims\",\"misleading_statements\",\"hard_fail\",\"hard_fail_reasons\",\"feedback\"],\"properties\":{\"overall_score\":{\"type\":\"number\"},\"dimension_scores\":{\"type\":\"object\",\"description\":\"0-10 per dimension — informs overall_score but does not itself gate pass/revise/fail (that's overall_score + hard_fail).\",\"additionalProperties\":false,\"required\":[\"factual_grounding\",\"source_coverage\",\"hook_quality\",\"first_30_seconds_strength\",\"pacing\",\"clarity\",\"repetition_and_filler\",\"transitions\",\"retention_structure\",\"clickbait_restraint\",\"tone_fit\",\"audience_fit\",\"cta_fit\",\"runtime_fit\",\"brand_safety\"],\"properties\":{\"factual_grounding\":{\"type\":\"number\"},\"source_coverage\":{\"type\":\"number\"},\"hook_quality\":{\"type\":\"number\"},\"first_30_seconds_strength\":{\"type\":\"number\"},\"pacing\":{\"type\":\"number\"},\"clarity\":{\"type\":\"number\"},\"repetition_and_filler\":{\"type\":\"number\"},\"transitions\":{\"type\":\"number\"},\"retention_structure\":{\"type\":\"number\"},\"clickbait_restraint\":{\"type\":\"number\"},\"tone_fit\":{\"type\":\"number\"},\"audience_fit\":{\"type\":\"number\"},\"cta_fit\":{\"type\":\"number\"},\"runtime_fit\":{\"type\":\"number\"},\"brand_safety\":{\"type\":\"number\"}}},\"unsupported_claims\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Narration excerpts the reviewer judges factual but inadequately grounded, beyond what the deterministic reference-presence check alone can catch.\"},\"misleading_statements\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"pronunciation_concerns\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"youtube_policy_concerns\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"hard_fail\":{\"type\":\"boolean\",\"description\":\"true only for severe plagiarism/copyright risk or a severe platform-policy concern — never set for a merely low score.\"},\"hard_fail_reasons\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"feedback\":{\"type\":\"string\",\"description\":\"Concrete, actionable notes — this is the primary input to the revision prompt when status is revision_needed.\"}}};\nreturn [{ json: {\n  ctx, model,\n  requestBody: {\n    model, max_tokens: 4096,\n    system: prompt.content,\n    messages: [{ role: 'user', content: JSON.stringify(userPayload) }],\n    output_config: { format: { type: 'json_schema', schema } }\n  }\n} }];"
+      },
+      "id": "code-46",
+      "name": "Prepare Anthropic Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-47",
+      "name": "Call Anthropic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Anthropic Request').first().json.ctx;\nconst model = $('Prepare Anthropic Request').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, llm_qc: result, usage: resp.usage || {}, provider_request_id: resp.id || null, _raw_text: textBlock ? textBlock.text : null, repaired: false } }];"
+      },
+      "id": "code-48",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-49",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-50",
+      "name": "Did Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Parse Response').first().json;\nconst orig = $('Prepare Anthropic Request').first().json.requestBody;\nconst repairMessages = orig.messages.concat([\n  { role: 'assistant', content: p._raw_text || '' },\n  { role: 'user', content: 'Your previous response was not valid JSON matching the required schema. Return ONLY the corrected JSON object matching the schema -- no prose, no markdown fences.' }\n]);\nreturn [{ json: { ctx: p.ctx, model: p.model, requestBody: { ...orig, messages: repairMessages } } }];"
+      },
+      "id": "code-51",
+      "name": "Prepare Repair Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-52",
+      "name": "Call Anthropic: Repair",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Repair Request').first().json.ctx;\nconst model = $('Prepare Repair Request').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, llm_qc: result, usage: resp.usage || {}, provider_request_id: resp.id || null, repaired: true } }];"
+      },
+      "id": "code-53",
+      "name": "Parse Repair Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-54",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-55",
+      "name": "Did Repair Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json.ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'SCRIPT_QC_FAILED', message: 'LLM response was not valid structured JSON, even after one repair attempt', retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-56",
+      "name": "Build Parse Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-57",
+      "name": "Parsed Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-58",
+      "name": "Prepare Usage Event: Input Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-59",
+      "name": "Record Usage: Input Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-60",
+      "name": "Prepare Usage Event: Output Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-61",
+      "name": "Record Usage: Output Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nconst inputTokens = j.usage.input_tokens || 0;\nconst outputTokens = j.usage.output_tokens || 0;\nconst inputCost = (inputTokens / 1000000) * 5;\nconst outputCost = (outputTokens / 1000000) * 25;\nconst totalCost = Math.round((inputCost + outputCost) * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: 'anthropic', service_type: 'llm', model: j.model,\n  quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null,\n  total_cost_usd: totalCost, provider_request_id: j.provider_request_id, estimated: false, metadata: { repaired: !!j.repaired }\n} }];"
+      },
+      "id": "code-62",
+      "name": "Prepare Cost Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-63",
+      "name": "Record Cost Event",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, script_version_id: ctx.script_version_id, llm_qc: j.llm_qc } }];"
+      },
+      "id": "code-64",
+      "name": "Prepare Combine Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:script-quality-control.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-65",
+      "name": "Script Quality Control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-66",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-67",
+      "name": "Did Combine Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-68",
+      "name": "Build Combine Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const combined = $input.first().json;\nconst det = $('Script Deterministic QC').first().json.data;\nlet llmQc;\ntry { llmQc = $('Prepare Combine Input').first().json.llm_qc; } catch (e) { llmQc = $('Prepare Skip-LLM Combine Input').first().json.llm_qc; }\nconst ctx = $('Prepare Deterministic QC Input').first().json._ctx;\nreturn [{ json: { success: combined.success, data: Object.assign({}, combined.data, { script_version_id: ctx.script_version_id, deterministic: det, llm_qc: llmQc }), error: combined.error, runtime: combined.runtime } }];"
+      },
+      "id": "code-69",
+      "name": "Build Review Script Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Deterministic QC Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Deterministic QC Input": {
+      "main": [
+        [
+          {
+            "node": "Script Deterministic QC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script Deterministic QC": {
+      "main": [
+        [
+          {
+            "node": "Did Deterministic QC Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Deterministic QC Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Is Deterministic Hard Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Deterministic-QC Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Deterministic Hard Fail?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Prompt Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Skip-LLM Combine Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Prompt Input": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Prompt": {
+      "main": [
+        [
+          {
+            "node": "Did Get Prompt Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get Prompt Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prompt Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Anthropic Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Did Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Repair Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Repair Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Repair",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Repair": {
+      "main": [
+        [
+          {
+            "node": "Parse Repair Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Repair Response": {
+      "main": [
+        [
+          {
+            "node": "Did Repair Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Repair Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Parse Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsed Result": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Combine Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Combine Input": {
+      "main": [
+        [
+          {
+            "node": "Script Quality Control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Skip-LLM Combine Input": {
+      "main": [
+        [
+          {
+            "node": "Script Quality Control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script Quality Control": {
+      "main": [
+        [
+          {
+            "node": "Did Combine Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Combine Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Build Review Script Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Combine Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

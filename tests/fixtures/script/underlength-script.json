@@ -1,0 +1,70 @@
+{
+  "content": {
+    "title_concept": "Underlength Test Script",
+    "target_duration_seconds": 300,
+    "hook": {
+      "opening_line": "Lighthouses.",
+      "tension_or_question": null,
+      "viewer_promise": "Quick facts.",
+      "curiosity_loop": null,
+      "transition_into_body": "Go.",
+      "narration": "Lighthouses. Quick facts. Go.",
+      "source_ids": [],
+      "claim_ids": [],
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": 3
+    },
+    "intro": {
+      "narration": "",
+      "source_ids": [],
+      "claim_ids": [],
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": null
+    },
+    "sections": [
+      {
+        "section_id": "body-1",
+        "section_type": "explainer",
+        "heading": "Body",
+        "narration": "Forty-seven stations existed.",
+        "purpose": "Deliberately far too short relative to the 300s target.",
+        "source_ids": [
+          "11111111-bbbb-4bbb-8bbb-111111111111"
+        ],
+        "claim_ids": [
+          "33333333-bbbb-4bbb-8bbb-333333333333"
+        ],
+        "visual_direction": null,
+        "b_roll_queries": [],
+        "on_screen_text": null,
+        "transition": null,
+        "sound_design_notes": null,
+        "pronunciation_notes": [],
+        "estimated_duration_seconds": 4
+      }
+    ],
+    "outro": {
+      "narration": "",
+      "source_ids": [],
+      "claim_ids": [],
+      "pronunciation_notes": [],
+      "estimated_duration_seconds": null
+    },
+    "cta": {
+      "cta_type": "subscribe",
+      "narration": "Subscribe.",
+      "source_ids": [],
+      "claim_ids": [],
+      "estimated_duration_seconds": 2
+    },
+    "estimated_word_count": 12,
+    "estimated_duration_seconds": 12,
+    "cited_source_ids": [
+      "11111111-bbbb-4bbb-8bbb-111111111111"
+    ],
+    "cited_claim_ids": [
+      "33333333-bbbb-4bbb-8bbb-333333333333"
+    ]
+  },
+  "narration_text": "Lighthouses. Quick facts. Go. Forty-seven stations existed. Subscribe."
+}

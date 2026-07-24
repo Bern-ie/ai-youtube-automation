@@ -1,0 +1,15 @@
+{
+  "id": "msg_01FixtureScriptQcHardFail001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"overall_score\": 35, \"dimension_scores\": {\"factual_grounding\": 3, \"source_coverage\": 2, \"hook_quality\": 5, \"first_30_seconds_strength\": 4, \"pacing\": 5, \"clarity\": 5, \"repetition_and_filler\": 5, \"transitions\": 5, \"retention_structure\": 4, \"clickbait_restraint\": 4, \"tone_fit\": 5, \"audience_fit\": 5, \"cta_fit\": 6, \"runtime_fit\": 5, \"brand_safety\": 2}, \"unsupported_claims\": [\"An entire paragraph in the second section is reproduced nearly verbatim from the cited source's excerpt without paraphrase or quotation marks.\"], \"misleading_statements\": [], \"pronunciation_concerns\": [], \"youtube_policy_concerns\": [\"Substantial unattributed reproduction of source text raises a real copyright/plagiarism risk.\"], \"hard_fail\": true, \"hard_fail_reasons\": [\"substantial_unattributed_reproduction_of_source_material\"], \"feedback\": \"This version reproduces a large block of the source excerpt nearly word-for-word without quotation marks or clear attribution. This must be rewritten as genuine paraphrase before this script can proceed -- this is a hard-fail issue, not a style note.\"}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": { "input_tokens": 1850, "output_tokens": 260 }
+}

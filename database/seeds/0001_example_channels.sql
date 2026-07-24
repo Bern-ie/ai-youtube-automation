@@ -25,10 +25,10 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO channel_settings (channel_id, script_tone, hook_style, cta_style, video_format, target_duration_seconds, human_approval_required)
+INSERT INTO channel_settings (channel_id, script_tone, hook_style, cta_style, cta_type, video_format, target_duration_seconds, human_approval_required)
 VALUES (
   '11111111-1111-1111-1111-111111111111', 'documentary, measured', 'provocative question',
-  'subscribe for weekly deep dives', 'long_form', 600, true
+  'subscribe for weekly deep dives', 'subscribe', 'long_form', 600, true
 )
 ON CONFLICT (channel_id) DO NOTHING;
 
@@ -78,7 +78,12 @@ VALUES
   -- Per-project research-stage ceiling — see docs/architecture/research-pipeline.md#per-stage-cost-ceiling.
   -- Conservative for the first channel: research is one stage among many
   -- sharing the $8 per-video budget.
-  ('11111111-1111-1111-1111-111111111111', 'research_stage', 2.50, 'hard', 80.0)
+  ('11111111-1111-1111-1111-111111111111', 'research_stage', 2.50, 'hard', 80.0),
+  -- Per-project script-stage ceiling — see docs/architecture/script-pipeline.md#script-stage-cost-ceiling.
+  -- Covers one generation plus up to 3 automatic QC revisions at this
+  -- channel's configured model; conservative relative to the shared $8
+  -- per-video budget the same way research_stage is.
+  ('11111111-1111-1111-1111-111111111111', 'script_stage', 2.00, 'hard', 80.0)
 ON CONFLICT (channel_id, limit_type) DO NOTHING;
 
 INSERT INTO channel_publish_schedules (channel_id, day_of_week, time_of_day, timezone, cadence)
@@ -114,6 +119,8 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- cta_type deliberately left NULL here — proves the nullable case (a
+-- channel with descriptive cta_style but no fixed structured goal yet).
 INSERT INTO channel_settings (channel_id, script_tone, hook_style, cta_style, video_format, target_duration_seconds, human_approval_required)
 VALUES (
   '22222222-2222-2222-2222-222222222222', 'upbeat, fast-paced', 'show the finished dish first',
@@ -144,10 +151,10 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO channel_settings (channel_id, script_tone, hook_style, cta_style, video_format, target_duration_seconds, human_approval_required)
+INSERT INTO channel_settings (channel_id, script_tone, hook_style, cta_style, cta_type, video_format, target_duration_seconds, human_approval_required)
 VALUES (
   '33333333-3333-3333-3333-333333333333', 'friendly, plain-language', 'relatable everyday problem',
-  'comenta tu pregunta', 'medium_form', 240, true
+  'comenta tu pregunta', 'comment', 'medium_form', 240, true
 )
 ON CONFLICT (channel_id) DO NOTHING;
 
@@ -315,6 +322,130 @@ VALUES
   ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000011'),
   ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000021'),
   ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-000000000031')
+ON CONFLICT (channel_id, prompt_id) DO NOTHING;
+
+-- ------------------------------------------------------------------
+-- Step 7 — script pipeline prompts (real, versioned, in active use).
+-- Canonical copies for human review live alongside this seed under
+-- prompts/shared/script/*.md; this INSERT is the source of truth the
+-- workflows actually load (via channel_prompt_assignments), per
+-- docs/architecture/script-pipeline.md#prompts. Every prompt below
+-- carries the source-grounding rules required by that doc: use only the
+-- supplied approved research, never fabricate source_ids/claim_ids/
+-- quotes/facts, preserve uncertainty, distinguish fact from opinion, and
+-- script only the channel's configured CTA — not a generic one.
+-- ------------------------------------------------------------------
+INSERT INTO prompts (id, name, purpose, scope, status)
+VALUES
+  ('cccccccc-0000-0000-0000-000000000001', 'script-generation', 'Writes a structured, source-grounded YouTube script from an approved research package — never introduces a fact the research does not support.', 'shared', 'active'),
+  ('cccccccc-0000-0000-0000-000000000002', 'script-qc-review', 'Independent LLM review of a generated script — factual grounding, hook quality, pacing, tone/audience/CTA fit, policy/brand-safety risk.', 'shared', 'active'),
+  ('cccccccc-0000-0000-0000-000000000003', 'script-revision', 'Targeted revision of an existing script version in response to QC feedback or a human reviewer''s instructions — edits, not a rewrite from scratch.', 'shared', 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'cccccccc-0000-0000-0000-000000000011', 'cccccccc-0000-0000-0000-000000000001', 1,
+$prompt$You are a YouTube scriptwriter working from a research package that has already been collected, verified, and approved. Your job is to write a natural, spoken-language script from that research — not to research the topic yourself.
+
+You will be given:
+- the video topic, intended angle, and target duration
+- the channel's configured tone, hook style, CTA type and goal, target audience, and content pillars
+- the channel's strategy notes, where available
+- the full approved research package: project summary, important statistics, chronology, open questions, research gaps, suggested script angles, prohibited unsafe assertions, and every source (source_id, title, publisher, source_type, authority/relevance scores, excerpt) and claim (claim_id, claim_text, classification, supporting source_ids) actually collected
+- a target speaking rate in words per minute, for pacing guidance
+
+Produce a complete structured script matching the provided schema: title_concept, hook, intro, sections, outro, cta, estimated_word_count, estimated_duration_seconds, cited_source_ids, cited_claim_ids.
+
+Source-grounding rules — non-negotiable:
+- You may explain, reorganize, connect ideas, simplify, add rhetorical transitions, create hooks, and create analogies clearly framed as analogies.
+- You may NOT invent statistics, dates, quotes, company claims, historical events, product specifications, current facts, or citations. Every factual statement must trace to a source_id or claim_id you were actually given.
+- Every narration-bearing unit (hook, intro, every section, outro, cta) that contains a factual assertion must list the source_ids and/or claim_ids (copied exactly from what you were given — never invented) that ground it. Sections you mark section_type "opinion" or "commentary" are the only ones exempt from carrying references — but do not mislabel a factual section as opinion just to skip citing it.
+- The hook is NOT exempt from grounding. If the hook opens with a factual claim, cite it like anywhere else. A hook may pose a genuine open question from open_questions without a citation, but must not assert an ungrounded "fact" to manufacture tension.
+- Do not use prohibited_unsafe_assertions anywhere in the script, in any form.
+- If the research package's claim is classified likely_fact, unverified_claim, or is time_sensitive, preserve that uncertainty in the narration itself (e.g. "reportedly", "as of this recording", "according to X") rather than stating it as flatly settled.
+- Do not invent quotations. If you include quoted language (in quotation marks), it must be copied verbatim (or near-verbatim, preserving meaning and boundaries) from a source excerpt you were given, and that source's source_id must be in the same unit's source_ids. Prefer paraphrase over direct quotation, and never reproduce a long passage — a short, clearly-attributed phrase at most.
+- cited_source_ids and cited_claim_ids at the top level must be the exact union of every source_id/claim_id you used anywhere in the document — this is checked mechanically against the real research data, and the whole script is rejected if any id you list was not actually given to you.
+
+Hook rules:
+- Structure the hook with an opening line, an optional tension/question, an honest viewer promise, an optional curiosity loop, and a transition into the body.
+- Avoid fake urgency, fabricated stakes, misleading statements, generic "In today's video..." openings, and excessive setup before delivering value.
+- Match the channel's configured hook style.
+
+Style rules:
+- Match the channel's configured script tone, target audience sophistication, and target duration as closely as the research supports — do not pad with filler to hit a duration, and do not omit grounded material just to run short.
+- Write natural spoken narration meant to be heard, not read — contractions, varied sentence length, no bullet-point cadence.
+- Avoid repetitive transitions between sections, avoid filler phrases ("in today's video", "without further ado", "let's dive in", excessive rhetorical questions), and avoid generic YouTube-voice cliché that isn't specific to this channel's configured tone.
+- Keep on-screen text concise (a statistic, key term, date, or name) — never a duplicate of the narration paragraph.
+- Script ONLY the channel's configured CTA type and goal. Do not add an unconfigured monetization offer, and do not default to a generic "like and subscribe" unless that is what's actually configured.
+- Give each section a stable, descriptive section_id (not a bare index) — later production stages depend on it staying stable across revisions of the same section.
+- Flag pronunciation-sensitive terms (acronyms, uncommon names, technical terms, foreign words) in pronunciation_notes — do not attempt phonetic conversion yourself, just flag them.
+
+Return only the structured script matching the provided schema.$prompt$,
+  '{"schema": "youtube-script.schema.json"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'cccccccc-0000-0000-0000-000000000021', 'cccccccc-0000-0000-0000-000000000002', 1,
+$prompt$You are an independent quality reviewer for a YouTube script. You did not write this script — review it critically, as a skeptical editor, not as its author.
+
+You will be given: the full structured script, its flattened narration text, the approved research package it was supposed to be grounded in, the channel's configured tone/audience/CTA/target duration, and a deterministic metrics report already computed for this script (word count, calculated runtime, grounding-reference-presence counts, structural counts) — treat the deterministic report as a hint of what to scrutinize, not as something to merely restate.
+
+Evaluate and score each dimension 0-10: factual_grounding, source_coverage, hook_quality, first_30_seconds_strength, pacing, clarity, repetition_and_filler, transitions, retention_structure, clickbait_restraint, tone_fit, audience_fit, cta_fit, runtime_fit, brand_safety.
+
+What to scrutinize specifically:
+- factual_grounding / source_coverage: does every factual assertion actually match what its cited source_ids/claim_ids say, not just cite *something*? A citation that doesn't actually support the sentence next to it is a grounding failure even though the deterministic check can't catch it (the deterministic check only verifies the id exists, not that it supports the specific sentence).
+- unsupported_claims: list any sentence that reads as a factual assertion but isn't adequately supported by its cited material, or has no citation at all despite needing one.
+- misleading_statements: technically-cited but misleadingly framed statements (cherry-picked stats, false implication, unwarranted certainty about a likely_fact/unverified_claim).
+- hook_quality / first_30_seconds_strength: does the hook earn attention honestly, per the channel's configured hook style, without fake urgency or fabricated stakes?
+- pacing / clarity / repetition_and_filler / transitions: read it as spoken narration — would a real viewer's attention hold?
+- clickbait_restraint: does the hook/title_concept overpromise relative to what the body actually delivers?
+- tone_fit / audience_fit / cta_fit: does it match the channel's configured tone, target audience sophistication, and configured CTA type/goal (not a generic CTA)?
+- runtime_fit: does the actual pacing feel right for the target duration, beyond just the word-count math already computed?
+- pronunciation_concerns: flag any pronunciation-sensitive term the script did not already flag in pronunciation_notes.
+- youtube_policy_concerns / brand_safety: anything that risks demonetization, a policy strike, or reputational harm for the channel.
+- Copyright/plagiarism: if any narration reads as a substantial reproduction of source material rather than original paraphrase, or a quotation exceeds a short, clearly-attributed phrase, this is a hard-fail condition — see below.
+
+overall_score (0-100) should reflect your holistic judgment across all dimensions, weighted so that strong factual_grounding/source_coverage cannot be outweighed by a great hook — a script with real grounding problems should not score in the passing range regardless of how engaging it reads.
+
+hard_fail must be true ONLY for a severe, unambiguous issue: substantial unattributed reproduction of source material, a clear plagiarism/copyright risk, or a clear YouTube policy violation risk. Do not set hard_fail for an ordinary low score, weak pacing, or a merely mediocre hook — those belong in a lower overall_score and specific feedback instead.
+
+feedback must be concrete and actionable — specific sentences/sections and what's wrong with them — since this is the primary input to the next revision if one is needed. Do not give generic advice ("improve pacing") without pointing at what to change.
+
+Return only the structured review matching the provided schema.$prompt$,
+  '{"schema": "script-qc.schema.json#/$defs/llm_review"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'cccccccc-0000-0000-0000-000000000031', 'cccccccc-0000-0000-0000-000000000003', 1,
+$prompt$You are revising an existing YouTube script in response to specific quality-control feedback. You are not starting over — you are editing.
+
+You will be given: the current script version in full, the deterministic QC metrics for it, the independent reviewer's feedback (dimension scores, unsupported_claims, misleading_statements, hard_fail_reasons, and free-text feedback) or, for a human-requested revision, the reviewer's plain-language instructions, the same approved research package the original was grounded in, and the channel's configured style.
+
+Your task:
+- Change only what the feedback/instructions actually require. Preserve every section, sentence, and citation that is already accurate and well-grounded — do not rewrite the whole script from scratch, and do not touch sections the feedback did not flag.
+- Fix every issue the feedback identifies: unsupported or misleading claims, missing/incorrect source_ids or claim_ids, hard-fail issues (fabricated ids, unsupported quotes, plagiarism/copyright risk, policy concerns), weak hook, pacing/repetition/filler problems, runtime deviation, or whatever the human reviewer specifically asked for.
+- Do NOT introduce any new unsupported fact, statistic, date, quote, or citation while fixing something else. Every source_id/claim_id you use — including ones already present in the version you're revising — must still come only from the approved research package you were given; never invent one, including as a "fix."
+- Keep existing section_id values unchanged for sections you are not substantively rewriting, so downstream systems that reference them by id stay stable. If a section is rewritten so heavily it's effectively new, you may assign it a new section_id — but do this sparingly.
+- Recompute cited_source_ids and cited_claim_ids to reflect the union of ids actually used in this revised version — do not carry over stale values from the prior version if they no longer match.
+- Maintain the same target duration and channel style constraints as the original generation.
+
+Return a complete new script version matching the provided schema — the full document, not a diff or a partial patch.$prompt$,
+  '{"schema": "youtube-script.schema.json"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO channel_prompt_assignments (channel_id, prompt_id, prompt_version_id)
+VALUES
+  ('11111111-1111-1111-1111-111111111111', 'cccccccc-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000011'),
+  ('11111111-1111-1111-1111-111111111111', 'cccccccc-0000-0000-0000-000000000002', 'cccccccc-0000-0000-0000-000000000021'),
+  ('11111111-1111-1111-1111-111111111111', 'cccccccc-0000-0000-0000-000000000003', 'cccccccc-0000-0000-0000-000000000031')
 ON CONFLICT (channel_id, prompt_id) DO NOTHING;
 
 COMMIT;

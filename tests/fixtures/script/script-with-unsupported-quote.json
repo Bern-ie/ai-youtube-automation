@@ -1,0 +1,28 @@
+{
+  "content": {
+    "title_concept": "Unsupported Quote Test Script",
+    "target_duration_seconds": 300,
+    "hook": { "opening_line": "A quote test.", "tension_or_question": null, "viewer_promise": "Watch.", "curiosity_loop": null, "transition_into_body": "Go.", "narration": "A quote test. Watch. Go.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 4 },
+    "intro": { "narration": "An introduction.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 4 },
+    "sections": [
+      {
+        "section_id": "quote-section",
+        "section_type": "explainer",
+        "heading": "An Invented Quote",
+        "narration": "The keeper's manual reportedly said, \"never let the flame falter, not even for the length of a prayer,\" which sounds dramatic but does not appear anywhere in the cited source excerpt.",
+        "purpose": "Trigger the deterministic unsupported-quote check.",
+        "source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+        "claim_ids": [],
+        "visual_direction": null, "b_roll_queries": [], "on_screen_text": null, "transition": null, "sound_design_notes": null,
+        "pronunciation_notes": [], "estimated_duration_seconds": 10
+      }
+    ],
+    "outro": { "narration": "That's it.", "source_ids": [], "claim_ids": [], "pronunciation_notes": [], "estimated_duration_seconds": 3 },
+    "cta": { "cta_type": "subscribe", "narration": "Subscribe.", "source_ids": [], "claim_ids": [], "estimated_duration_seconds": 3 },
+    "estimated_word_count": 55,
+    "estimated_duration_seconds": 24,
+    "cited_source_ids": ["11111111-bbbb-4bbb-8bbb-111111111111"],
+    "cited_claim_ids": []
+  },
+  "narration_text": "A quote test. Watch. Go. An introduction. The keeper's manual reportedly said, \"never let the flame falter, not even for the length of a prayer,\" which sounds dramatic but does not appear anywhere in the cited source excerpt. That's it. Subscribe."
+}

@@ -1,11 +1,13 @@
 # Database Architecture
 
-Status: **implemented (Step 3), extended through Step 6.** PostgreSQL
+Status: **implemented (Step 3), extended through Step 7.** PostgreSQL
 domain schema, real migrations, role separation, and channel isolation
 are live and tested. Step 4 added the workflow-runtime SQL layer, Step 5
-added topic intake, and Step 6 added versioned research plans/packages —
-see [research-pipeline.md](research-pipeline.md) for the workflow that
-consumes the additions described below.
+added topic intake, Step 6 added versioned research plans/packages, and
+Step 7 added script grounding/QC/versioning — see
+[research-pipeline.md](research-pipeline.md) and
+[script-pipeline.md](script-pipeline.md) for the workflows that consume
+the additions described below.
 
 ## Migration system
 
@@ -190,9 +192,10 @@ erDiagram
 | Infrastructure (not domain) | `_infra.healthcheck` |
 
 45 tables total (43 from Step 3 + `research_plans`/`research_packages`
-added in Step 6). See the migration files in `database/migrations/` for
-exact columns — each is commented with the reasoning behind
-non-obvious choices.
+added in Step 6; Step 7 added no new tables — `scripts`/`script_versions`
+already existed from Step 3 and only gained columns). See the migration
+files in `database/migrations/` for exact columns — each is commented
+with the reasoning behind non-obvious choices.
 
 ### Step 6 additions: `research_plans` and `research_packages`
 
@@ -236,6 +239,51 @@ Also from the same migration (`20260722220000_research_pipeline_schema.sql`):
 - `channel_budget_limits.limit_type` gains `research_stage`, reusing the
   existing hard/soft + warning-threshold budget machinery rather than a
   parallel budgeting subsystem.
+
+### Step 7 additions: `script_versions` columns, `cta_type`, `script_stage`
+
+No new tables — `scripts` (one row per `content_project_id`,
+`current_script_version_id` pointer) and `script_versions` (append-only,
+`UNIQUE (script_id, version_number)`) already existed from Step 3 and
+needed only additive columns:
+
+- `script_versions.research_package_id` (FK to `research_packages(id,
+  channel_id)`) — which research revision this version was grounded
+  against, since the research package can gain newer revisions after a
+  script version is written.
+- `script_versions.estimated_duration_seconds` — the deterministic
+  (word-count-based) runtime estimate computed by
+  `script_deterministic_qc()`, distinct from the LLM's own estimate
+  stored inside `content` — see
+  [script-pipeline.md#runtime-estimation](script-pipeline.md#runtime-estimation).
+- `script_versions.provider_request_id` — the Anthropic response id for
+  this specific version, for debugging without a `cost_events` join.
+- `script_versions.revision_trigger` (`initial_generation` /
+  `automatic_qc_revision` / `human_revision_request` / `format_repair`)
+  — mirrors `research_packages.revision_trigger`, kept separate from the
+  pre-existing free-text `revision_reason` (human instructions or LLM
+  feedback).
+
+Also from `20260722230000_script_pipeline_schema.sql` /
+`20260722230002_channel_settings_cta_type.sql`:
+
+- `channel_budget_limits.limit_type` gains `script_stage` — same
+  machinery as `research_stage`, no new budgeting subsystem. See
+  [script-pipeline.md#script-stage-cost-ceiling](script-pipeline.md#script-stage-cost-ceiling).
+- `channel_settings.cta_type` (nullable enum: `subscribe`/`comment`/
+  `affiliate_link`/`newsletter`/`next_video`/`product`/`community`) —
+  added because the pre-existing `cta_style` (Step 3) is free descriptive
+  text, not something a generation prompt can branch on reliably. Fed
+  into `load_channel_configuration()`'s `style` object
+  (`schemas/channel-config.schema.json`) alongside the unchanged
+  `cta_style`. See
+  [script-pipeline.md#cta](script-pipeline.md#cta).
+
+`qc_result` (pre-existing JSONB column) now holds three merged keys —
+`deterministic` (from `script_deterministic_qc()`), `llm` (the raw LLM
+review), and `combined` (the final weighted result from
+`script_quality_control()`) — rather than a new column per QC phase; see
+[script-pipeline.md#qc-weighting--hard-gates](script-pipeline.md#qc-weighting--hard-gates).
 
 ## Channel isolation
 
@@ -351,7 +399,11 @@ planning/extraction/synthesis calls). Both insert into the existing
 tables were introduced. `channel_budget_limits.limit_type =
 'research_stage'` is checked by a preflight function before any paid
 call is made (see
-[research-pipeline.md#budget-preflight](research-pipeline.md)).
+[research-pipeline.md#budget-preflight](research-pipeline.md)). Step 7
+reuses both writers as-is for every script generation/QC/revision call —
+no duplicated cost-tracking logic — with `channel_budget_limits.limit_type
+= 'script_stage'` as its own preflight ceiling (see
+[script-pipeline.md#script-budget-preflight](script-pipeline.md)).
 
 ## Workflow resume & job claiming
 

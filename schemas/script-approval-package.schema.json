@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/script-approval-package.schema.json",
+  "title": "Script Approval Package",
+  "description": "The human-facing payload assembled by get_script_approval_package() and served by the development approval endpoint. Combines the project topic/angle, the current script version (content, narration, QC), the research package it was grounded against, and script-stage cost so a reviewer can approve/reject/request-revision without querying the database directly. See docs/architecture/script-pipeline.md#human-script-approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_request_id", "status", "content_project_id", "topic", "intended_angle", "target_duration_seconds",
+    "script_version", "research_package_id", "estimated_cost_usd", "requested_at"
+  ],
+  "properties": {
+    "approval_request_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "topic": { "type": "string" },
+    "intended_angle": { "type": ["string", "null"] },
+    "target_duration_seconds": { "type": ["integer", "null"] },
+    "script_version": {
+      "type": "object",
+      "description": "The full get_current_script_version() payload — structured content (schemas/youtube-script.schema.json), narration_text, QC result (schemas/script-qc.schema.json), revision metadata.",
+      "additionalProperties": true,
+      "required": ["script_id", "script_version_id", "version_number", "content", "narration_text", "quality_score", "qc_result"],
+      "properties": {
+        "script_id": { "type": "string", "format": "uuid" },
+        "script_version_id": { "type": "string", "format": "uuid" },
+        "version_number": { "type": "integer", "minimum": 1 },
+        "content": { "type": "object" },
+        "narration_text": { "type": ["string", "null"] },
+        "quality_score": { "type": ["number", "null"] },
+        "qc_result": { "type": "object" }
+      }
+    },
+    "research_package_id": { "type": ["string", "null"], "format": "uuid" },
+    "estimated_cost_usd": { "type": "number", "minimum": 0 },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -3057,48 +3057,14 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet approval; try { approval = $('Extract Fresh Output: create_research_approval').first().json; } catch (e) { approval = $('Use Stored Output: create_research_approval').first().json; }\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id,\n  output: { approval_request_id: approval.approval_request_id, status: 'awaiting_research_approval' }\n} }];"
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet approval; try { approval = $('Extract Fresh Output: create_research_approval').first().json; } catch (e) { approval = $('Use Stored Output: create_research_approval').first().json; }\nreturn [{ json: {\n  success: true, data: { approval_request_id: approval.approval_request_id, status: 'awaiting_research_approval' }, error: null,\n  runtime: {\n    channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id,\n    content_project_id: init.data.content_project_id, correlation_id: init.data.correlation_id\n  }\n} }];"
       },
       "id": "code-190",
-      "name": "Prepare Complete Input",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        32600,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "PLACEHOLDER:complete-workflow-run.json"
-        },
-        "mode": "once",
-        "options": {}
-      },
-      "id": "exec-191",
-      "name": "Complete Workflow Run",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        32800,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const completeInput = $('Prepare Complete Input').first().json;\nconst complete = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  success: true, data: completeInput.output, error: null,\n  runtime: {\n    channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id,\n    content_project_id: init.data.content_project_id, correlation_id: complete.runtime ? complete.runtime.correlation_id : init.data.correlation_id\n  }\n} }];"
-      },
-      "id": "code-192",
       "name": "Build Success Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        33000,
+        32600,
         0
       ]
     }
@@ -4951,7 +4917,7 @@
       "main": [
         [
           {
-            "node": "Prepare Complete Input",
+            "node": "Build Success Response",
             "type": "main",
             "index": 0
           }
@@ -4959,28 +4925,6 @@
       ]
     },
     "Extract Fresh Output: create_research_approval": {
-      "main": [
-        [
-          {
-            "node": "Prepare Complete Input",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Complete Input": {
-      "main": [
-        [
-          {
-            "node": "Complete Workflow Run",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Complete Workflow Run": {
       "main": [
         [
           {

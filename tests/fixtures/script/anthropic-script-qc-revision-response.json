@@ -1,0 +1,15 @@
+{
+  "id": "msg_01FixtureScriptQcRevision001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"overall_score\": 76, \"dimension_scores\": {\"factual_grounding\": 7, \"source_coverage\": 6, \"hook_quality\": 6, \"first_30_seconds_strength\": 6, \"pacing\": 7, \"clarity\": 8, \"repetition_and_filler\": 6, \"transitions\": 7, \"retention_structure\": 7, \"clickbait_restraint\": 8, \"tone_fit\": 8, \"audience_fit\": 8, \"cta_fit\": 8, \"runtime_fit\": 7, \"brand_safety\": 10}, \"unsupported_claims\": [\"The section on station architecture implies the two-year oil requirement was universal, but the cited source only describes isolated stations.\"], \"misleading_statements\": [], \"pronunciation_concerns\": [], \"youtube_policy_concerns\": [], \"hard_fail\": false, \"hard_fail_reasons\": [], \"feedback\": \"The hook opens with a generic framing device rather than the sharper opening line style this channel is configured for. The architecture section overgeneralizes the oil-supply requirement beyond what the source actually says -- narrow the claim to isolated stations specifically. Otherwise pacing and grounding are solid.\"}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": { "input_tokens": 1850, "output_tokens": 245 }
+}

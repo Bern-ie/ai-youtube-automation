@@ -1,0 +1,15 @@
+{
+  "id": "msg_01FixtureScriptMalformed001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"title_concept\": \"Truncated Response Test\", \"target_duration_seconds\": 300, \"hook\": {\"opening_line\": \"This JSON is deliberately"
+    }
+  ],
+  "stop_reason": "max_tokens",
+  "stop_sequence": null,
+  "usage": { "input_tokens": 2050, "output_tokens": 25 }
+}

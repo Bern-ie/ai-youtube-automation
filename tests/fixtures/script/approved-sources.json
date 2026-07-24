@@ -1,0 +1,24 @@
+[
+  {
+    "id": "11111111-bbbb-4bbb-8bbb-111111111111",
+    "canonical_url": "https://www.nps.gov/articles/example-lighthouse-history.htm",
+    "title": "Example Lighthouse Service Historical Overview",
+    "publisher": "U.S. National Park Service (fabricated example)",
+    "author": null,
+    "source_type": "government",
+    "authority_score": 88,
+    "relevance_score": 92,
+    "relevant_excerpt": "The Example Lighthouse Service operated 47 stations along the eastern coast between 1852 and 1939, transitioning from oil lamps to electric beacons by 1925."
+  },
+  {
+    "id": "22222222-bbbb-4bbb-8bbb-222222222222",
+    "canonical_url": "https://example-maritime-journal.org/articles/keeper-life",
+    "title": "Daily Life of a 19th-Century Lighthouse Keeper",
+    "publisher": "Example Maritime History Journal",
+    "author": "J. Whitfield",
+    "source_type": "academic",
+    "authority_score": 80,
+    "relevance_score": 85,
+    "relevant_excerpt": "Keepers were required to log weather conditions every four hours and maintain a two-year supply of oil on isolated stations, a requirement that shaped station architecture."
+  }
+]

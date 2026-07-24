@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/script-qc.schema.json",
+  "title": "Script Quality Control",
+  "description": "Three related shapes for Step 7 script QC: `$defs/deterministic` (script_deterministic_qc()'s fully-computed, non-LLM result), `$defs/llm_review` (the structured-output contract for the independent script-qc-review LLM call — stripped of length/range keywords before being sent to Anthropic, same as every other Step 6/7 structured-output schema), and `$defs/combined` (script_quality_control()'s final merged score/status, persisted to script_versions.qc_result->'combined'). See docs/architecture/script-pipeline.md#deterministic-qc and #llm-script-qc.",
+  "$defs": {
+    "deterministic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "word_count", "calculated_duration_seconds", "target_duration_seconds", "target_deviation_pct", "speaking_rate_wpm",
+        "section_count", "empty_narration_sections", "missing_reference_sections", "hook_present", "outro_present", "cta_present",
+        "filler_phrase_hits", "excessive_on_screen_text_count", "repeated_transition_count", "unsupported_quote_count",
+        "grounding", "schema_valid", "sub_scores", "deterministic_score", "hard_fail", "hard_fail_reasons"
+      ],
+      "properties": {
+        "word_count": { "type": "integer", "minimum": 0 },
+        "calculated_duration_seconds": { "type": "integer", "minimum": 0 },
+        "target_duration_seconds": { "type": ["integer", "null"] },
+        "target_deviation_pct": { "type": ["number", "null"] },
+        "speaking_rate_wpm": { "type": "integer", "exclusiveMinimum": 0 },
+        "section_count": { "type": "integer", "minimum": 0 },
+        "empty_narration_sections": { "type": "integer", "minimum": 0 },
+        "missing_reference_sections": { "type": "integer", "minimum": 0, "description": "Non-opinion/commentary sections with non-empty narration but no source_ids/claim_ids at all." },
+        "hook_present": { "type": "boolean" },
+        "outro_present": { "type": "boolean" },
+        "cta_present": { "type": "boolean" },
+        "filler_phrase_hits": { "type": "integer", "minimum": 0 },
+        "excessive_on_screen_text_count": { "type": "integer", "minimum": 0 },
+        "repeated_transition_count": { "type": "integer", "minimum": 0 },
+        "unsupported_quote_count": { "type": "integer", "minimum": 0, "description": "Quoted spans (\"...\") whose text does not appear in the relevant_excerpt of any of that section's referenced sources." },
+        "grounding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valid", "unknown_source_ids", "unknown_claim_ids", "cited_source_count", "cited_claim_count"],
+          "properties": {
+            "valid": { "type": "boolean" },
+            "unknown_source_ids": { "type": "array", "items": { "type": "string" } },
+            "unknown_claim_ids": { "type": "array", "items": { "type": "string" } },
+            "cited_source_count": { "type": "integer", "minimum": 0 },
+            "cited_claim_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "schema_valid": { "type": "boolean" },
+        "sub_scores": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_validity", "grounding", "runtime_fit", "structure", "section_quality", "repetition_and_filler", "on_screen_text_discipline"],
+          "properties": {
+            "schema_validity": { "type": "number" },
+            "grounding": { "type": "number" },
+            "runtime_fit": { "type": "number" },
+            "structure": { "type": "number" },
+            "section_quality": { "type": "number" },
+            "repetition_and_filler": { "type": "number" },
+            "on_screen_text_discipline": { "type": "number" }
+          }
+        },
+        "deterministic_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "hard_fail": { "type": "boolean" },
+        "hard_fail_reasons": { "type": "array", "items": { "type": "string", "enum": ["schema_invalid", "fabricated_source_or_claim_id", "unsupported_quote"] } }
+      }
+    },
+    "llm_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall_score", "dimension_scores", "unsupported_claims", "misleading_statements",
+        "hard_fail", "hard_fail_reasons", "feedback"
+      ],
+      "properties": {
+        "overall_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "dimension_scores": {
+          "type": "object",
+          "description": "0-10 per dimension — informs overall_score but does not itself gate pass/revise/fail (that's overall_score + hard_fail).",
+          "additionalProperties": false,
+          "required": [
+            "factual_grounding", "source_coverage", "hook_quality", "first_30_seconds_strength", "pacing", "clarity",
+            "repetition_and_filler", "transitions", "retention_structure", "clickbait_restraint", "tone_fit",
+            "audience_fit", "cta_fit", "runtime_fit", "brand_safety"
+          ],
+          "properties": {
+            "factual_grounding": { "type": "number", "minimum": 0, "maximum": 10 },
+            "source_coverage": { "type": "number", "minimum": 0, "maximum": 10 },
+            "hook_quality": { "type": "number", "minimum": 0, "maximum": 10 },
+            "first_30_seconds_strength": { "type": "number", "minimum": 0, "maximum": 10 },
+            "pacing": { "type": "number", "minimum": 0, "maximum": 10 },
+            "clarity": { "type": "number", "minimum": 0, "maximum": 10 },
+            "repetition_and_filler": { "type": "number", "minimum": 0, "maximum": 10 },
+            "transitions": { "type": "number", "minimum": 0, "maximum": 10 },
+            "retention_structure": { "type": "number", "minimum": 0, "maximum": 10 },
+            "clickbait_restraint": { "type": "number", "minimum": 0, "maximum": 10 },
+            "tone_fit": { "type": "number", "minimum": 0, "maximum": 10 },
+            "audience_fit": { "type": "number", "minimum": 0, "maximum": 10 },
+            "cta_fit": { "type": "number", "minimum": 0, "maximum": 10 },
+            "runtime_fit": { "type": "number", "minimum": 0, "maximum": 10 },
+            "brand_safety": { "type": "number", "minimum": 0, "maximum": 10 }
+          }
+        },
+        "unsupported_claims": { "type": "array", "items": { "type": "string" }, "description": "Narration excerpts the reviewer judges factual but inadequately grounded, beyond what the deterministic reference-presence check alone can catch." },
+        "misleading_statements": { "type": "array", "items": { "type": "string" } },
+        "pronunciation_concerns": { "type": "array", "items": { "type": "string" } },
+        "youtube_policy_concerns": { "type": "array", "items": { "type": "string" } },
+        "hard_fail": { "type": "boolean", "description": "true only for severe plagiarism/copyright risk or a severe platform-policy concern — never set for a merely low score." },
+        "hard_fail_reasons": { "type": "array", "items": { "type": "string" } },
+        "feedback": { "type": "string", "description": "Concrete, actionable notes — this is the primary input to the revision prompt when status is revision_needed." }
+      }
+    },
+    "combined": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["final_score", "status", "deterministic_score", "llm_score", "hard_fail", "hard_fail_reasons", "automatic_retry_count", "automatic_retry_allowed"],
+      "properties": {
+        "final_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "status": { "type": "string", "enum": ["passed", "revision_needed", "failed"] },
+        "deterministic_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "llm_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "hard_fail": { "type": "boolean" },
+        "hard_fail_reasons": { "type": "array", "items": {} },
+        "automatic_retry_count": { "type": "integer", "minimum": 0 },
+        "automatic_retry_allowed": { "type": "boolean" }
+      }
+    }
+  }
+}

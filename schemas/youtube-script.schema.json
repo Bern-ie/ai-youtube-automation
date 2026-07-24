@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/youtube-script.schema.json",
+  "title": "YouTube Script",
+  "description": "Structured output of the script-generation (and script-revision) LLM call — the JSONB stored in script_versions.content. Every factual narration-bearing unit must carry source_ids/claim_ids copied exactly from the approved research package; `cited_source_ids`/`cited_claim_ids` must list the union of every id referenced anywhere in this document — checked by script_grounding_report() against `sources`/`research_claims`, never trusted from the LLM. Structured enough for later TTS/visual-planning/captioning/rendering stages without redesign; nothing here fetches or generates media — visual/on-screen-text fields are planning metadata only. See docs/architecture/script-pipeline.md#structured-script-contract.",
+  "$defs": {
+    "narrationUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["narration", "source_ids", "claim_ids"],
+      "properties": {
+        "narration": { "type": "string", "description": "Natural spoken narration text. May be an empty string only for a purely visual beat — deterministic QC penalizes this." },
+        "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" }, "description": "source_id values (from the approved research package) that ground any factual content in this unit's narration." },
+        "claim_ids": { "type": "array", "items": { "type": "string", "format": "uuid" }, "description": "claim_id values (from the approved research package) that ground any factual content in this unit's narration." },
+        "pronunciation_notes": {
+          "type": "array",
+          "description": "Acronyms, uncommon names, technical terms, or foreign words in this unit's narration that Step 8 (TTS) should be aware of. No pronunciation conversion happens here — just preserved for later use.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["term"],
+            "properties": {
+              "term": { "type": "string" },
+              "note": { "type": ["string", "null"], "description": "e.g. a phonetic hint or 'pronounced as written' — free text, no fixed IPA/phoneme system enforced." }
+            }
+          }
+        },
+        "estimated_duration_seconds": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section_id", "section_type", "narration", "source_ids", "claim_ids"],
+      "properties": {
+        "section_id": { "type": "string", "minLength": 1, "description": "Stable within this script version — Step 8/9 workflows depend on it. Not derived from array position." },
+        "section_type": {
+          "type": "string",
+          "enum": ["explainer", "narrative", "comparison", "statistic_highlight", "opinion", "commentary", "transition", "recap"],
+          "description": "'opinion' and 'commentary' are the only types exempt from the missing-reference deterministic check — see docs/architecture/script-pipeline.md#unsupported-fact-detection."
+        },
+        "heading": { "type": ["string", "null"] },
+        "narration": { "type": "string" },
+        "purpose": { "type": ["string", "null"], "description": "Why this section exists in the narrative — retention/pacing rationale, not shown to the viewer." },
+        "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "claim_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "visual_direction": { "type": ["string", "null"] },
+        "b_roll_queries": { "type": "array", "items": { "type": "string" } },
+        "on_screen_text": { "type": ["string", "null"], "description": "Concise — a statistic, key term, date, or name, not a narration duplicate. Deterministic QC flags entries over ~60 characters." },
+        "transition": { "type": ["string", "null"], "description": "How this section transitions to the next — deterministic QC flags identical transitions repeated across consecutive sections." },
+        "sound_design_notes": { "type": ["string", "null"] },
+        "pronunciation_notes": { "$ref": "#/$defs/narrationUnit/properties/pronunciation_notes" },
+        "estimated_duration_seconds": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      }
+    },
+    "hook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opening_line", "viewer_promise", "transition_into_body", "narration", "source_ids", "claim_ids"],
+      "properties": {
+        "opening_line": { "type": "string", "minLength": 1 },
+        "tension_or_question": { "type": ["string", "null"] },
+        "viewer_promise": { "type": "string", "minLength": 1, "description": "What the viewer gets for staying — must be honest, not a fabricated stake." },
+        "curiosity_loop": { "type": ["string", "null"] },
+        "transition_into_body": { "type": "string", "minLength": 1 },
+        "narration": { "type": "string", "minLength": 1, "description": "The hook's full spoken narration (opening_line + tension_or_question + viewer_promise + curiosity_loop + transition_into_body, composed into natural speech). Factual assertions here are NOT exempt from grounding — see docs/architecture/script-pipeline.md#hook-structure." },
+        "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "claim_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "pronunciation_notes": { "$ref": "#/$defs/narrationUnit/properties/pronunciation_notes" },
+        "estimated_duration_seconds": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      }
+    },
+    "cta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cta_type", "narration"],
+      "properties": {
+        "cta_type": { "type": "string", "enum": ["subscribe", "comment", "affiliate_link", "newsletter", "next_video", "product", "community"], "description": "Must match the channel's configured CTA goal — the generator scripts only the configured type, never an unconfigured monetization offer." },
+        "narration": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "claim_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "estimated_duration_seconds": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title_concept", "target_duration_seconds", "hook", "intro", "sections", "outro", "cta",
+    "estimated_word_count", "estimated_duration_seconds", "cited_source_ids", "cited_claim_ids"
+  ],
+  "properties": {
+    "title_concept": { "type": "string", "minLength": 1, "description": "A working title/concept — not final YouTube metadata (title/description/tags are a later step)." },
+    "target_duration_seconds": { "type": "number", "exclusiveMinimum": 0 },
+    "hook": { "$ref": "#/$defs/hook" },
+    "intro": { "$ref": "#/$defs/narrationUnit" },
+    "sections": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/section" } },
+    "outro": { "$ref": "#/$defs/narrationUnit" },
+    "cta": { "$ref": "#/$defs/cta" },
+    "estimated_word_count": { "type": "integer", "minimum": 0, "description": "The LLM's own estimate — deterministic QC independently recomputes this from narration_text and compares." },
+    "estimated_duration_seconds": { "type": "number", "minimum": 0, "description": "The LLM's own estimate — not trusted alone; deterministic QC computes an independent word-count-based estimate and penalizes large deviations between the two." },
+    "cited_source_ids": {
+      "type": "array",
+      "description": "Union of every source_id referenced anywhere in this document (hook, intro, every section, outro, cta). Checked against `sources` by script_grounding_report() — never trusted as-is.",
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "cited_claim_ids": {
+      "type": "array",
+      "description": "Union of every claim_id referenced anywhere in this document. Checked against `research_claims` by script_grounding_report() — never trusted as-is.",
+      "items": { "type": "string", "format": "uuid" }
+    }
+  }
+}
