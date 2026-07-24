@@ -1,11 +1,12 @@
 # n8n/workflows
 
-Status: **implemented (Steps 4–5).** Thirteen workflows, each operating
-on any channel via `channel_id` (plus `content_project_id` /
+Status: **implemented (Steps 4–6).** Thirty-nine workflows, each
+operating on any channel via `channel_id` (plus `content_project_id` /
 `workflow_run_id` / `correlation_id` as applicable) — none contain a
 hardcoded niche, voice, brand asset, or YouTube account. Full contracts:
-[workflow-runtime.md](../../docs/architecture/workflow-runtime.md) (Step 4)
-and [topic-intake.md](../../docs/architecture/topic-intake.md) (Step 5).
+[workflow-runtime.md](../../docs/architecture/workflow-runtime.md) (Step 4),
+[topic-intake.md](../../docs/architecture/topic-intake.md) (Step 5), and
+[research-pipeline.md](../../docs/architecture/research-pipeline.md) (Step 6).
 
 ## Step 4 — workflow runtime foundation
 
@@ -43,6 +44,35 @@ failure chain, dev-only failure injection) — but every actual decision
 (is this a duplicate? is the budget exhausted?) still happens in SQL; the
 node graph only sequences calls and shapes JSON between them.
 
+## Step 6 — source-backed research
+
+| File | Purpose |
+|---|---|
+| `get-channel-prompt.json`, `get-project-sources.json`, `get-project-claims.json`, `get-current-research-package.json`, `load-content-project-for-research.json`, `research-budget-preflight.json`, `upsert-research-plan.json`, `collect-research-sources-sql.json`, `create-research-claims-batch-sql.json`, `verify-research-claims.json`, `build-research-package-sql.json`, `research-quality-control.json`, `create-research-approval.json`, `resolve-research-approval.json`, `record-provider-usage-event.json`, `record-cost-event.json` | Thin 3-node SQL wrappers (same pattern as Step 4/5) — one per function in `20260722220001_research_pipeline_functions.sql`. |
+| `build-research-plan.json` | Composite: fetches the channel's `research-planning` prompt, calls Anthropic (structured output), records usage/cost, persists via `upsert-research-plan.json`. |
+| `collect-research-sources.json` | Composite: calls Tavily (primary), falls back to Brave Search on failure, normalizes both into a common shape, records usage/cost, persists via `collect-research-sources-sql.json`. |
+| `extract-research-claims.json` | Composite: fetches sources, calls Anthropic with the `research-claim-extraction` prompt, records usage/cost, inserts via `create-research-claims-batch-sql.json`, then verifies via `verify-research-claims.json`. |
+| `build-research-package-and-qc.json` | Composite: synthesizes the package (Anthropic, `research-package-synthesis` prompt) and runs QC; contains up to 2 automatic revision cycles internally (74 nodes) rather than unrolling them in the main orchestrator — see [research-pipeline.md#quality-control](../../docs/architecture/research-pipeline.md#quality-control). |
+| `research-project.json` | The reusable core orchestrator (166 nodes) — 8 resumable steps (`load_channel_configuration` → `load_content_project` → `budget_preflight` → `build_research_plan` → `collect_sources` → `extract_claims` → `build_package_and_qc` → `create_research_approval`), same skip/resume pattern as `manual-topic-intake.json`. Ends with the project `awaiting_research_approval` — it does not wait inside a hung n8n execution (see below). |
+| `resolve-research-approval-workflow.json` | Records an approve/reject/revision decision; on `revision_requested`, starts a brand-new `research-project.json` run for the same project (fresh `workflow_run`, so `research_claims`/`sources` accumulate across revisions while `research_plans`/`research_packages` version). |
+| `step6-research-project-test.json` | Dev-only test harness webhook — calls `research-project.json`. |
+| `dev-list-pending-research-approvals.json`, `dev-get-research-approval-package.json`, `dev-decide-research-approval.json` | Development approval endpoints (§ below) — no unauthenticated approval action exists. |
+
+**Approval waiting is DB-backed, not an n8n Wait node.** `create-research-approval.json`'s SQL sets `content_projects.status = 'awaiting_research_approval'` and `workflow_runs.status = 'waiting'`, then the n8n execution completes normally — nothing is left running. A restart of n8n/Docker has nothing to lose. Resuming happens by starting a *new* execution (the dev test webhook, or `resolve-research-approval-workflow.json`'s revision path) — `get_resume_state`/`Get Workflow Run Steps` make that new execution skip every already-succeeded step.
+
+**Development approval endpoints** (all behind `dev-test-webhook-auth`, same as the Step 4/5 dev test webhooks — no separate approval-api routes were added, to avoid a second, inconsistent way of doing the same DB writes):
+
+```
+GET  /webhook/internal/dev/research-approvals?channel_id=...                                  # list pending
+GET  /webhook/internal/dev/research-approval?channel_id=...&approval_request_id=...           # full review package
+POST /webhook/internal/dev/research-approval/decide                                           # {channel_id, approval_request_id, decision, reviewer_reference?, revision_instructions?}
+```
+
+(Deliberately query-parameter-based rather than a `:id` path segment on the
+get/decide routes — n8n's webhook router does not reliably co-register a
+static path and a dynamic-segment path across separate workflows; the
+dynamic form 404s with "not registered" even when active.)
+
 **Credential references** (`{id, name}` pairs on Postgres/HTTP-Header-Auth
 nodes) are safe to commit — they carry no secret values, and the `id` is
 instance-specific anyway (meaningless on any n8n instance other than the
@@ -50,10 +80,11 @@ one that exported it). Import with:
 
 ```bash
 scripts/n8n-setup-dev.sh              # creates the credentials these workflows reference, by name
-node scripts/n8n-import-workflows.mjs  # imports + publishes all 13, resolving credential/sub-workflow IDs by name
+node scripts/n8n-import-workflows.mjs  # imports + publishes all 39, resolving credential/sub-workflow IDs by name
 ```
 
 See
 [workflow-runtime.md#n8n-credential-setup](../../docs/architecture/workflow-runtime.md#n8n-credential-setup)
 for the manual-UI alternative and exact credential names expected
-(`postgres-app-runtime`, `dev-test-webhook-auth`).
+(`postgres-app-runtime`, `dev-test-webhook-auth`, and — Step 6 —
+`anthropic-api`, `tavily-api`, `brave-search-api`).

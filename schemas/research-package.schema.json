@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/research-package.schema.json",
+  "title": "Research Package Synthesis",
+  "description": "Structured output of the research-package-synthesis LLM call — the JSONB stored in research_packages.synthesis. Narrative/analytical fields only: claim and source listings are never duplicated here — they are assembled live from the relational tables by get_current_research_package() at read time, so there is exactly one source of truth. `cited_source_ids` must list every source_id referenced anywhere in this document; build_research_package() rejects the package (CITATION_INTEGRITY_FAILED) if any id is not a real source_id for this project. See docs/architecture/research-pipeline.md#research-package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_summary", "research_question", "important_statistics", "chronology",
+    "open_questions", "research_gaps", "suggested_script_angles", "prohibited_unsafe_assertions",
+    "cited_source_ids"
+  ],
+  "properties": {
+    "project_summary": { "type": "string", "minLength": 1 },
+    "research_question": { "type": "string", "minLength": 1 },
+    "important_statistics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["statistic", "source_ids"],
+        "properties": {
+          "statistic": { "type": "string" },
+          "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" }, "minItems": 1 }
+        }
+      }
+    },
+    "chronology": {
+      "type": "array",
+      "description": "Timeline entries, only where the topic is reasonably chronological — empty array otherwise.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["event", "source_ids"],
+        "properties": {
+          "date_or_period": { "type": ["string", "null"] },
+          "event": { "type": "string" },
+          "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } }
+        }
+      }
+    },
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "research_gaps": { "type": "array", "items": { "type": "string" } },
+    "suggested_script_angles": { "type": "array", "items": { "type": "string" } },
+    "prohibited_unsafe_assertions": {
+      "type": "array",
+      "description": "Assertions the collected research does NOT support and the future script must not make.",
+      "items": { "type": "string" }
+    },
+    "cited_source_ids": {
+      "type": "array",
+      "description": "Union of every source_id cited anywhere in this document (important_statistics[].source_ids, chronology[].source_ids, and any inline citation elsewhere). Checked against `sources` by validate_research_package_citations() — never trusted as-is.",
+      "items": { "type": "string", "format": "uuid" }
+    }
+  }
+}

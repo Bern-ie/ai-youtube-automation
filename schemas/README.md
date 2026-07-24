@@ -1,6 +1,6 @@
 # schemas
 
-Status: **implemented (Steps 4–5).** JSON Schema, Draft 2020-12
+Status: **implemented (Steps 4–6).** JSON Schema, Draft 2020-12
 (`"$schema": "https://json-schema.org/draft/2020-12/schema"` on every
 file) — chosen since nothing in this project had standardized an earlier
 draft yet.
@@ -26,14 +26,29 @@ draft yet.
 | `manual-topic-intake-response.schema.json` | The `data` payload on success — `{content_project, topic, warnings}`. |
 | `content-project.schema.json` | The `content_project` shape, `$ref`'d by the response schema above — intended to be reused as-is by every later stage (research, scripting, rendering, publishing) rather than redefined per-workflow. |
 
-All eleven compile together via `ajv` with cross-file `$ref` resolution
-(`$id` + `addSchema`, see `n8n/tests/run.js` and `run-step5.js`) and are
-validated against **real captured output**, not just checked for internal
-consistency — every JSON response the test suites get back from the live
-webhooks is asserted against these schemas on every run.
+## Step 6 — source-backed research
+
+| File | Validates |
+|---|---|
+| `research-plan.schema.json` | Structured output of the research-planning LLM call, before `upsert_research_plan()`. |
+| `source-record.schema.json` | Two related shapes (`$defs/input`, `$defs/stored`) for a research source — pre-dedup provider output vs. a stored `sources` row. |
+| `provider-adapter-normalized-result.schema.json` | The shape every search-provider adapter (Tavily, Brave) must normalize its HTTP response into before `collect_research_sources()`. |
+| `claim-extraction.schema.json` | Structured output of the claim-extraction LLM call, before `create_research_claims_batch()`. |
+| `research-package.schema.json` | Structured output of the package-synthesis LLM call — narrative fields only; claims/sources are assembled live from relational tables, never duplicated here. |
+| `research-qc.schema.json` | The deterministic `research_quality_control()` result. |
+| `research-approval-package.schema.json` | The human-facing payload served by the development approval endpoint. |
+| `approval-decision.schema.json` | Request body for approve/reject/request-revision. |
+
+All nineteen compile together via `ajv` with cross-file `$ref` resolution
+(`$id` + `addSchema`, see `n8n/tests/run.js`, `run-step5.js`, and
+`run-step6.js`) and are validated against **real captured output**, not
+just checked for internal consistency — every JSON response the test
+suites get back from the live webhooks is asserted against these schemas
+on every run.
 
 See
-[docs/architecture/workflow-runtime.md](../docs/architecture/workflow-runtime.md)
+[docs/architecture/workflow-runtime.md](../docs/architecture/workflow-runtime.md),
+[docs/architecture/topic-intake.md](../docs/architecture/topic-intake.md),
 and
-[docs/architecture/topic-intake.md](../docs/architecture/topic-intake.md)
+[docs/architecture/research-pipeline.md](../docs/architecture/research-pipeline.md)
 for the full contracts these schemas encode.

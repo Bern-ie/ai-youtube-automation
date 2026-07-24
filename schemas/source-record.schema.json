@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/source-record.schema.json",
+  "title": "Source Record",
+  "description": "Two related shapes for a research source, distinguished by $id fragment via oneOf-free convention — see the two definitions below. 'input' is one element of the JSONB array passed to collect_research_sources() (already provider-normalized by the calling n8n workflow, before dedup/scoring). 'stored' is a row of the `sources` table as returned by get_current_research_package(). See docs/architecture/research-pipeline.md#web-search--source-collection.",
+  "$defs": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "title"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "title": { "type": "string" },
+        "publisher": { "type": ["string", "null"] },
+        "author": { "type": ["string", "null"] },
+        "published_at": { "type": ["string", "null"], "description": "Provider-returned date/timestamp string, precision varies (date-only or full timestamp) -- stored as-is; the `sources.published_at` column is TIMESTAMPTZ, so Postgres normalizes/validates it on insert rather than this schema enforcing one format." },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "primary_source", "government", "academic", "official_company", "industry_report",
+            "reputable_news", "expert_analysis", "documentation", "forum_community", "social_media", "unknown"
+          ]
+        },
+        "excerpt": { "type": ["string", "null"], "description": "Short relevant excerpt/snippet only — never a full-article dump." },
+        "provider_relevance": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Search-provider-reported relevance score, 0-1, if the provider returns one." },
+        "content_checksum": { "type": ["string", "null"] },
+        "raw_metadata": { "type": "object", "description": "Provider-specific fields worth keeping, safe-fields-only (no credential values)." }
+      }
+    },
+    "stored": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "canonical_url", "title", "source_type", "authority_score", "relevance_score", "provider"],
+      "properties": {
+        "source_id": { "type": "string", "format": "uuid" },
+        "canonical_url": { "type": "string", "format": "uri" },
+        "title": { "type": ["string", "null"] },
+        "publisher": { "type": ["string", "null"] },
+        "source_type": { "type": "string" },
+        "authority_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "relevance_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "published_at": { "type": ["string", "null"], "description": "Provider-returned date/timestamp string, precision varies (date-only or full timestamp) -- stored as-is; the `sources.published_at` column is TIMESTAMPTZ, so Postgres normalizes/validates it on insert rather than this schema enforcing one format." },
+        "provider": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

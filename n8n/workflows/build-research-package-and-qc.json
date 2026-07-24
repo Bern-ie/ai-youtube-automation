@@ -1,0 +1,2312 @@
+{
+  "name": "Build Research Package And QC",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-79",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, prompt_name: 'research-package-synthesis', _ctx: b } }];"
+      },
+      "id": "code-80",
+      "name": "Prepare Get-Prompt Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-channel-prompt.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-81",
+      "name": "Get Channel Prompt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-82",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-83",
+      "name": "Did Get Prompt Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-84",
+      "name": "Build Prompt Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id } }];"
+      },
+      "id": "code-85",
+      "name": "Prepare Get-Context Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-project-sources.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-86",
+      "name": "Get Project Sources",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-project-claims.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-87",
+      "name": "Get Project Claims",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $('Get Channel Prompt').first().json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst sources = $('Get Project Sources').first().json.sources;\nconst claims = $('Get Project Claims').first().json;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst userPayload = { topic: ctx.topic, sources, claims };\nconst schema = {\"title\":\"Research Package Synthesis\",\"description\":\"Structured output of the research-package-synthesis LLM call — the JSONB stored in research_packages.synthesis. Narrative/analytical fields only: claim and source listings are never duplicated here — they are assembled live from the relational tables by get_current_research_package() at read time, so there is exactly one source of truth. `cited_source_ids` must list every source_id referenced anywhere in this document; build_research_package() rejects the package (CITATION_INTEGRITY_FAILED) if any id is not a real source_id for this project. See docs/architecture/research-pipeline.md#research-package.\",\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"project_summary\",\"research_question\",\"important_statistics\",\"chronology\",\"open_questions\",\"research_gaps\",\"suggested_script_angles\",\"prohibited_unsafe_assertions\",\"cited_source_ids\"],\"properties\":{\"project_summary\":{\"type\":\"string\"},\"research_question\":{\"type\":\"string\"},\"important_statistics\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"statistic\",\"source_ids\"],\"properties\":{\"statistic\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1}}}},\"chronology\":{\"type\":\"array\",\"description\":\"Timeline entries, only where the topic is reasonably chronological — empty array otherwise.\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"event\",\"source_ids\"],\"properties\":{\"date_or_period\":{\"type\":[\"string\",\"null\"]},\"event\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}},\"open_questions\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"research_gaps\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"suggested_script_angles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"prohibited_unsafe_assertions\":{\"type\":\"array\",\"description\":\"Assertions the collected research does NOT support and the future script must not make.\",\"items\":{\"type\":\"string\"}},\"cited_source_ids\":{\"type\":\"array\",\"description\":\"Union of every source_id cited anywhere in this document (important_statistics[].source_ids, chronology[].source_ids, and any inline citation elsewhere). Checked against `sources` by validate_research_package_citations() — never trusted as-is.\",\"items\":{\"type\":\"string\"}}}};\nreturn [{ json: {\n  ctx, model,\n  requestBody: {\n    model, max_tokens: 8192,\n    system: prompt.content,\n    messages: [{ role: 'user', content: JSON.stringify(userPayload) }],\n    output_config: { format: { type: 'json_schema', schema } }\n  }\n} }];"
+      },
+      "id": "code-88",
+      "name": "Prepare Anthropic Request (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-89",
+      "name": "Call Anthropic: Package Synthesis (initial)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Anthropic Request (initial)').first().json.ctx;\nconst model = $('Prepare Anthropic Request (initial)').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet synthesis = null; let parse_failed = true;\nif (textBlock) { try { synthesis = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, synthesis, usage: resp.usage || {}, provider_request_id: resp.id || null } }];"
+      },
+      "id": "code-90",
+      "name": "Parse Package Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-91",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-92",
+      "name": "Did Package Parse Succeed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json.ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RESEARCH_QC_FAILED', message: 'research package synthesis LLM response was not valid structured JSON after retries', retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-93",
+      "name": "Build Package Parse Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (initial)').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-94",
+      "name": "Prepare Usage Event: Input Tokens (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-95",
+      "name": "Record Usage: Input Tokens (initial)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (initial)').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-96",
+      "name": "Prepare Usage Event: Output Tokens (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-97",
+      "name": "Record Usage: Output Tokens (initial)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (initial)').first().json; const ctx = j.ctx;\n// Pricing: $5.00 / 1M input tokens, $25.00 / 1M output tokens.\n// One multiply-and-divide per call, not a compounding ledger -- every\n// persistent aggregate (SUM() over cost_events.total_cost_usd, a NUMERIC\n// column) happens in SQL, never in JS. See\n// docs/architecture/research-pipeline.md#cost-tracking.\nconst inputTokens = j.usage.input_tokens || 0;\nconst outputTokens = j.usage.output_tokens || 0;\nconst inputCost = (inputTokens / 1000000) * 5;\nconst outputCost = (outputTokens / 1000000) * 25;\nconst totalCost = Math.round((inputCost + outputCost) * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: 'anthropic', service_type: 'llm', model: j.model,\n  quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null,\n  total_cost_usd: totalCost, provider_request_id: j.provider_request_id, estimated: false, metadata: {}\n} }];"
+      },
+      "id": "code-98",
+      "name": "Prepare Cost Event (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-99",
+      "name": "Record Cost Event (initial)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (initial)').first().json; const ctx = j.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  research_plan_id: ctx.research_plan_id || null, synthesis: j.synthesis, provider: 'anthropic', model: j.model,\n  revision_trigger: 'initial', revision_reason: ctx.revision_reason || null\n} }];"
+      },
+      "id": "code-100",
+      "name": "Prepare Build-Package SQL Input (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:build-research-package-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-101",
+      "name": "Build Research Package SQL (initial)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-102",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-103",
+      "name": "Did Package Build Succeed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-104",
+      "name": "Build Package-Build Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Parse Package Response (initial)').first().json.ctx;\nconst pkg = $json.data;\nreturn [{ json: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, research_package_id: pkg.research_package_id, _package: pkg } }];"
+      },
+      "id": "code-105",
+      "name": "Prepare QC Input (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:research-quality-control.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-106",
+      "name": "Research Quality Control (initial)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-107",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-108",
+      "name": "Did QC Call Succeed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-109",
+      "name": "Build QC-Call Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-110",
+              "leftValue": "={{ $json.data.qc_status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-111",
+      "name": "Is QC Failed? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare QC Input (initial)').first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RESEARCH_QC_FAILED', message: 'research quality control score is below the minimum threshold (< 70) -- escalating for human intervention rather than approving low-quality research', retryable: false, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-112",
+      "name": "Build QC Hard-Failure Response (initial)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6160,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-113",
+              "leftValue": "={{ $json.data.qc_status === 'revision_needed' && $json.data.automatic_retry_allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-114",
+      "name": "Does QC Need Revision? (initial)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $('Get Channel Prompt').first().json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst sources = $('Get Project Sources').first().json.sources;\nconst claims = $('Get Project Claims').first().json;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst userPayload = { topic: ctx.topic, sources, claims };\nconst schema = {\"title\":\"Research Package Synthesis\",\"description\":\"Structured output of the research-package-synthesis LLM call — the JSONB stored in research_packages.synthesis. Narrative/analytical fields only: claim and source listings are never duplicated here — they are assembled live from the relational tables by get_current_research_package() at read time, so there is exactly one source of truth. `cited_source_ids` must list every source_id referenced anywhere in this document; build_research_package() rejects the package (CITATION_INTEGRITY_FAILED) if any id is not a real source_id for this project. See docs/architecture/research-pipeline.md#research-package.\",\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"project_summary\",\"research_question\",\"important_statistics\",\"chronology\",\"open_questions\",\"research_gaps\",\"suggested_script_angles\",\"prohibited_unsafe_assertions\",\"cited_source_ids\"],\"properties\":{\"project_summary\":{\"type\":\"string\"},\"research_question\":{\"type\":\"string\"},\"important_statistics\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"statistic\",\"source_ids\"],\"properties\":{\"statistic\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1}}}},\"chronology\":{\"type\":\"array\",\"description\":\"Timeline entries, only where the topic is reasonably chronological — empty array otherwise.\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"event\",\"source_ids\"],\"properties\":{\"date_or_period\":{\"type\":[\"string\",\"null\"]},\"event\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}},\"open_questions\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"research_gaps\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"suggested_script_angles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"prohibited_unsafe_assertions\":{\"type\":\"array\",\"description\":\"Assertions the collected research does NOT support and the future script must not make.\",\"items\":{\"type\":\"string\"}},\"cited_source_ids\":{\"type\":\"array\",\"description\":\"Union of every source_id cited anywhere in this document (important_statistics[].source_ids, chronology[].source_ids, and any inline citation elsewhere). Checked against `sources` by validate_research_package_citations() — never trusted as-is.\",\"items\":{\"type\":\"string\"}}}};\nreturn [{ json: {\n  ctx, model,\n  requestBody: {\n    model, max_tokens: 8192,\n    system: prompt.content,\n    messages: [{ role: 'user', content: JSON.stringify(userPayload) }],\n    output_config: { format: { type: 'json_schema', schema } }\n  }\n} }];"
+      },
+      "id": "code-115",
+      "name": "Prepare Anthropic Request (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-116",
+      "name": "Call Anthropic: Package Synthesis (retry_1)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        6820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Anthropic Request (retry_1)').first().json.ctx;\nconst model = $('Prepare Anthropic Request (retry_1)').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet synthesis = null; let parse_failed = true;\nif (textBlock) { try { synthesis = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, synthesis, usage: resp.usage || {}, provider_request_id: resp.id || null } }];"
+      },
+      "id": "code-117",
+      "name": "Parse Package Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-118",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-119",
+      "name": "Did Package Parse Succeed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json.ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RESEARCH_QC_FAILED', message: 'research package synthesis LLM response was not valid structured JSON after retries', retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-120",
+      "name": "Build Package Parse Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7480,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_1)').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-121",
+      "name": "Prepare Usage Event: Input Tokens (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-122",
+      "name": "Record Usage: Input Tokens (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_1)').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-123",
+      "name": "Prepare Usage Event: Output Tokens (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-124",
+      "name": "Record Usage: Output Tokens (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_1)').first().json; const ctx = j.ctx;\n// Pricing: $5.00 / 1M input tokens, $25.00 / 1M output tokens.\n// One multiply-and-divide per call, not a compounding ledger -- every\n// persistent aggregate (SUM() over cost_events.total_cost_usd, a NUMERIC\n// column) happens in SQL, never in JS. See\n// docs/architecture/research-pipeline.md#cost-tracking.\nconst inputTokens = j.usage.input_tokens || 0;\nconst outputTokens = j.usage.output_tokens || 0;\nconst inputCost = (inputTokens / 1000000) * 5;\nconst outputCost = (outputTokens / 1000000) * 25;\nconst totalCost = Math.round((inputCost + outputCost) * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: 'anthropic', service_type: 'llm', model: j.model,\n  quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null,\n  total_cost_usd: totalCost, provider_request_id: j.provider_request_id, estimated: false, metadata: {}\n} }];"
+      },
+      "id": "code-125",
+      "name": "Prepare Cost Event (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-126",
+      "name": "Record Cost Event (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_1)').first().json; const ctx = j.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  research_plan_id: ctx.research_plan_id || null, synthesis: j.synthesis, provider: 'anthropic', model: j.model,\n  revision_trigger: 'qc_auto_retry', revision_reason: ctx.revision_reason || null\n} }];"
+      },
+      "id": "code-127",
+      "name": "Prepare Build-Package SQL Input (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9020,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:build-research-package-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-128",
+      "name": "Build Research Package SQL (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-129",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-130",
+      "name": "Did Package Build Succeed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-131",
+      "name": "Build Package-Build Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9680,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Parse Package Response (retry_1)').first().json.ctx;\nconst pkg = $json.data;\nreturn [{ json: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, research_package_id: pkg.research_package_id, _package: pkg } }];"
+      },
+      "id": "code-132",
+      "name": "Prepare QC Input (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:research-quality-control.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-133",
+      "name": "Research Quality Control (retry_1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        10120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-134",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-135",
+      "name": "Did QC Call Succeed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        10340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-136",
+      "name": "Build QC-Call Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10560,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-137",
+              "leftValue": "={{ $json.data.qc_status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-138",
+      "name": "Is QC Failed? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        10780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare QC Input (retry_1)').first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RESEARCH_QC_FAILED', message: 'research quality control score is below the minimum threshold (< 70) -- escalating for human intervention rather than approving low-quality research', retryable: false, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-139",
+      "name": "Build QC Hard-Failure Response (retry_1)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11000,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-140",
+              "leftValue": "={{ $json.data.qc_status === 'revision_needed' && $json.data.automatic_retry_allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-141",
+      "name": "Does QC Need Revision? (retry_1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $('Get Channel Prompt').first().json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst sources = $('Get Project Sources').first().json.sources;\nconst claims = $('Get Project Claims').first().json;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst userPayload = { topic: ctx.topic, sources, claims };\nconst schema = {\"title\":\"Research Package Synthesis\",\"description\":\"Structured output of the research-package-synthesis LLM call — the JSONB stored in research_packages.synthesis. Narrative/analytical fields only: claim and source listings are never duplicated here — they are assembled live from the relational tables by get_current_research_package() at read time, so there is exactly one source of truth. `cited_source_ids` must list every source_id referenced anywhere in this document; build_research_package() rejects the package (CITATION_INTEGRITY_FAILED) if any id is not a real source_id for this project. See docs/architecture/research-pipeline.md#research-package.\",\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"project_summary\",\"research_question\",\"important_statistics\",\"chronology\",\"open_questions\",\"research_gaps\",\"suggested_script_angles\",\"prohibited_unsafe_assertions\",\"cited_source_ids\"],\"properties\":{\"project_summary\":{\"type\":\"string\"},\"research_question\":{\"type\":\"string\"},\"important_statistics\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"statistic\",\"source_ids\"],\"properties\":{\"statistic\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"minItems\":1}}}},\"chronology\":{\"type\":\"array\",\"description\":\"Timeline entries, only where the topic is reasonably chronological — empty array otherwise.\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"event\",\"source_ids\"],\"properties\":{\"date_or_period\":{\"type\":[\"string\",\"null\"]},\"event\":{\"type\":\"string\"},\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}},\"open_questions\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"research_gaps\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"suggested_script_angles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"prohibited_unsafe_assertions\":{\"type\":\"array\",\"description\":\"Assertions the collected research does NOT support and the future script must not make.\",\"items\":{\"type\":\"string\"}},\"cited_source_ids\":{\"type\":\"array\",\"description\":\"Union of every source_id cited anywhere in this document (important_statistics[].source_ids, chronology[].source_ids, and any inline citation elsewhere). Checked against `sources` by validate_research_package_citations() — never trusted as-is.\",\"items\":{\"type\":\"string\"}}}};\nreturn [{ json: {\n  ctx, model,\n  requestBody: {\n    model, max_tokens: 8192,\n    system: prompt.content,\n    messages: [{ role: 'user', content: JSON.stringify(userPayload) }],\n    output_config: { format: { type: 'json_schema', schema } }\n  }\n} }];"
+      },
+      "id": "code-142",
+      "name": "Prepare Anthropic Request (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-143",
+      "name": "Call Anthropic: Package Synthesis (retry_2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ANTHROPIC",
+          "name": "anthropic-api"
+        }
+      },
+      "position": [
+        11660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Anthropic Request (retry_2)').first().json.ctx;\nconst model = $('Prepare Anthropic Request (retry_2)').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet synthesis = null; let parse_failed = true;\nif (textBlock) { try { synthesis = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, synthesis, usage: resp.usage || {}, provider_request_id: resp.id || null } }];"
+      },
+      "id": "code-144",
+      "name": "Parse Package Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-145",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-146",
+      "name": "Did Package Parse Succeed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        12100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json.ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RESEARCH_QC_FAILED', message: 'research package synthesis LLM response was not valid structured JSON after retries', retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-147",
+      "name": "Build Package Parse Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12320,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_2)').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-148",
+      "name": "Prepare Usage Event: Input Tokens (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-149",
+      "name": "Record Usage: Input Tokens (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        12760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_2)').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-150",
+      "name": "Prepare Usage Event: Output Tokens (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-151",
+      "name": "Record Usage: Output Tokens (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_2)').first().json; const ctx = j.ctx;\n// Pricing: $5.00 / 1M input tokens, $25.00 / 1M output tokens.\n// One multiply-and-divide per call, not a compounding ledger -- every\n// persistent aggregate (SUM() over cost_events.total_cost_usd, a NUMERIC\n// column) happens in SQL, never in JS. See\n// docs/architecture/research-pipeline.md#cost-tracking.\nconst inputTokens = j.usage.input_tokens || 0;\nconst outputTokens = j.usage.output_tokens || 0;\nconst inputCost = (inputTokens / 1000000) * 5;\nconst outputCost = (outputTokens / 1000000) * 25;\nconst totalCost = Math.round((inputCost + outputCost) * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: 'anthropic', service_type: 'llm', model: j.model,\n  quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null,\n  total_cost_usd: totalCost, provider_request_id: j.provider_request_id, estimated: false, metadata: {}\n} }];"
+      },
+      "id": "code-152",
+      "name": "Prepare Cost Event (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-153",
+      "name": "Record Cost Event (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse Package Response (retry_2)').first().json; const ctx = j.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  research_plan_id: ctx.research_plan_id || null, synthesis: j.synthesis, provider: 'anthropic', model: j.model,\n  revision_trigger: 'qc_auto_retry', revision_reason: ctx.revision_reason || null\n} }];"
+      },
+      "id": "code-154",
+      "name": "Prepare Build-Package SQL Input (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:build-research-package-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-155",
+      "name": "Build Research Package SQL (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        14080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-156",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-157",
+      "name": "Did Package Build Succeed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        14300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-158",
+      "name": "Build Package-Build Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14520,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Parse Package Response (retry_2)').first().json.ctx;\nconst pkg = $json.data;\nreturn [{ json: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, research_package_id: pkg.research_package_id, _package: pkg } }];"
+      },
+      "id": "code-159",
+      "name": "Prepare QC Input (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:research-quality-control.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-160",
+      "name": "Research Quality Control (retry_2)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        14960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-161",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-162",
+      "name": "Did QC Call Succeed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        15180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-163",
+      "name": "Build QC-Call Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15400,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-164",
+              "leftValue": "={{ $json.data.qc_status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-165",
+      "name": "Is QC Failed? (retry_2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        15620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare QC Input (retry_2)').first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RESEARCH_QC_FAILED', message: 'research quality control score is below the minimum threshold (< 70) -- escalating for human intervention rather than approving low-quality research', retryable: false, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-166",
+      "name": "Build QC Hard-Failure Response (retry_2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15840,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-167",
+      "name": "Build Package-And-QC Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16060,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Prompt Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Prompt Input": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Prompt": {
+      "main": [
+        [
+          {
+            "node": "Did Get Prompt Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get Prompt Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Context Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prompt Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Context Input": {
+      "main": [
+        [
+          {
+            "node": "Get Project Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project Sources": {
+      "main": [
+        [
+          {
+            "node": "Get Project Claims",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project Claims": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Anthropic Request (initial)": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Package Synthesis (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Package Synthesis (initial)": {
+      "main": [
+        [
+          {
+            "node": "Parse Package Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Package Response (initial)": {
+      "main": [
+        [
+          {
+            "node": "Did Package Parse Succeed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Package Parse Succeed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package Parse Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Input Tokens (initial)": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens (initial)": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event (initial)": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Build-Package SQL Input (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Build-Package SQL Input (initial)": {
+      "main": [
+        [
+          {
+            "node": "Build Research Package SQL (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Research Package SQL (initial)": {
+      "main": [
+        [
+          {
+            "node": "Did Package Build Succeed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Package Build Succeed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare QC Input (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package-Build Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare QC Input (initial)": {
+      "main": [
+        [
+          {
+            "node": "Research Quality Control (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Quality Control (initial)": {
+      "main": [
+        [
+          {
+            "node": "Did QC Call Succeed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did QC Call Succeed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build QC-Call Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Does QC Need Revision? (initial)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Does QC Need Revision? (initial)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package-And-QC Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Anthropic Request (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Package Synthesis (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Package Synthesis (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Parse Package Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Package Response (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Did Package Parse Succeed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Package Parse Succeed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package Parse Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Input Tokens (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Build-Package SQL Input (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Build-Package SQL Input (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Build Research Package SQL (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Research Package SQL (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Did Package Build Succeed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Package Build Succeed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare QC Input (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package-Build Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare QC Input (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Research Quality Control (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Quality Control (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Did QC Call Succeed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did QC Call Succeed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build QC-Call Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Does QC Need Revision? (retry_1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Does QC Need Revision? (retry_1)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package-And-QC Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Anthropic Request (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Package Synthesis (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Package Synthesis (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Parse Package Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Package Response (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Did Package Parse Succeed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Package Parse Succeed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package Parse Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Input Tokens (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Build-Package SQL Input (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Build-Package SQL Input (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Build Research Package SQL (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Research Package SQL (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Did Package Build Succeed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Package Build Succeed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Prepare QC Input (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package-Build Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare QC Input (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Research Quality Control (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Quality Control (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Did QC Call Succeed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did QC Call Succeed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Is QC Failed? (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build QC-Call Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is QC Failed? (retry_2)": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response (retry_2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Package-And-QC Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

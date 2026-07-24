@@ -1,0 +1,15 @@
+{
+  "id": "msg_01FixtureClaimExtraction001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"claims\":[{\"claim_text\":\"The Aqua Claudia had an average gradient of approximately 0.14% over its full length.\",\"classification\":\"likely_fact\",\"confidence\":0.8,\"time_sensitive\":false,\"supporting_source_ids\":[\"22222222-aaaa-4aaa-8aaa-222222222222\"],\"contradicting_source_ids\":[],\"contextualizing_source_ids\":[]},{\"claim_text\":\"Sextus Julius Frontinus was appointed water commissioner of Rome in 97 CE.\",\"classification\":\"verified_fact\",\"confidence\":0.9,\"time_sensitive\":false,\"supporting_source_ids\":[\"11111111-aaaa-4aaa-8aaa-111111111111\"],\"contradicting_source_ids\":[],\"contextualizing_source_ids\":[]},{\"claim_text\":\"Rome was served by eleven aqueducts built between 312 BCE and 226 CE.\",\"classification\":\"unverified_claim\",\"confidence\":0.5,\"time_sensitive\":false,\"supporting_source_ids\":[\"33333333-aaaa-4aaa-8aaa-333333333333\"],\"contradicting_source_ids\":[],\"contextualizing_source_ids\":[]}]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": { "input_tokens": 845, "output_tokens": 213 }
+}

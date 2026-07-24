@@ -32,7 +32,18 @@
             "SIMILAR_TOPIC",
             "ACTIVE_PROJECT_LIMIT_REACHED",
             "CHANNEL_BUDGET_EXHAUSTED",
-            "PROJECT_CREATION_FAILED"
+            "PROJECT_CREATION_FAILED",
+            "RESEARCH_PROJECT_NOT_FOUND",
+            "RESEARCH_INVALID_PROJECT_STATE",
+            "RESEARCH_BUDGET_EXCEEDED",
+            "SEARCH_PROVIDER_UNAVAILABLE",
+            "SEARCH_PROVIDER_RATE_LIMITED",
+            "INSUFFICIENT_SOURCES",
+            "CLAIM_EXTRACTION_FAILED",
+            "CITATION_INTEGRITY_FAILED",
+            "RESEARCH_QC_FAILED",
+            "RESEARCH_APPROVAL_REJECTED",
+            "RESEARCH_REVISION_LIMIT_REACHED"
           ]
         },
         "message": { "type": "string" },

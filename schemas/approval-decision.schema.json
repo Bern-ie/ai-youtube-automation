@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/approval-decision.schema.json",
+  "title": "Approval Decision Request",
+  "description": "Request body accepted by the development approval endpoint (POST /internal/dev/research-approvals/:id/decide) and passed through to resolve_research_approval(). See docs/architecture/research-pipeline.md#approval-actions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision"],
+  "properties": {
+    "decision": { "type": "string", "enum": ["approved", "rejected", "revision_requested"] },
+    "reviewer_reference": { "type": ["string", "null"] },
+    "revision_instructions": {
+      "type": ["string", "null"],
+      "description": "Required (non-empty) when decision is 'revision_requested' — enforced by resolve_research_approval()."
+    }
+  }
+}

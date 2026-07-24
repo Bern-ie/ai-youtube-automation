@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/provider-adapter-normalized-result.schema.json",
+  "title": "Search Provider Adapter — Normalized Result",
+  "description": "The shape every search-provider adapter (Tavily, Brave) must normalize its raw HTTP response into, before the results array is passed to collect_research_sources() as its `sources` parameter. Keeps provider-specific response shapes out of the SQL layer and out of every workflow downstream of source collection. See docs/architecture/research-pipeline.md#provider-architecture.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "query", "results"],
+  "properties": {
+    "provider": { "type": "string", "enum": ["tavily", "brave"] },
+    "query": { "type": "string" },
+    "request_id": { "type": ["string", "null"], "description": "Provider-assigned request/trace ID, if any — stored on the cost_event, never logged as a secret." },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "https://schemas.ai-youtube-automation.internal/source-record.schema.json#/$defs/input" }
+    }
+  }
+}

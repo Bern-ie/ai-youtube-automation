@@ -1,0 +1,24 @@
+{
+  "query": { "original": "Ancient Roman aqueduct engineering primary sources", "altered": null },
+  "web": {
+    "type": "search",
+    "results": [
+      {
+        "title": "Pont du Gard — UNESCO World Heritage documentation",
+        "url": "https://www.example-heritage-org.org/sites/pont-du-gard",
+        "description": "The Pont du Gard, part of the Nimes aqueduct, is a three-tiered arch bridge roughly 50 meters high, built without mortar using precisely cut stone blocks weighing up to six tons.",
+        "age": "3 years ago",
+        "page_age": "2021-04-12T00:00:00",
+        "profile": { "name": "Example Heritage Organization", "url": "https://www.example-heritage-org.org" }
+      },
+      {
+        "title": "Vitruvius, De Architectura Book VIII — on water supply",
+        "url": "https://www.example-classics-archive.org/vitruvius/book-viii",
+        "description": "Vitruvius's first-century BCE architectural treatise devotes Book VIII to locating, testing, and channeling water sources, including specifications for lead versus terracotta piping.",
+        "age": null,
+        "page_age": null,
+        "profile": { "name": "Example Classics Archive", "url": "https://www.example-classics-archive.org" }
+      }
+    ]
+  }
+}

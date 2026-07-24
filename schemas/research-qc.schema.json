@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/research-qc.schema.json",
+  "title": "Research Quality Control Result",
+  "description": "The 'data' payload returned by research_quality_control() / the 'research_quality_control' workflow step. Fully deterministic — every field here is computed directly from relational data, never LLM-scored. See docs/architecture/research-pipeline.md#quality-control.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "qc_score", "qc_status", "source_count", "authoritative_source_count", "primary_source_count",
+    "distinct_source_types", "average_authority", "average_relevance", "total_claims", "supported_claims",
+    "unsupported_claims", "conflicting_claims", "time_sensitive_total", "time_sensitive_sourced",
+    "sub_scores", "meets_minimum_sources", "automatic_retry_count", "automatic_retry_allowed"
+  ],
+  "properties": {
+    "qc_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "qc_status": { "type": "string", "enum": ["passed", "revision_needed", "failed"] },
+    "source_count": { "type": "integer", "minimum": 0 },
+    "authoritative_source_count": { "type": "integer", "minimum": 0 },
+    "primary_source_count": { "type": "integer", "minimum": 0 },
+    "distinct_source_types": { "type": "integer", "minimum": 0 },
+    "average_authority": { "type": ["number", "null"] },
+    "average_relevance": { "type": ["number", "null"] },
+    "total_claims": { "type": "integer", "minimum": 0 },
+    "supported_claims": { "type": "integer", "minimum": 0 },
+    "unsupported_claims": { "type": "integer", "minimum": 0 },
+    "conflicting_claims": { "type": "integer", "minimum": 0 },
+    "time_sensitive_total": { "type": "integer", "minimum": 0 },
+    "time_sensitive_sourced": { "type": "integer", "minimum": 0 },
+    "sub_scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_count", "diversity", "primary_coverage", "claim_support",
+        "conflict_penalty_adjusted", "time_sensitive_coverage", "authority", "relevance"
+      ],
+      "properties": {
+        "source_count": { "type": "number" },
+        "diversity": { "type": "number" },
+        "primary_coverage": { "type": "number" },
+        "claim_support": { "type": "number" },
+        "conflict_penalty_adjusted": { "type": "number" },
+        "time_sensitive_coverage": { "type": "number" },
+        "authority": { "type": "number" },
+        "relevance": { "type": "number" }
+      }
+    },
+    "meets_minimum_sources": { "type": "boolean" },
+    "automatic_retry_count": { "type": "integer", "minimum": 0 },
+    "automatic_retry_allowed": { "type": "boolean" }
+  }
+}

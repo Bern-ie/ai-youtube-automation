@@ -1,0 +1,574 @@
+{
+  "name": "Collect Research Sources",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-22",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { ctx: b, requestBody: {\n  query: b.research_question || b.topic, search_depth: 'advanced', max_results: b.max_results || 8, include_answer: false\n} } }];"
+      },
+      "id": "code-23",
+      "name": "Prepare Tavily Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-24",
+      "name": "Call Tavily",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_TAVILY",
+          "name": "tavily-api"
+        }
+      },
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-25",
+              "leftValue": "={{ $json.results !== undefined && Array.isArray($json.results) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-26",
+      "name": "Did Tavily Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Tavily Request').first().json.ctx;\nreturn [{ json: { ctx, query: ctx.research_question || ctx.topic } }];"
+      },
+      "id": "code-27",
+      "name": "Prepare Brave Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.search.brave.com/res/v1/web/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "count",
+              "value": "8"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-28",
+      "name": "Call Brave Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_BRAVE",
+          "name": "brave-search-api"
+        }
+      },
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Brave Request').first().json.ctx;\nconst resp = $input.first().json;\nconst items = (resp.web && resp.web.results) || [];\nconst results = items.map((r) => ({\n  url: r.url, title: r.title, publisher: (r.profile && r.profile.name) || null, author: null,\n  published_at: r.page_age || null, excerpt: r.description || null, provider_relevance: null, raw_metadata: {}\n}));\nreturn [{ json: { ctx, provider: 'brave', results } }];"
+      },
+      "id": "code-29",
+      "name": "Normalize Brave Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Tavily Request').first().json.ctx;\nconst resp = $input.first().json;\nconst results = (resp.results || []).map((r) => ({\n  url: r.url, title: r.title, publisher: null, author: null, published_at: r.published_date || null,\n  excerpt: r.content || null, provider_relevance: (typeof r.score === 'number' ? r.score : null), raw_metadata: {}\n}));\nreturn [{ json: { ctx, provider: 'tavily', results } }];"
+      },
+      "id": "code-30",
+      "name": "Normalize Tavily Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-31",
+      "name": "Merge Normalized Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: j.provider, service_type: 'search', metric: 'queries', quantity: 1, unit: 'request', metadata: {} } }];"
+      },
+      "id": "code-38",
+      "name": "Prepare Search Usage Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-39",
+      "name": "Record Search Usage",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Merge Normalized Results').first().json; const ctx = j.ctx;\n// Tavily \"advanced\" search-depth: $0.008/credit, ~1 credit/query at this\n// depth (see docs/architecture/research-pipeline.md#provider-architecture\n// for the documented estimate + citation). Brave: free tier assumed $0.\nconst perQueryCost = j.provider === 'tavily' ? 0.008 : 0;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: j.provider, service_type: 'search', model: null, quantity: 1, unit: 'request', unit_price_usd: perQueryCost,\n  total_cost_usd: perQueryCost, provider_request_id: null, estimated: true, metadata: {}\n} }];"
+      },
+      "id": "code-40",
+      "name": "Prepare Search Cost Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-41",
+      "name": "Record Search Cost",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Merge Normalized Results').first().json; const ctx = j.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  sources: j.results, search_provider: j.provider, research_question: ctx.research_question || ctx.topic\n} }];"
+      },
+      "id": "code-42",
+      "name": "Prepare Collect-Sources SQL Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:collect-research-sources-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-43",
+      "name": "Collect Research Sources SQL",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-44",
+              "leftValue": "={{ $json.success && ($json.data.new_sources + $json.data.duplicate_sources) >= 1 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-45",
+      "name": "Did Collection Meet Minimum?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-46",
+      "name": "Build Sources Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Merge Normalized Results').first().json.ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'INSUFFICIENT_SOURCES', message: 'search provider returned zero usable results for this research question', retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-47",
+      "name": "Build Insufficient Sources Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        900
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Tavily Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Tavily Request": {
+      "main": [
+        [
+          {
+            "node": "Call Tavily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Tavily": {
+      "main": [
+        [
+          {
+            "node": "Did Tavily Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Tavily Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Tavily Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Brave Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Brave Request": {
+      "main": [
+        [
+          {
+            "node": "Call Brave Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Brave Search": {
+      "main": [
+        [
+          {
+            "node": "Normalize Brave Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Tavily Results": {
+      "main": [
+        [
+          {
+            "node": "Merge Normalized Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Brave Results": {
+      "main": [
+        [
+          {
+            "node": "Merge Normalized Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Normalized Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare Search Usage Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Search Usage Event": {
+      "main": [
+        [
+          {
+            "node": "Record Search Usage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Search Usage": {
+      "main": [
+        [
+          {
+            "node": "Prepare Search Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Search Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Record Search Cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Search Cost": {
+      "main": [
+        [
+          {
+            "node": "Prepare Collect-Sources SQL Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Collect-Sources SQL Input": {
+      "main": [
+        [
+          {
+            "node": "Collect Research Sources SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Research Sources SQL": {
+      "main": [
+        [
+          {
+            "node": "Did Collection Meet Minimum?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Collection Meet Minimum?": {
+      "main": [
+        [
+          {
+            "node": "Build Sources Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Insufficient Sources Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

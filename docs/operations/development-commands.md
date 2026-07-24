@@ -1,13 +1,15 @@
 # Development Commands
 
-Status: reflects Step 5 — a working local Docker Compose stack (Postgres,
+Status: reflects Step 6 — a working local Docker Compose stack (Postgres,
 Redis, n8n, MinIO, Caddy, renderer, approval-api), multi-arch build
 tooling, a migration-managed PostgreSQL domain schema with role
 separation, five reusable n8n workflows providing channel-config loading
-and workflow-run tracking (Step 4), and the `Manual Topic Intake`
-workflow (Step 5) — see
-[topic-intake.md](../architecture/topic-intake.md). No research/
-rendering/publishing workflow or Oracle deployment exist yet.
+and workflow-run tracking (Step 4), the `Manual Topic Intake` workflow
+(Step 5, see [topic-intake.md](../architecture/topic-intake.md)), and the
+`Research Project` workflow (Step 6, see
+[research-pipeline.md](../architecture/research-pipeline.md)). No
+script-generation/TTS/rendering/publishing workflow or Oracle deployment
+exist yet.
 
 ## Environment
 
@@ -113,15 +115,19 @@ existing Step 2 volume rather than starting fresh, you need
 
 ```bash
 scripts/n8n-setup-dev.sh              # owner account, API key (saved to .env), credentials — idempotent
-node scripts/n8n-import-workflows.mjs  # imports + publishes all 13 workflows from n8n/workflows/
-scripts/n8n-test.sh                    # runs the Step 4 (12-check) + Step 5 (27-check) test suites
+node scripts/n8n-import-workflows.mjs  # imports + publishes all 39 workflows from n8n/workflows/
+scripts/n8n-test.sh                    # runs the Step 4 + Step 5 + Step 6 (36-check, fixture-only) test suites
 ```
 
 Requires `scripts/db-migrate.sh` and `scripts/db-seed.sh` to have already
 run (the workflows load real seeded channel config). See
-[workflow-runtime.md](../architecture/workflow-runtime.md) and
-[topic-intake.md](../architecture/topic-intake.md) for what each script
-does and the manual-UI alternative to `n8n-setup-dev.sh`.
+[workflow-runtime.md](../architecture/workflow-runtime.md),
+[topic-intake.md](../architecture/topic-intake.md), and
+[research-pipeline.md](../architecture/research-pipeline.md) for what
+each script does and the manual-UI alternative to `n8n-setup-dev.sh`.
+`scripts/n8n-test.sh` never incurs API charges — Step 6's suite is
+fixture-based (Level A); see research-pipeline.md#test-mode--cost-control
+for the opt-in live smoke test.
 
 Manual test calls, once set up:
 
@@ -135,6 +141,16 @@ curl -X POST http://127.0.0.1:5678/webhook/step5-manual-topic-intake-test \
   -H "Content-Type: application/json" \
   -H "X-Dev-Test-Token: $DEV_TEST_TOKEN" \
   -d '{"channel_id":"11111111-1111-1111-1111-111111111111","topic":"Ancient Civilizations","idempotency_key":"my-topic-test-001"}'
+
+# Requires a content_project_id already created by the call above.
+curl -X POST http://127.0.0.1:5678/webhook/step6-research-project-test \
+  -H "Content-Type: application/json" \
+  -H "X-Dev-Test-Token: $DEV_TEST_TOKEN" \
+  -d '{"channel_id":"11111111-1111-1111-1111-111111111111","content_project_id":"<uuid from above>","idempotency_key":"my-research-test-001"}'
+
+# Development approval endpoints (see research-pipeline.md#development-approval-endpoint):
+curl "http://127.0.0.1:5678/webhook/internal/dev/research-approvals?channel_id=11111111-1111-1111-1111-111111111111" \
+  -H "X-Dev-Test-Token: $DEV_TEST_TOKEN"
 ```
 
 ## Multi-arch builds

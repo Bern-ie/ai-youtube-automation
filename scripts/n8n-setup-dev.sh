@@ -2,9 +2,11 @@
 # One-time n8n dev setup: creates the owner account (from
 # N8N_ADMIN_EMAIL/N8N_ADMIN_PASSWORD), generates an API key for
 # scripts/automation to use (written back into .env as N8N_API_KEY), and
-# creates the two credentials the shared workflows need
-# (postgres-app-runtime, dev-test-webhook-auth). Safe to re-run — every
-# step checks whether it's already done first.
+# creates the credentials the shared workflows need
+# (postgres-app-runtime, dev-test-webhook-auth, and — Step 6 — the three
+# research-pipeline provider credentials: anthropic-api, tavily-api,
+# brave-search-api). Safe to re-run — every step checks whether it's
+# already done first.
 #
 # Dev/test only. A real deployment sets its own owner account through
 # n8n's normal setup flow and creates its own credentials/API keys by
@@ -18,6 +20,16 @@ source "$SCRIPT_DIR/lib.sh"
 require_docker
 load_env
 require_env N8N_ADMIN_EMAIL N8N_ADMIN_PASSWORD POSTGRES_DB APP_DB_USER APP_DB_PASSWORD DEV_TEST_TOKEN
+# Provider keys are deliberately NOT required here (unlike the vars
+# above) — the fixture (Level A) test suite never calls these APIs, so a
+# CHANGE_ME placeholder must not block setup. Only the opt-in live smoke
+# test (RUN_LIVE_AI_TESTS=1) needs real values; see
+# docs/architecture/research-pipeline.md#test-mode--cost-control.
+for var in ANTHROPIC_API_KEY TAVILY_API_KEY BRAVE_SEARCH_API_KEY; do
+  if [[ -z "${!var:-}" || "${!var:-}" == "CHANGE_ME" ]]; then
+    warn "$var is still CHANGE_ME — fine for fixture tests, but live-provider calls (and RUN_LIVE_AI_TESTS=1) will fail until it's set."
+  fi
+done
 
 N8N_URL="http://127.0.0.1:${N8N_PORT:-5678}"
 COOKIE_JAR="$(mktemp)"
@@ -103,5 +115,18 @@ ensure_credential "postgres-app-runtime" "postgres" \
 
 ensure_credential "dev-test-webhook-auth" "httpHeaderAuth" \
   "{\"name\": \"X-Dev-Test-Token\", \"value\": \"$DEV_TEST_TOKEN\"}"
+
+# Step 6 research pipeline — see docs/architecture/research-pipeline.md#provider-architecture.
+# Values are read from .env; CHANGE_ME placeholders are fine for the
+# fixture (Level A) test suite, which never calls these APIs. Only the
+# opt-in live smoke test (RUN_LIVE_AI_TESTS=1) needs real keys.
+ensure_credential "anthropic-api" "httpHeaderAuth" \
+  "{\"name\": \"x-api-key\", \"value\": \"$ANTHROPIC_API_KEY\"}"
+
+ensure_credential "tavily-api" "httpHeaderAuth" \
+  "{\"name\": \"Authorization\", \"value\": \"Bearer $TAVILY_API_KEY\"}"
+
+ensure_credential "brave-search-api" "httpHeaderAuth" \
+  "{\"name\": \"X-Subscription-Token\", \"value\": \"$BRAVE_SEARCH_API_KEY\"}"
 
 pass "n8n dev setup complete. Run scripts/n8n-import-workflows.mjs next."

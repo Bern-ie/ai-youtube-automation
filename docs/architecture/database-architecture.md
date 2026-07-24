@@ -1,8 +1,11 @@
 # Database Architecture
 
-Status: **implemented (Step 3).** PostgreSQL domain schema, real
-migrations, role separation, and channel isolation are live and tested.
-No n8n workflows consume this schema yet — that's a later step.
+Status: **implemented (Step 3), extended through Step 6.** PostgreSQL
+domain schema, real migrations, role separation, and channel isolation
+are live and tested. Step 4 added the workflow-runtime SQL layer, Step 5
+added topic intake, and Step 6 added versioned research plans/packages —
+see [research-pipeline.md](research-pipeline.md) for the workflow that
+consumes the additions described below.
 
 ## Migration system
 
@@ -143,6 +146,9 @@ erDiagram
     CHANNELS ||--o{ CHANNEL_PROMPT_ASSIGNMENTS : assigns
     CONTENT_PROJECTS ||--o{ SOURCES : has
     CONTENT_PROJECTS ||--o{ RESEARCH_CLAIMS : has
+    CONTENT_PROJECTS ||--o{ RESEARCH_PLANS : has
+    CONTENT_PROJECTS ||--o{ RESEARCH_PACKAGES : has
+    RESEARCH_PLANS ||--o{ RESEARCH_PACKAGES : informs
     SOURCES ||--o{ RESEARCH_CLAIM_SOURCES : "cited by"
     RESEARCH_CLAIMS ||--o{ RESEARCH_CLAIM_SOURCES : "supported by"
     CONTENT_PROJECTS ||--o| SCRIPTS : has
@@ -172,7 +178,7 @@ erDiagram
 |---|---|
 | Channel | `channels`, `channel_settings`, `channel_branding`, `channel_content_pillars`, `channel_topic_rules`, `channel_provider_settings`, `channel_budget_limits`, `channel_publish_schedules`, `channel_strategy_profiles`, `channel_credentials` |
 | Content lifecycle | `content_projects`, `topic_candidates`, `approved_topics`, `rejected_topics`, `content_briefs` |
-| Research | `sources`, `research_claims`, `research_claim_sources` |
+| Research | `sources`, `research_claims`, `research_claim_sources`, `research_plans`, `research_packages` |
 | Scripts | `scripts`, `script_versions` |
 | Media production | `voiceovers`, `voiceover_chunks`, `assets`, `asset_licenses`, `scene_manifests`, `render_jobs`, `thumbnails`, `metadata_variants` |
 | Approval & publication | `approval_requests`, `published_videos` |
@@ -183,9 +189,53 @@ erDiagram
 | Auditing | `audit_logs` |
 | Infrastructure (not domain) | `_infra.healthcheck` |
 
-43 tables total. See the migration files in `database/migrations/` for
+45 tables total (43 from Step 3 + `research_plans`/`research_packages`
+added in Step 6). See the migration files in `database/migrations/` for
 exact columns — each is commented with the reasoning behind
 non-obvious choices.
+
+### Step 6 additions: `research_plans` and `research_packages`
+
+Both are **versioned** the same way scripts already were in Step 3
+(`UNIQUE (content_project_id, revision)`, monotonically increasing,
+never updated in place — a revision is always a new row). Neither embeds
+claim or source data as JSONB copies: `research_packages.synthesis`
+holds only narrative/synthesis text, while the claim and source lists
+themselves are assembled live from `research_claims`/`sources` at read
+time (`get_current_research_package()` in
+`20260722220001_research_pipeline_functions.sql`) so there is exactly
+one source of truth and no risk of a cached copy drifting from the
+relational data.
+
+- `research_plans` — one row per planning attempt/revision. LLM-generated
+  (`plan` JSONB, `provider`/`model` recorded), but a plan only identifies
+  *what to look for* — it is never trusted to assert facts.
+- `research_packages` — one row per synthesis attempt/revision.
+  `revision_trigger` (`initial` / `qc_auto_retry` / `human_revision_request`)
+  and `revision_reason` record *why* a new revision exists.
+  `qc_score`/`qc_status`/`qc_details` hold the deterministic QC result
+  (see [research-pipeline.md#quality-control](research-pipeline.md)).
+  Exactly one `is_current = true` row per `content_project_id` is
+  enforced by a partial unique index
+  (`idx_research_packages_one_current_per_project`), not just application
+  discipline.
+
+Also from the same migration (`20260722220000_research_pipeline_schema.sql`):
+
+- `sources.source_type` redefined to a source-authority-relevant enum
+  (`primary_source`, `government`, `academic`, `official_company`,
+  `industry_report`, `reputable_news`, `expert_analysis`,
+  `documentation`, `forum_community`, `social_media`, `unknown`) —
+  replacing Step 3's generic media-type enum, since Step 5 never
+  populated any `sources` rows (clean redefinition, not a data
+  migration).
+- `sources.relevance_score` (`NUMERIC(5,2)`, 0–100) added alongside the
+  existing `authority_score` — deliberately separate scores, both
+  deterministic (SQL-computed, never LLM-assigned) — see
+  [research-pipeline.md#source-authority--relevance](research-pipeline.md).
+- `channel_budget_limits.limit_type` gains `research_stage`, reusing the
+  existing hard/soft + warning-threshold budget machinery rather than a
+  parallel budgeting subsystem.
 
 ## Channel isolation
 
@@ -291,6 +341,17 @@ from `cost_events`, never from a cached application-side total:
 `provider_usage_events` tracks usage (tokens, characters, generations,
 API quota units, ...) independently of cost — usage exists even when
 cost is zero or bundled into a flat subscription.
+
+Step 6 adds two SQL-layer writers rather than a parallel accounting
+path: `record_provider_usage_event()` and `record_cost_event()`
+(`20260722220001_research_pipeline_functions.sql`), called by every
+research n8n node that spends money (search provider calls, Anthropic
+planning/extraction/synthesis calls). Both insert into the existing
+`provider_usage_events`/`cost_events` tables — no research-specific cost
+tables were introduced. `channel_budget_limits.limit_type =
+'research_stage'` is checked by a preflight function before any paid
+call is made (see
+[research-pipeline.md#budget-preflight](research-pipeline.md)).
 
 ## Workflow resume & job claiming
 

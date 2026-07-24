@@ -4,24 +4,26 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 5 — Manual topic intake (complete)
+## Status: Step 6 — Source-backed research (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
-role-separated, channel-isolated PostgreSQL domain schema (43 tables —
-Step 3), five reusable n8n workflows providing the common workflow-run
-entry point every content workflow builds on (Step 4), and now the first
-real content workflow: **`Manual Topic Intake`**. Given a channel and a
-topic, it answers "should this become a content project?" — deterministic
-topic-rule enforcement, PostgreSQL-native duplicate/similarity detection
-(`pg_trgm`, not embeddings), active-project and budget gating, and an
-atomic project-creation step — then genuinely resumes a failed run from
-its last completed step (proven via a dev-only failure-injection
-mechanism exercised through real n8n execution, not just SQL). No
-research/script-generation/rendering/publishing workflow or Oracle
-deployment exist yet — this step only decides whether a topic becomes a
-project. See
-[docs/architecture/topic-intake.md](docs/architecture/topic-intake.md)
+role-separated, channel-isolated PostgreSQL domain schema (Step 3), five
+reusable n8n workflows providing the common workflow-run entry point
+every content workflow builds on (Step 4), manual topic intake (Step 5),
+and now the first workflow allowed to call paid external APIs:
+**`Research Project`**. Given a `content_project_id`, it plans what to
+research (LLM), collects real sources (Tavily, Brave fallback),
+extracts and verifies atomic claims against those sources
+(citation integrity enforced structurally, never trusted from the LLM),
+synthesizes a versioned research package, runs deterministic quality
+control (0–100, up to 2 automatic revision cycles), and pauses for a
+human approval that survives an n8n/Docker restart because the wait is
+DB-backed, not a hung n8n execution. No script-generation/TTS/media/
+rendering/publishing workflow or Oracle deployment exist yet — this step
+ends with an approved, source-backed research package ready for script
+generation. See
+[docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
 for the full contract,
 [docs/architecture/workflow-runtime.md](docs/architecture/workflow-runtime.md)
 for the Step 4 foundation it's built on, and
@@ -69,18 +71,18 @@ to run it yourself.
 │   └── monitoring/       # Health checks, metrics, cost/budget alerting — not implemented beyond Docker healthchecks
 ├── database/
 │   ├── bootstrap/        # Cluster bootstrap only (roles/databases) — runs once
-│   ├── migrations/       # The real domain schema — 43 tables, dbmate-managed, ledgered, idempotent
-│   ├── seeds/            # Idempotent seed data — 3 example channels
+│   ├── migrations/       # The real domain schema — dbmate-managed, ledgered, idempotent
+│   ├── seeds/            # Idempotent seed data — 3 example channels + Step 6 research prompts
 │   ├── queries/          # Canonical SQL the n8n workflow-runtime layer calls
-│   └── tests/            # Automated database test suite (31 checks)
+│   └── tests/            # Automated database test suite
 ├── n8n/
-│   ├── workflows/        # 11 reusable shared workflows + 2 dev test harnesses — implemented
+│   ├── workflows/        # 39 workflows (Steps 4-6) — implemented
 │   ├── examples/         # Reference exports and sample payloads (not run in prod)
-│   └── tests/            # Automated workflow-runtime (12) + manual topic intake (27) test suites
+│   └── tests/            # Automated workflow-runtime + manual topic intake + research pipeline test suites
 ├── prompts/
-│   ├── shared/           # Base prompt templates, parameterized by channel config
+│   ├── shared/           # Base prompt templates + Step 6 research prompts (versioned, in prompts/prompt_versions)
 │   └── channels/         # Per-channel prompt overrides, keyed by channel_id
-├── schemas/               # JSON Schema contracts — workflow-runtime + topic-intake request/response/config shapes
+├── schemas/               # JSON Schema contracts — workflow-runtime + topic-intake + research-pipeline request/response/config shapes
 ├── scripts/                # Dev/build/test tooling — implemented (see docs/operations/development-commands.md)
 ├── storage/                 # Documents the storage/channels/{channel_id}/projects/{content_project_id}/ layout
 ├── tests/
@@ -133,6 +135,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Database architecture](docs/architecture/database-architecture.md)
 - [Workflow runtime architecture](docs/architecture/workflow-runtime.md)
 - [Manual topic intake architecture](docs/architecture/topic-intake.md)
+- [Research pipeline architecture](docs/architecture/research-pipeline.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -156,7 +159,7 @@ Full index: [docs/README.md](docs/README.md)
   additional migrations (workflow-runtime functions + 2 real bugs fixed
   along the way), reproducible n8n setup/import automation, 12-check
   automated test suite. Complete.
-- **Step 5 (this step) — Manual topic intake.** The `Manual Topic
+- **Step 5 — Manual topic intake.** The `Manual Topic
   Intake` reusable workflow (6 new SQL-backed n8n wrappers, a
   74-node orchestrator with real per-step resume/skip logic), 4
   additional migrations (topic normalization/fingerprinting,
@@ -165,12 +168,24 @@ Full index: [docs/README.md](docs/README.md)
   `failed → running` transition gap and a dropped `error.details`
   field), 3 new JSON Schemas, a 27-check automated test suite proving
   resume through real n8n execution (not just SQL). Complete.
-- **Step 6 (next, not yet planned in detail):** topic research — the
-  first workflow stage allowed to call an LLM/web search, building on
-  the `content_projects` row this step creates.
-- **Later steps:** Oracle Ampere A1 provisioning and deployment (Level 2
-  native ARM64 validation happens here); first channel configuration and
-  end-to-end single-channel test.
+- **Step 6 (this step) — Source-backed research.** The `Research
+  Project` reusable workflow (25 new SQL-backed/composite n8n
+  workflows, a 166-node orchestrator, a 74-node self-contained QC-retry
+  sub-workflow), 2 migrations (research plan/package versioning,
+  citation-integrity/QC/cost-tracking functions), 8 new JSON Schemas, 3
+  versioned research prompts, Tavily (primary) + Brave (fallback) search
+  and Anthropic Claude structured-output integration, deterministic
+  authority/relevance scoring and citation-integrity enforcement (never
+  trusted from the LLM), a 36-check automated test suite proving
+  resume, DB-backed approval waiting, and **n8n/Docker restart survival**
+  through real n8n execution. Complete — live-provider validation
+  pending real API credentials (fixture suite fully passes without
+  them). See
+  [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md).
+- **Later steps:** script generation, TTS, media/rendering, thumbnails,
+  YouTube upload, analytics; Oracle Ampere A1 provisioning and deployment
+  (Level 2 native ARM64 validation happens here); first channel
+  configuration and end-to-end single-channel test.
 
 ## Engineering rules
 

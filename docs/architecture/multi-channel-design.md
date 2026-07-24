@@ -1,19 +1,25 @@
 # Multi-Channel Design
 
 Status: **The channel config store (Step 3), the runtime layer described
-below (Step 4), and the first real content workflow (`Manual Topic
-Intake`, Step 5) are all implemented** — see
+below (Step 4), and two real content workflows (`Manual Topic Intake`,
+Step 5; `Research Project`, Step 6) are all implemented** — see
 [database-architecture.md](database-architecture.md),
-[workflow-runtime.md](workflow-runtime.md), and
-[topic-intake.md](topic-intake.md). The "how a shared workflow is
-expected to work" list below is no longer aspirational: `Initialize
+[workflow-runtime.md](workflow-runtime.md),
+[topic-intake.md](topic-intake.md), and
+[research-pipeline.md](research-pipeline.md). The "how a shared workflow
+is expected to work" list below is no longer aspirational: `Initialize
 Workflow Run` and `Load Channel Configuration` are real, tested, reusable
-n8n workflows any future workflow calls exactly this way, and `Manual
-Topic Intake` is the first proof — the same two channels used throughout
-this document (`channel_topic_rules`, `channel_settings.
+n8n workflows any future workflow calls exactly this way. `Manual Topic
+Intake` was the first proof — the same two channels used throughout this
+document (`channel_topic_rules`, `channel_settings.
 max_active_projects`, `channel_budget_limits`) drive genuinely different
 accept/reject decisions for the same topic text with zero workflow code
-difference.
+difference. `Research Project` is the second: it is the first workflow
+to read `channel_provider_settings` for *search* providers (Tavily
+primary, Brave fallback) and an LLM provider/model, and the first to
+check a `channel_budget_limits.limit_type = 'research_stage'` ceiling —
+both resolved per-`channel_id` with zero workflow code difference
+between channels.
 
 ## Core rule
 

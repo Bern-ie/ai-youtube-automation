@@ -1,0 +1,15 @@
+{
+  "id": "msg_01FixtureResearchPackage001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"project_summary\":\"Roman engineers achieved remarkably consistent aqueduct gradients over long distances using simple optical surveying tools and iterative correction, documented primarily through Frontinus's administrative treatise and surviving archaeological gradient surveys.\",\"research_question\":\"How did Roman engineers design aqueducts to maintain a consistent water gradient over tens of kilometers using only visual surveying tools?\",\"important_statistics\":[{\"statistic\":\"The Aqua Claudia had an average gradient of approximately 0.14% over its length.\",\"source_ids\":[\"22222222-aaaa-4aaa-8aaa-222222222222\"]}],\"chronology\":[],\"open_questions\":[\"Exactly how much on-site iterative correction was needed versus upfront survey accuracy is not settled by the sources collected.\"],\"research_gaps\":[\"No source in this batch directly describes chorobates measurement error rates, despite the tool being central to the how-question.\"],\"suggested_script_angles\":[\"Frame the video around Frontinus as an eyewitness administrator rather than a modern historian's summary\",\"Contrast the precision of the Aqua Claudia survey data against the popular myth that Romans achieved perfect gradients on the first attempt\"],\"prohibited_unsafe_assertions\":[\"Do not claim an exact total aqueduct count for Rome as settled fact -- the collected sources disagree/are unverified on this point.\"],\"cited_source_ids\":[\"22222222-aaaa-4aaa-8aaa-222222222222\"]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": { "input_tokens": 1204, "output_tokens": 356 }
+}

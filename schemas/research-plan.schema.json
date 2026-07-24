@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/research-plan.schema.json",
+  "title": "Research Plan",
+  "description": "Structured output of the research-planning LLM call, validated before being persisted by upsert_research_plan(). The plan identifies what to look for — it must never invent facts, statistics, or sources; those come later from real search results. Stored in research_plans.plan. See docs/architecture/research-pipeline.md#research-plan.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "primary_question", "subquestions", "important_entities", "likely_primary_sources",
+    "time_sensitive_facts_to_verify", "opposing_viewpoints", "minimum_source_count",
+    "source_diversity_requirements", "expected_source_types"
+  ],
+  "properties": {
+    "primary_question": { "type": "string", "minLength": 1 },
+    "subquestions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "important_entities": { "type": "array", "items": { "type": "string" } },
+    "likely_primary_sources": {
+      "type": "array",
+      "description": "Descriptions of where a primary source plausibly exists (e.g. 'company Q3 earnings filing'), not actual URLs — the plan does not fabricate sources.",
+      "items": { "type": "string" }
+    },
+    "time_sensitive_facts_to_verify": { "type": "array", "items": { "type": "string" } },
+    "opposing_viewpoints": {
+      "type": "array",
+      "description": "Known or expected points of disagreement worth searching both sides of, where the topic reasonably has any.",
+      "items": { "type": "string" }
+    },
+    "minimum_source_count": { "type": "integer", "minimum": 1 },
+    "source_diversity_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_authoritative_sources", "require_primary_source"],
+      "properties": {
+        "minimum_authoritative_sources": { "type": "integer", "minimum": 0 },
+        "require_primary_source": { "type": "boolean" }
+      }
+    },
+    "expected_source_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "primary_source", "government", "academic", "official_company", "industry_report",
+          "reputable_news", "expert_analysis", "documentation", "forum_community", "social_media", "unknown"
+        ]
+      },
+      "minItems": 1
+    }
+  }
+}

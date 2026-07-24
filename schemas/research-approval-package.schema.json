@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/research-approval-package.schema.json",
+  "title": "Research Approval Package",
+  "description": "The human-facing payload assembled by the 'Create Research Approval' workflow and served by the development approval endpoint (GET /internal/dev/research-approvals/:id). Combines the current research package (get_current_research_package), QC result, and research-stage cost so a reviewer can approve/reject/request-revision without querying the database directly. See docs/architecture/research-pipeline.md#human-research-approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_request_id", "status", "content_project_id", "topic", "intended_angle",
+    "research_package", "qc_score", "qc_status", "estimated_cost_usd", "requested_at"
+  ],
+  "properties": {
+    "approval_request_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "topic": { "type": "string" },
+    "intended_angle": { "type": ["string", "null"] },
+    "research_package": {
+      "type": "object",
+      "description": "The full get_current_research_package() payload — synthesis, source_summary, and grouped claims (verified_fact, likely_fact, opinion, inference, unsupported, conflicting, time_sensitive).",
+      "additionalProperties": true,
+      "required": ["research_package_id", "revision", "synthesis", "source_summary", "claims"],
+      "properties": {
+        "research_package_id": { "type": "string", "format": "uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "synthesis": { "type": "object" },
+        "source_summary": { "type": "object" },
+        "claims": { "type": "object" }
+      }
+    },
+    "qc_score": { "type": ["number", "null"] },
+    "qc_status": { "type": ["string", "null"] },
+    "estimated_cost_usd": { "type": "number", "minimum": 0 },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}

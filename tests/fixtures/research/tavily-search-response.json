@@ -1,0 +1,33 @@
+{
+  "query": "Ancient Roman aqueduct engineering primary sources",
+  "follow_up_questions": null,
+  "answer": null,
+  "images": [],
+  "results": [
+    {
+      "title": "De Aquaeductu — Frontinus's treatise on the aqueducts of Rome",
+      "url": "https://www.example-classics-archive.org/frontinus/de-aquaeductu",
+      "content": "Sextus Julius Frontinus, appointed water commissioner (curator aquarum) of Rome in 97 CE, wrote De Aquaeductu as an administrative record of the city's nine aqueducts then in operation, including their lengths, sources, and legal status.",
+      "score": 0.93,
+      "published_date": null,
+      "raw_content": null
+    },
+    {
+      "title": "Roman aqueduct gradient engineering — archaeological survey of the Aqua Claudia",
+      "url": "https://www.example-archaeology-journal.org/aqua-claudia-gradient-survey",
+      "content": "Survey measurements of the Aqua Claudia found an average gradient of approximately 0.14%, achieved through a combination of tunnels, bridges, and arcades across 69 kilometers, roughly 10 of which ran above ground on arches.",
+      "score": 0.88,
+      "published_date": "2019-06-01",
+      "raw_content": null
+    },
+    {
+      "title": "Example Encyclopedia: Roman aqueducts overview",
+      "url": "https://www.example-encyclopedia.org/wiki/Roman_aqueduct",
+      "content": "Rome was served by eleven aqueducts built between 312 BCE and 226 CE, supplying water to fountains, baths, and private households; the system is estimated to have delivered several hundred million liters of water per day at its peak.",
+      "score": 0.81,
+      "published_date": null,
+      "raw_content": null
+    }
+  ],
+  "response_time": 1.42
+}

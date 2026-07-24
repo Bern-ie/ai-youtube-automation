@@ -1,0 +1,22 @@
+-- Records the priced cost of one provider call. Money is NUMERIC end to
+-- end (never float) — see docs/architecture/database-architecture.md#money-and-precision.
+-- Called once per search query and once per LLM call, alongside
+-- record-provider-usage-event.sql.
+--
+-- Parameters ($1..$14):
+--   $1   channel_id             uuid, required
+--   $2   content_project_id     uuid, nullable
+--   $3   workflow_run_id        uuid, nullable
+--   $4   workflow_step_id       uuid, nullable
+--   $5   provider                text, required
+--   $6   service_type            text, required — 'search' | 'llm'
+--   $7   model                   text, nullable
+--   $8   quantity                numeric, required
+--   $9   unit                    text, required
+--   $10  unit_price_usd          numeric, nullable
+--   $11  total_cost_usd          numeric, required, >= 0
+--   $12  provider_request_id     text, nullable
+--   $13  estimated               boolean, default false
+--   $14  metadata                jsonb, default '{}'
+
+SELECT record_cost_event($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) AS result;

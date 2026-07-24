@@ -24,6 +24,7 @@ export MIGRATOR_DATABASE_URL="postgres://${MIGRATOR_DB_USER}:${MIGRATOR_DB_PASSW
 export APP_DATABASE_URL="postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@127.0.0.1:5433/${POSTGRES_DB}"
 export N8N_WEBHOOK_BASE_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step4-config-loader-test"
 export N8N_STEP5_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step5-manual-topic-intake-test"
+export N8N_STEP6_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step6-research-project-test"
 export N8N_BASE_URL="http://127.0.0.1:${N8N_PORT:-5678}"
 
 cd "$REPO_ROOT/n8n/tests"
@@ -31,3 +32,5 @@ log "Running Step 4 workflow-runtime tests..."
 node run.js
 log "Running Step 5 manual topic intake tests..."
 node run-step5.js
+log "Running Step 6 research pipeline tests (Level A -- fixtures only, no paid API calls)..."
+node run-step6.js
