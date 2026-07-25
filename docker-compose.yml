@@ -283,6 +283,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       TZ: ${TZ:-UTC}
       RENDERER_MAX_CONCURRENCY: ${RENDERER_MAX_CONCURRENCY:-1}
+      # Step 8 — voiceover audio operations read/write object storage
+      # directly (the only place in the stack holding these credentials
+      # in the request path — see docs/architecture/voiceover-pipeline.md#renderer-service-boundary).
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}
+      STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
     networks: [application, data]
     stop_grace_period: 15s
     restart: unless-stopped

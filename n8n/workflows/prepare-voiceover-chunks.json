@@ -1,0 +1,290 @@
+{
+  "name": "Prepare Voiceover Chunks",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id,\n  script_version_id: b.script_version_id, provider: b.provider, model: b.model, voice_reference: b.voice_reference,\n  settings: b.voice_settings || {}, revision_trigger: b.revision_trigger || 'initial_generation', revision_reason: b.revision_reason || null,\n  _ctx: b\n} }];"
+      },
+      "id": "code-2",
+      "name": "Prepare Get-Or-Create Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-or-create-voiceover.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Get Or Create Voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Did Get-Or-Create Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-6",
+      "name": "Build Get-Or-Create Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Get-Or-Create Input').first().json._ctx;\nconst goc = $json.data;\nconst MAX_CHARS = 500;\nconst WPM = 155;\n\nfunction applyPronunciation(text, notes) {\n  let out = text;\n  for (const note of (notes || [])) {\n    if (!note || !note.term || !note.note) continue;\n    const escaped = note.term.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n    const re = new RegExp('\\\\b' + escaped + '\\\\b', 'gi');\n    if (re.test(out)) out = out.replace(re, note.note);\n  }\n  return out;\n}\n\nfunction splitSentences(text) {\n  const parts = (text || '').match(/[^.!?]+[.!?]+(\\s+|$)|[^.!?]+$/g) || [];\n  return parts.map((p) => p.trim()).filter((p) => p.length > 0);\n}\n\nconst chunks = [];\nconst perSectionCounter = {};\nfor (const unit of (ctx.narration_units || [])) {\n  const sentences = splitSentences(unit.narration);\n  let current = '';\n  const flush = () => {\n    if (!current.trim()) return;\n    const text = current.trim();\n    const pronunciationText = applyPronunciation(text, unit.pronunciation_notes);\n    const idx = (perSectionCounter[unit.section_id] ?? -1) + 1;\n    perSectionCounter[unit.section_id] = idx;\n    const wordCount = pronunciationText.split(/\\s+/).filter(Boolean).length;\n    const estimatedSeconds = Math.max(0.5, (wordCount / WPM) * 60);\n    chunks.push({\n      section_id: unit.section_id, unit_index: idx, text, pronunciation_text: pronunciationText,\n      estimated_duration_seconds: estimatedSeconds,\n    });\n    current = '';\n  };\n  for (const sentence of sentences) {\n    if (current && (current.length + sentence.length + 1) > MAX_CHARS) { flush(); current = sentence; }\n    else { current = current ? current + ' ' + sentence : sentence; }\n  }\n  flush();\n}\n\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  voiceover_id: goc.voiceover_id, version: goc.version, provider: ctx.provider, model: ctx.model, script_version_id: ctx.script_version_id,\n  voice_reference: ctx.voice_reference, voice_settings: ctx.voice_settings || {},\n  chunks, force_regenerate_chunk_ids: ctx.force_regenerate_chunk_ids || []\n} }];"
+      },
+      "id": "code-7",
+      "name": "Chunk Narration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:prepare-voiceover-chunks-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-8",
+      "name": "Prepare Voiceover Chunks SQL",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-9",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-10",
+      "name": "Did Prepare Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-11",
+      "name": "Build Prepare Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prep = $input.first().json;\nconst chunkPlan = $('Chunk Narration').first().json;\nreturn [{ json: { success: true, data: Object.assign({}, prep.data, {\n  voiceover_id: chunkPlan.voiceover_id, version: chunkPlan.version, provider: chunkPlan.provider, model: chunkPlan.model,\n  voice_reference: chunkPlan.voice_reference, voice_settings: chunkPlan.voice_settings\n}), error: null, runtime: prep.runtime } }];"
+      },
+      "id": "code-12",
+      "name": "Build Prepare Chunks Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Or-Create Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Or-Create Input": {
+      "main": [
+        [
+          {
+            "node": "Get Or Create Voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Or Create Voiceover": {
+      "main": [
+        [
+          {
+            "node": "Did Get-Or-Create Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get-Or-Create Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Chunk Narration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Get-Or-Create Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Narration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Voiceover Chunks SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Voiceover Chunks SQL": {
+      "main": [
+        [
+          {
+            "node": "Did Prepare Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Prepare Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Build Prepare Chunks Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prepare Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

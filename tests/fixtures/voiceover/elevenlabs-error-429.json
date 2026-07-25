@@ -1,0 +1,7 @@
+{
+  "statusCode": 429,
+  "detail": {
+    "status": "too_many_concurrent_requests",
+    "message": "Too many concurrent requests. Please try again shortly."
+  }
+}

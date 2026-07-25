@@ -1,0 +1,24 @@
+-- Canonical query for the "prepare_voiceover_chunks" step's second half.
+-- Chunk identity (sha256 of script_version_id|section_id|unit_index|
+-- pronunciation_text|voice_settings_checksum) is computed here, in SQL —
+-- never trusted as a pre-computed value from n8n. For each planned
+-- chunk: reuse it in-place if this voiceover already has a row at that
+-- chunk_index (resume-in-place); else copy in a 'completed' chunk
+-- sharing the same computed identity from a prior voiceover version of
+-- this script (cross-version reuse, zero additional cost) unless its id
+-- is in $9 (targeted-revision force list); else insert a fresh
+-- 'pending' chunk needing real TTS generation. See
+-- docs/architecture/voiceover-pipeline.md#chunk-identity.
+--
+-- Parameters ($1..$9):
+--   $1  channel_id                    uuid, required
+--   $2  workflow_run_id               uuid, required
+--   $3  content_project_id            uuid, required
+--   $4  voiceover_id                  uuid, required
+--   $5  script_version_id             uuid, required
+--   $6  voice_reference                text, nullable — hashed once into the per-call voice_settings_checksum
+--   $7  voice_settings                 jsonb, required — hashed once into the per-call voice_settings_checksum
+--   $8  chunks                        jsonb array, required — [{section_id, unit_index, text, pronunciation_text}, ...] in assembly order
+--   $9  force_regenerate_chunk_ids    jsonb array, default '[]' — prior-version chunk ids a human revision flagged
+
+SELECT prepare_voiceover_chunks($1, $2, $3, $4, $5, $6, $7, $8, $9) AS result;

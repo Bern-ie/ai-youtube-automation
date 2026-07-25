@@ -26,6 +26,7 @@ export N8N_WEBHOOK_BASE_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step4-co
 export N8N_STEP5_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step5-manual-topic-intake-test"
 export N8N_STEP6_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step6-research-project-test"
 export N8N_STEP7_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step7-script-project-test"
+export N8N_STEP8_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step8-voiceover-project-test"
 export N8N_BASE_URL="http://127.0.0.1:${N8N_PORT:-5678}"
 
 cd "$REPO_ROOT/n8n/tests"
@@ -37,3 +38,5 @@ log "Running Step 6 research pipeline tests (Level A -- fixtures only, no paid A
 node run-step6.js
 log "Running Step 7 script pipeline tests (Level A -- fixtures only, no paid API calls)..."
 node run-step7.js
+log "Running Step 8 voiceover pipeline tests (Level A -- fixtures only, no paid TTS calls)..."
+node run-step8.js

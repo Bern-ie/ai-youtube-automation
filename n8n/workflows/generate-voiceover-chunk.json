@@ -1,0 +1,609 @@
+{
+  "name": "Generate Voiceover Chunk",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-13",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst settings = b.voice_settings || {};\nreturn [{ json: {\n  ctx: b,\n  requestBody: {\n    text: b.pronunciation_text,\n    model_id: b.model,\n    voice_settings: {\n      stability: settings.stability ?? 0.5, similarity_boost: settings.similarity_boost ?? 0.75,\n      style: settings.style ?? 0, use_speaker_boost: settings.use_speaker_boost ?? true\n    }\n  }\n} }];"
+      },
+      "id": "code-14",
+      "name": "Prepare TTS Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ \"https://api.elevenlabs.io/v1/text-to-speech/\" + $json.ctx.voice_reference }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-15",
+      "name": "Call ElevenLabs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_ELEVENLABS",
+          "name": "elevenlabs-api"
+        }
+      },
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-16",
+              "leftValue": "={{ $json['content-type'] !== undefined || $binary.data !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-17",
+      "name": "Did TTS Call Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare TTS Request').first().json.ctx;\nconst statusCode = resp.statusCode || resp.status || 0;\nconst retryable = !(statusCode === 401 || statusCode === 403 || statusCode === 400 || statusCode === 422);\nreturn [{ json: {\n  channel_id: ctx.channel_id, chunk_id: ctx.chunk_id, workflow_run_id: ctx.workflow_run_id, error_code: 'VOICEOVER_CHUNK_GENERATION_FAILED',\n  message: 'ElevenLabs TTS call failed (status ' + statusCode + ')', sanitized_details: { status_code: statusCode },\n  retryable, provider: 'elevenlabs', provider_request_id: null, _ctx: ctx\n} }];"
+      },
+      "id": "code-18",
+      "name": "Build TTS Failure Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-voiceover-chunk-failed.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-19",
+      "name": "Mark Voiceover Chunk Failed (TTS)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Build TTS Failure Info').first().json._ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_CHUNK_GENERATION_FAILED', message: 'TTS provider call failed for chunk ' + ctx.chunk_id, retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-20",
+      "name": "Build TTS Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare TTS Request').first().json.ctx;\n// No URLSearchParams here -- n8n's Code node sandbox does not expose it\n// (the same class of gap as no require('crypto'), see prepare-voiceover-chunks.json).\nconst params = {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, version: String(ctx.version),\n  chunk_index: String(ctx.chunk_index), expected_min_duration_seconds: String(ctx.estimated_duration_seconds),\n  expected_max_duration_seconds: String(ctx.estimated_duration_seconds),\n};\nconst qs = Object.keys(params).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');\nreturn [{ json: { url: 'http://renderer:3000/audio/chunks/validate-and-store?' + qs, ctx } }];"
+      },
+      "id": "code-21",
+      "name": "Prepare Renderer Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendBody": true,
+        "specifyBody": "raw",
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-22",
+      "name": "Call Renderer: Validate And Store",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-23",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-24",
+      "name": "Is Chunk Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $input.first().json;\nconst ctx = $('Prepare Renderer Validate Input').first().json.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, chunk_id: ctx.chunk_id, workflow_run_id: ctx.workflow_run_id, error_code: 'VOICEOVER_CHUNK_INVALID',\n  message: 'Renderer flagged the generated chunk as invalid: ' + JSON.stringify(renderer.issues || renderer.error || []),\n  sanitized_details: { issues: renderer.issues || [] }, retryable: true, provider: 'elevenlabs', provider_request_id: null, _ctx: ctx\n} }];"
+      },
+      "id": "code-25",
+      "name": "Build Invalid-Chunk Failure Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-voiceover-chunk-failed.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-26",
+      "name": "Mark Voiceover Chunk Failed (Invalid)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Build Invalid-Chunk Failure Info').first().json._ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_CHUNK_INVALID', message: 'Generated audio failed renderer validation for chunk ' + ctx.chunk_id, retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-27",
+      "name": "Build Invalid-Chunk Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Renderer Validate Input').first().json.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'elevenlabs', service_type: 'tts', metric: 'characters', quantity: ctx.pronunciation_text.length, unit: 'characters', metadata: {} } }];"
+      },
+      "id": "code-28",
+      "name": "Prepare Usage Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-29",
+      "name": "Record Usage: Characters",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Renderer Validate Input').first().json.ctx;\n// ElevenLabs pricing estimate: ~$0.30 per 1,000 characters at a mid-tier\n// plan -- documented estimate, see docs/architecture/voiceover-pipeline.md#tts-provider-architecture.\nconst PRICE_PER_1K_CHARS = 0.30;\nconst chars = ctx.pronunciation_text.length;\nconst cost = Math.round((chars / 1000) * PRICE_PER_1K_CHARS * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null,\n  provider: 'elevenlabs', service_type: 'tts', model: ctx.model, quantity: chars, unit: 'characters', unit_price_usd: PRICE_PER_1K_CHARS / 1000,\n  total_cost_usd: cost, provider_request_id: null, estimated: true, metadata: {}, _cost: cost\n} }];"
+      },
+      "id": "code-30",
+      "name": "Prepare Cost Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-31",
+      "name": "Record Cost Event",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $('Call Renderer: Validate And Store').first().json;\nconst ctx = $('Prepare Renderer Validate Input').first().json.ctx;\nconst costInput = $('Prepare Cost Event').first().json;\nreturn [{ json: {\n  channel_id: ctx.channel_id, chunk_id: ctx.chunk_id, storage_path: renderer.storage_path, checksum: renderer.checksum,\n  duration_seconds: renderer.duration_seconds, provider: 'elevenlabs', model: ctx.model, voice_reference: ctx.voice_reference,\n  provider_request_id: null, usage_quantity: ctx.pronunciation_text.length, usage_unit: 'characters', cost_usd: costInput._cost,\n  metadata: { leading_silence_ms: renderer.leading_silence_ms, trailing_silence_ms: renderer.trailing_silence_ms }\n} }];"
+      },
+      "id": "code-32",
+      "name": "Prepare Persist Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-voiceover-chunk-success.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-33",
+      "name": "Persist Voiceover Chunk Success",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-34",
+      "name": "Build Generate Chunk Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare TTS Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare TTS Request": {
+      "main": [
+        [
+          {
+            "node": "Call ElevenLabs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call ElevenLabs": {
+      "main": [
+        [
+          {
+            "node": "Did TTS Call Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did TTS Call Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Renderer Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build TTS Failure Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build TTS Failure Info": {
+      "main": [
+        [
+          {
+            "node": "Mark Voiceover Chunk Failed (TTS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Voiceover Chunk Failed (TTS)": {
+      "main": [
+        [
+          {
+            "node": "Build TTS Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Renderer Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Validate And Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Validate And Store": {
+      "main": [
+        [
+          {
+            "node": "Is Chunk Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Chunk Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Invalid-Chunk Failure Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Invalid-Chunk Failure Info": {
+      "main": [
+        [
+          {
+            "node": "Mark Voiceover Chunk Failed (Invalid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Voiceover Chunk Failed (Invalid)": {
+      "main": [
+        [
+          {
+            "node": "Build Invalid-Chunk Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Characters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Characters": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Persist Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Persist Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Voiceover Chunk Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Voiceover Chunk Success": {
+      "main": [
+        [
+          {
+            "node": "Build Generate Chunk Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

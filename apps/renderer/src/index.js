@@ -1,6 +1,7 @@
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { logger } from './logger.js';
+import { audioRouter } from './routes-audio.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const MAX_CONCURRENCY = Number(process.env.RENDERER_MAX_CONCURRENCY || 1);
@@ -17,6 +18,8 @@ app.use((req, res, next) => {
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'renderer' });
 });
+
+app.use(audioRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'not_found', path: req.path });

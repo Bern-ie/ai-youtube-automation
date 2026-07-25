@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/voiceover-chunk.schema.json",
+  "title": "Voiceover Chunk",
+  "description": "The shape returned by claim_next_pending_voiceover_chunk() / get_completed_voiceover_chunks_in_order() — one paid (or reused) TTS generation unit. See docs/architecture/voiceover-pipeline.md#chunking-strategy and #chunk-identity.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["chunk_id", "chunk_index", "section_id", "unit_index", "text"],
+  "properties": {
+    "chunk_id": { "type": "string", "format": "uuid" },
+    "chunk_index": { "type": "integer", "minimum": 0, "description": "0-based position in overall assembly order — never derived from filename." },
+    "section_id": { "type": "string", "minLength": 1, "description": "The script section this chunk's text came from — stable across script sections, per Step 7." },
+    "unit_index": { "type": "integer", "minimum": 0 },
+    "text": { "type": "string" },
+    "pronunciation_text": { "type": ["string", "null"] },
+    "identity_checksum": { "type": ["string", "null"], "description": "sha256(script_version_id|section_id|unit_index|pronunciation_text|voice_settings_checksum) — the deterministic reuse key." },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string", "enum": ["pending", "generating", "completed", "failed"] },
+    "storage_path": { "type": ["string", "null"] },
+    "checksum": { "type": ["string", "null"] },
+    "duration_seconds": { "type": ["number", "null"] }
+  }
+}

@@ -1,0 +1,610 @@
+{
+  "name": "Assemble Voiceover",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-56",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, voiceover_id: b.voiceover_id, _ctx: b } }];"
+      },
+      "id": "code-57",
+      "name": "Prepare Get-Completed-Chunks Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-completed-voiceover-chunks-in-order.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-58",
+      "name": "Get Completed Voiceover Chunks In Order",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Get-Completed-Chunks Input').first().json._ctx;\nconst chunks = $json || [];\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, version: ctx.version,\n  chunks: chunks.map((c) => ({ chunk_index: c.chunk_index, storage_path: c.storage_path })),\n  loudness_target_lufs: ctx.loudness_target_lufs || -16\n} }];"
+      },
+      "id": "code-59",
+      "name": "Prepare Renderer Assemble Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:3000/audio/assemble",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-60",
+      "name": "Call Renderer: Assemble",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-61",
+              "leftValue": "={{ $json.storage_path !== undefined && $json.corrupt !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-62",
+      "name": "Did Renderer Assemble Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $input.first().json;\nconst ctx = $('Prepare Get-Completed-Chunks Input').first().json._ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_ASSEMBLY_FAILED', message: 'renderer failed to assemble the voiceover narration track: ' + (renderer.message || renderer.error || 'unknown error'), retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-63",
+      "name": "Build Assembly Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const assembled = $json;\nconst ctx = $('Prepare Get-Completed-Chunks Input').first().json._ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, voiceover_id: ctx.voiceover_id,\n  storage_path: assembled.storage_path, mp3_storage_path: assembled.mp3_storage_path, checksum: assembled.checksum,\n  duration_seconds: assembled.duration_seconds, subtitle_srt_path: null, subtitle_vtt_path: null\n} }];"
+      },
+      "id": "code-64",
+      "name": "Prepare Record-Assembled Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-assembled-voiceover.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-65",
+      "name": "Record Assembled Voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-66",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-67",
+      "name": "Did Record-Assembled Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-68",
+      "name": "Build Record-Assembled Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rec = $json.data;\nconst chunksById = {};\nfor (const c of $('Get Completed Voiceover Chunks In Order').first().json) chunksById[c.chunk_index] = c;\nconst entries = (rec.timing || []).map((t) => ({\n  start_ms: t.start_ms, end_ms: t.end_ms, text: (chunksById[t.chunk_index] || {}).text || ''\n}));\nconst ctx = $('Prepare Get-Completed-Chunks Input').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, version: ctx.version, entries, _rec: rec, _ctx: ctx } }];"
+      },
+      "id": "code-69",
+      "name": "Prepare Subtitle Entries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:3000/audio/subtitles",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel_id: $json.channel_id, content_project_id: $json.content_project_id, version: $json.version, entries: $json.entries }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-70",
+      "name": "Call Renderer: Subtitles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-71",
+              "leftValue": "={{ $json.srt_storage_path !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-72",
+      "name": "Did Subtitle Generation Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $input.first().json;\nconst ctx = $('Prepare Subtitle Entries').first().json._ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_ASSEMBLY_FAILED', message: 'renderer failed to generate subtitles: ' + (renderer.message || renderer.error || 'unknown error'), retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-73",
+      "name": "Build Subtitle Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const subs = $json;\nconst ctx = $('Prepare Subtitle Entries').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, voiceover_id: ctx.voiceover_id, subtitle_srt_path: subs.srt_storage_path, subtitle_vtt_path: subs.vtt_storage_path } }];"
+      },
+      "id": "code-74",
+      "name": "Prepare Set-Subtitle-Paths Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:set-voiceover-subtitle-paths.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-75",
+      "name": "Set Voiceover Subtitle Paths",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-76",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-77",
+      "name": "Did Set-Subtitle-Paths Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-78",
+      "name": "Build Set-Subtitle-Paths Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rec = $('Prepare Subtitle Entries').first().json._rec;\nconst subsResult = $input.first().json;\nconst renderer = $('Call Renderer: Assemble').first().json;\nreturn [{ json: {\n  success: true,\n  data: Object.assign({}, rec, {\n    subtitle_srt_path: subsResult.data.subtitle_srt_path, subtitle_vtt_path: subsResult.data.subtitle_vtt_path,\n    audio_analysis: {\n      has_audio_stream: renderer.has_audio_stream, corrupt: renderer.corrupt, integrated_lufs: renderer.integrated_lufs,\n      leading_silence_ms: renderer.leading_silence_ms, trailing_silence_ms: renderer.trailing_silence_ms,\n      excessive_silence_events: renderer.excessive_silence_events\n    }\n  }),\n  error: null, runtime: subsResult.runtime\n} }];"
+      },
+      "id": "code-79",
+      "name": "Build Assemble Voiceover Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Completed-Chunks Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Completed-Chunks Input": {
+      "main": [
+        [
+          {
+            "node": "Get Completed Voiceover Chunks In Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Completed Voiceover Chunks In Order": {
+      "main": [
+        [
+          {
+            "node": "Prepare Renderer Assemble Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Renderer Assemble Input": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Assemble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Assemble": {
+      "main": [
+        [
+          {
+            "node": "Did Renderer Assemble Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Renderer Assemble Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Record-Assembled Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Assembly Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Record-Assembled Input": {
+      "main": [
+        [
+          {
+            "node": "Record Assembled Voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Assembled Voiceover": {
+      "main": [
+        [
+          {
+            "node": "Did Record-Assembled Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Record-Assembled Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Subtitle Entries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Record-Assembled Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Subtitle Entries": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Subtitles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Subtitles": {
+      "main": [
+        [
+          {
+            "node": "Did Subtitle Generation Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Subtitle Generation Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Set-Subtitle-Paths Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Subtitle Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Set-Subtitle-Paths Input": {
+      "main": [
+        [
+          {
+            "node": "Set Voiceover Subtitle Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Voiceover Subtitle Paths": {
+      "main": [
+        [
+          {
+            "node": "Did Set-Subtitle-Paths Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Set-Subtitle-Paths Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Build Assemble Voiceover Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Set-Subtitle-Paths Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

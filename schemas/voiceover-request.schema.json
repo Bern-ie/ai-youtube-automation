@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/voiceover-request.schema.json",
+  "title": "Voiceover Project Request",
+  "description": "Input to the `Voiceover Project` reusable workflow (and its dev test webhook). Mirrors the Step 6/7 orchestrator request shape exactly — see docs/architecture/voiceover-pipeline.md#input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "content_project_id", "idempotency_key"],
+  "properties": {
+    "channel_id": { "type": "string", "format": "uuid" },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "force_regenerate_chunk_ids": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "description": "Chunk IDs to force-regenerate even if a completed, identity-matching chunk exists (targeted human revision)."
+    },
+    "revision_trigger": {
+      "type": "string",
+      "enum": ["initial_generation", "revision_requested"],
+      "description": "Why this run was started. Defaults to initial_generation when omitted."
+    },
+    "revision_reason": { "type": ["string", "null"], "description": "Reviewer-supplied reason, present when revision_trigger is revision_requested." },
+    "_dev_fail_after_step": { "type": ["string", "null"], "description": "Dev-only failure-injection escape hatch — never part of the public contract." }
+  }
+}

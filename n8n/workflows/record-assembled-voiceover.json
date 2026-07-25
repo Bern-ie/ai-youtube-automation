@@ -1,0 +1,80 @@
+{
+  "name": "Record Assembled Voiceover",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT record_assembled_voiceover($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.workflow_run_id, $json.content_project_id, $json.voiceover_id, $json.storage_path, $json.mp3_storage_path || null, $json.checksum, $json.duration_seconds, $json.subtitle_srt_path || null, $json.subtitle_vtt_path || null] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call Record Assembled Voiceover",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Record Assembled Voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Record Assembled Voiceover": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

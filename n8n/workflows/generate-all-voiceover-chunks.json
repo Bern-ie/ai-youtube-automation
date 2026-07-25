@@ -1,0 +1,509 @@
+{
+  "name": "Generate All Voiceover Chunks",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-35",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: Object.assign({}, b, {\n  _iteration: (b._iteration || 0) + 1,\n  _max_iterations: b._max_iterations || 1000,\n}) }];"
+      },
+      "id": "code-36",
+      "name": "Normalize Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-37",
+              "leftValue": "={{ $json._iteration > $json._max_iterations }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-38",
+      "name": "Is Iteration Budget Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_CHUNK_GENERATION_FAILED', message: 'voiceover chunk generation loop exceeded its safety iteration budget (' + b._max_iterations + ') -- aborting to prevent an unbounded cost loop', retryable: false, error_id: null },\n  runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-39",
+      "name": "Build Loop Budget Exceeded Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:claim-next-pending-voiceover-chunk.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-40",
+      "name": "Claim Next Pending Voiceover Chunk",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-41",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-42",
+      "name": "Did Claim Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-43",
+      "name": "Build Claim Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-44",
+              "leftValue": "={{ $json.data !== null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-45",
+      "name": "Was A Chunk Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nreturn [{ json: { channel_id: ctx.channel_id, voiceover_id: ctx.voiceover_id, _ctx: ctx } }];"
+      },
+      "id": "code-46",
+      "name": "Prepare Summary Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-voiceover-chunk-generation-summary.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-47",
+      "name": "Get Voiceover Chunk Generation Summary",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-48",
+              "leftValue": "={{ $json.all_complete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-49",
+      "name": "Did All Chunks Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summary = $input.first().json;\nconst ctx = $('Prepare Summary Input').first().json._ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_CHUNK_GENERATION_FAILED', message: (summary.failed) + ' of ' + (summary.total) + ' voiceover chunks permanently failed (retry budget exhausted or non-retryable error) -- resolve via a targeted revision or fix the underlying provider issue and resume', retryable: true, error_id: null, details: summary },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-50",
+      "name": "Build Incomplete-Chunks Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summary = $input.first().json;\nconst ctx = $('Prepare Summary Input').first().json._ctx;\nreturn [{ json: {\n  success: true, data: Object.assign({ voiceover_id: ctx.voiceover_id }, summary),\n  error: null, runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-51",
+      "name": "Build Generate-All-Chunks Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nconst claimed = $json.data;\nconst text = claimed.pronunciation_text || claimed.text;\nconst wordCount = text.split(/\\s+/).filter(Boolean).length;\nconst WPM = 155;\nconst estimatedSeconds = Math.max(0.5, (wordCount / WPM) * 60);\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  voiceover_id: ctx.voiceover_id, provider: ctx.provider, model: ctx.model, voice_reference: ctx.voice_reference,\n  voice_settings: ctx.voice_settings, version: ctx.version,\n  chunk_id: claimed.chunk_id, chunk_index: claimed.chunk_index, section_id: claimed.section_id, unit_index: claimed.unit_index,\n  text: claimed.text, pronunciation_text: claimed.pronunciation_text, attempt: claimed.attempt,\n  estimated_duration_seconds: estimatedSeconds,\n  _loop: { _iteration: ctx._iteration, _max_iterations: ctx._max_iterations }\n} }];"
+      },
+      "id": "code-52",
+      "name": "Merge Chunk With Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-voiceover-chunk.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-53",
+      "name": "Generate Voiceover Chunk",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const merged = $('Merge Chunk With Context').first().json;\nreturn [{ json: {\n  channel_id: merged.channel_id, workflow_run_id: merged.workflow_run_id, content_project_id: merged.content_project_id,\n  voiceover_id: merged.voiceover_id, provider: merged.provider, model: merged.model, voice_reference: merged.voice_reference,\n  voice_settings: merged.voice_settings, version: merged.version,\n  _iteration: merged._loop._iteration, _max_iterations: merged._loop._max_iterations\n} }];"
+      },
+      "id": "code-54",
+      "name": "Prepare Next Iteration Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-all-voiceover-chunks.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-55",
+      "name": "Generate All Voiceover Chunks (Recurse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Is Iteration Budget Exceeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Iteration Budget Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Build Loop Budget Exceeded Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claim Next Pending Voiceover Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Next Pending Voiceover Chunk": {
+      "main": [
+        [
+          {
+            "node": "Did Claim Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Claim Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Was A Chunk Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Claim Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was A Chunk Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Merge Chunk With Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Summary Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Summary Input": {
+      "main": [
+        [
+          {
+            "node": "Get Voiceover Chunk Generation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Voiceover Chunk Generation Summary": {
+      "main": [
+        [
+          {
+            "node": "Did All Chunks Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did All Chunks Complete?": {
+      "main": [
+        [
+          {
+            "node": "Build Generate-All-Chunks Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Incomplete-Chunks Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Chunk With Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Voiceover Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Voiceover Chunk": {
+      "main": [
+        [
+          {
+            "node": "Prepare Next Iteration Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Iteration Input": {
+      "main": [
+        [
+          {
+            "node": "Generate All Voiceover Chunks (Recurse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

@@ -1,0 +1,80 @@
+{
+  "name": "Prepare Voiceover Chunks SQL",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT prepare_voiceover_chunks($1, $2, $3, $4, $5, $6, $7, $8, $9) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.workflow_run_id, $json.content_project_id, $json.voiceover_id, $json.script_version_id, $json.voice_reference || null, JSON.stringify($json.voice_settings || {}), JSON.stringify($json.chunks || []), JSON.stringify($json.force_regenerate_chunk_ids || [])] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call Prepare Voiceover Chunks SQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Prepare Voiceover Chunks SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Prepare Voiceover Chunks SQL": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

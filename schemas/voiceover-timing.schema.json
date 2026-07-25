@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/voiceover-timing.schema.json",
+  "title": "Voiceover Timing Package",
+  "description": "voiceovers.timing — computed deterministically by record_assembled_voiceover() as a cumulative sum of completed chunk durations in chunk_index order. Drives subtitle generation, visual asset timing, and rendering. See docs/architecture/voiceover-pipeline.md#timing-data.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["chunk_index", "section_id", "unit_index", "start_ms", "end_ms", "duration_ms"],
+    "properties": {
+      "chunk_index": { "type": "integer", "minimum": 0 },
+      "section_id": { "type": "string" },
+      "unit_index": { "type": "integer", "minimum": 0 },
+      "start_ms": { "type": "number", "minimum": 0 },
+      "end_ms": { "type": "number", "minimum": 0 },
+      "duration_ms": { "type": "number", "minimum": 0 }
+    }
+  }
+}

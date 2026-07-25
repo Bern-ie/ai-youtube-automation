@@ -1,0 +1,7 @@
+{
+  "statusCode": 422,
+  "detail": {
+    "status": "voice_not_found",
+    "message": "A voice for the voice_id you specified was not found."
+  }
+}

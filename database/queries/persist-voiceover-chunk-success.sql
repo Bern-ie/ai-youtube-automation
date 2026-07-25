@@ -1,0 +1,21 @@
+-- Canonical query for persisting one successfully generated + validated
+-- chunk. Called immediately after each chunk's TTS call + renderer
+-- validation succeed, so a crash later in the run never loses
+-- already-paid-for audio (see docs/architecture/voiceover-pipeline.md#paid-step-idempotency).
+--
+-- Parameters ($1..$13):
+--   $1   channel_id             uuid, required
+--   $2   chunk_id               uuid, required
+--   $3   storage_path           text, required
+--   $4   checksum               text, required
+--   $5   duration_seconds       numeric, required
+--   $6   provider               text
+--   $7   model                  text
+--   $8   voice_reference        text
+--   $9   provider_request_id    text
+--   $10  usage_quantity         numeric
+--   $11  usage_unit             text
+--   $12  cost_usd               numeric
+--   $13  metadata               jsonb, default '{}'
+
+SELECT persist_voiceover_chunk_success($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) AS result;

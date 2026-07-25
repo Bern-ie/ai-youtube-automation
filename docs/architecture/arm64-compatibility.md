@@ -22,9 +22,15 @@ introduced one schema-level addition — `pg_trgm`** — a standard
 PostgreSQL contrib module bundled in the official `postgres:16.9` image
 on both platforms (confirmed via `pg_available_extensions` before use,
 not assumed), not a separately-built or third-party artifact; no new
-container or architecture-sensitive binary either. **Nothing in this
-matrix is Level 2 (native Oracle Ampere A1) verified yet** — that happens
-once the VM exists, a later step.
+container or architecture-sensitive binary either. **Step 8 added four
+new FFmpeg capability checks to the existing renderer capability test** —
+WAV/PCM transcode, the concat demuxer, `silencedetect`, and a `loudnorm`
+measurement pass — the exact operations the new voiceover audio pipeline
+(`apps/renderer/src/audio.js`) performs. All four passed on both AMD64
+and ARM64 Level 1 (QEMU); no new container or base image was introduced —
+see [FFmpeg validation results](#ffmpeg-validation-results). **Nothing in
+this matrix is Level 2 (native Oracle Ampere A1) verified yet** — that
+happens once the VM exists, a later step.
 
 ## Two validation levels
 
@@ -80,6 +86,10 @@ src/ffmpeg-capability-test.js`, via `scripts/test-arm64.sh`). Both ran
 | ffmpeg/ffprobe binaries present | PASS | PASS |
 | Primary pipeline: synthetic video+audio generation, H.264 encode, AAC encode, scale, overlay, loudnorm, MP4 output | PASS | PASS |
 | ffprobe confirms H.264 video stream + AAC audio stream in the output | PASS | PASS |
+| WAV/PCM transcode (`pcm_s16le`, mono, 44.1kHz) | PASS | PASS |
+| Concatenation (concat demuxer, WAV chunks) | PASS | PASS |
+| `silencedetect` filter (leading/trailing silence analysis) | PASS | PASS |
+| `loudnorm` measurement pass (JSON stats) | PASS | PASS |
 | Subtitle burn-in (`subtitles` filter, requires libass) | PASS | PASS |
 | Audio mixing (`amix` filter) | PASS | PASS |
 | Transitions (`xfade` filter) | PASS | PASS |
@@ -87,9 +97,15 @@ src/ffmpeg-capability-test.js`, via `scripts/test-arm64.sh`). Both ran
 All required capabilities passed on both platforms. This is not a "does it
 launch" check — it generates real synthetic media, encodes it, and probes
 the result with `ffprobe` for each capability. As expected, QEMU emulation
-made each check noticeably slower (e.g. the primary pipeline: ~300ms on
-AMD64 vs. ~3.5s emulated on ARM64) but every check still passed — that
-timing gap is exactly why Level 1 isn't a performance proxy for Level 2.
+made each check noticeably slower (e.g. the primary pipeline: ~350ms on
+AMD64 vs. ~4.3s emulated on ARM64; WAV/PCM transcode ~290ms vs. ~2.2s;
+concat ~195ms vs. ~1.7s; `silencedetect` ~185ms vs. ~2.0s; `loudnorm`
+measurement ~105ms vs. ~1.3s) but every check still passed — that timing
+gap is exactly why Level 1 isn't a performance proxy for Level 2. The four
+audio checks were added in Step 8 (`apps/renderer/src/ffmpeg-capability-test.js`)
+specifically to cover the operations `apps/renderer/src/audio.js` performs
+against TTS provider chunks — see
+[voiceover-pipeline.md](voiceover-pipeline.md#arm64).
 
 ## Object storage note {#object-storage-note}
 

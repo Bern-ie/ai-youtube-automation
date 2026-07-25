@@ -63,7 +63,11 @@ ON CONFLICT (channel_id, rule_type, value) DO NOTHING;
 INSERT INTO channel_provider_settings (channel_id, service_type, provider, enabled, priority, monthly_limit_usd, settings)
 VALUES
   ('11111111-1111-1111-1111-111111111111', 'llm', 'anthropic', true, 1, 50.00, '{"model": "claude-opus-4-8"}'::jsonb),
-  ('11111111-1111-1111-1111-111111111111', 'tts', 'elevenlabs', true, 1, 20.00, '{"voice_style": "documentary-narrator"}'::jsonb),
+  -- Step 8 voiceover pipeline — see docs/architecture/voiceover-pipeline.md#tts-provider-architecture.
+  -- voice_style is the pre-existing free-text field; everything else is
+  -- the structured voice configuration the TTS adapter actually reads.
+  ('11111111-1111-1111-1111-111111111111', 'tts', 'elevenlabs', true, 1, 20.00,
+    '{"voice_style": "documentary-narrator", "voice_id": "21m00Tcm4TlvDq8ikWAM", "model": "eleven_multilingual_v2", "language": "en", "output_format": "mp3_44100_128", "sample_rate": 44100, "speaking_rate": 1.0, "stability": 0.5, "similarity_boost": 0.75, "style": 0.2, "use_speaker_boost": true, "normalization": "auto"}'::jsonb),
   -- Step 6 research pipeline — see docs/architecture/research-pipeline.md#provider-architecture.
   -- Tavily is primary (source-transparent, URL-returning, simple HTTP API);
   -- Brave Search is the configured fallback if Tavily is unavailable/rate-limited.
@@ -83,7 +87,12 @@ VALUES
   -- Covers one generation plus up to 3 automatic QC revisions at this
   -- channel's configured model; conservative relative to the shared $8
   -- per-video budget the same way research_stage is.
-  ('11111111-1111-1111-1111-111111111111', 'script_stage', 2.00, 'hard', 80.0)
+  ('11111111-1111-1111-1111-111111111111', 'script_stage', 2.00, 'hard', 80.0),
+  -- Per-project voiceover-stage ceiling — see docs/architecture/voiceover-pipeline.md#voiceover-stage-cost-ceiling.
+  -- ElevenLabs is priced per character; $1.50 comfortably covers a
+  -- long-form (~8-15 minute) script's worth of chunk generation plus
+  -- some chunk-level retries, at this channel's configured model.
+  ('11111111-1111-1111-1111-111111111111', 'voiceover_stage', 1.50, 'hard', 80.0)
 ON CONFLICT (channel_id, limit_type) DO NOTHING;
 
 INSERT INTO channel_publish_schedules (channel_id, day_of_week, time_of_day, timezone, cadence)

@@ -1,0 +1,4852 @@
+{
+  "name": "Voiceover Project",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst errors = [];\nconst isUuid = (s) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);\nconst allowedKeys = new Set(['channel_id','content_project_id','idempotency_key','correlation_id','_dev_fail_after_step','force_regenerate_chunk_ids','revision_trigger','revision_reason']);\nfor (const k of Object.keys(b)) { if (!allowedKeys.has(k)) errors.push(`unknown field: ${k}`); }\nif (!isUuid(b.channel_id)) errors.push('channel_id must be a UUID');\nif (!isUuid(b.content_project_id)) errors.push('content_project_id must be a UUID');\nif (typeof b.idempotency_key !== 'string' || b.idempotency_key.length === 0 || b.idempotency_key.length > 500) errors.push('idempotency_key must be a non-empty string up to 500 characters');\nif (b.correlation_id != null && !isUuid(b.correlation_id)) errors.push('correlation_id must be a UUID');\nif (b.force_regenerate_chunk_ids != null && !Array.isArray(b.force_regenerate_chunk_ids)) errors.push('force_regenerate_chunk_ids must be an array');\nreturn [{ json: {\n  valid: errors.length === 0, errors,\n  channel_id: b.channel_id, content_project_id: b.content_project_id,\n  idempotency_key: b.idempotency_key ?? null, correlation_id: b.correlation_id ?? null,\n  force_regenerate_chunk_ids: b.force_regenerate_chunk_ids ?? [],\n  revision_trigger: b.revision_trigger ?? 'initial_generation', revision_reason: b.revision_reason ?? null,\n  _dev_fail_after_step: b._dev_fail_after_step ?? null\n} }];"
+      },
+      "id": "code-2",
+      "name": "Validate Request Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Is Request Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const v = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'INVALID_EXECUTION_CONTEXT', message: 'request failed validation: ' + v.errors.join('; '), retryable: false, error_id: null },\n  runtime: { channel_id: null, workflow_run_id: null, content_project_id: null, correlation_id: v.correlation_id ?? null }\n} }];"
+      },
+      "id": "code-5",
+      "name": "Build Validation Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const v = $('Validate Request Shape').first().json;\nreturn [{ json: {\n  channel_id: v.channel_id, workflow_name: 'voiceover-project', idempotency_key: v.idempotency_key,\n  content_project_id: v.content_project_id, correlation_id: v.correlation_id,\n  input: {}, max_retries: 3\n} }];"
+      },
+      "id": "code-6",
+      "name": "Prepare Init Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:initialize-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-7",
+      "name": "Initialize Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-8",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Did Initialize Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-10",
+      "name": "Build Init Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id } }];"
+      },
+      "id": "code-11",
+      "name": "Prepare Get-Steps Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-workflow-run-steps.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-12",
+      "name": "Get Workflow Run Steps",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stepsArr = $input.first().json.steps || [];\nconst byName = {};\nfor (const s of stepsArr) byName[s.step_name] = s;\nconst flag = (n) => byName[n]?.status === 'succeeded';\nconst out = (n) => byName[n]?.output ?? null;\nreturn [{ json: {\n  load_channel_configuration_done: flag('load_channel_configuration'), load_channel_configuration_output: out('load_channel_configuration'),\n  load_approved_script_done: flag('load_approved_script'), load_approved_script_output: out('load_approved_script'),\n  voiceover_budget_preflight_done: flag('voiceover_budget_preflight'), voiceover_budget_preflight_output: out('voiceover_budget_preflight'),\n  prepare_voiceover_chunks_done: flag('prepare_voiceover_chunks'), prepare_voiceover_chunks_output: out('prepare_voiceover_chunks'),\n  generate_voiceover_chunks_done: flag('generate_voiceover_chunks'), generate_voiceover_chunks_output: out('generate_voiceover_chunks'),\n  assemble_voiceover_done: flag('assemble_voiceover'), assemble_voiceover_output: out('assemble_voiceover'),\n  voiceover_quality_control_done: flag('voiceover_quality_control'), voiceover_quality_control_output: out('voiceover_quality_control'),\n  create_voiceover_approval_done: flag('create_voiceover_approval'), create_voiceover_approval_output: out('create_voiceover_approval'),\n} }];"
+      },
+      "id": "code-13",
+      "name": "Compute Resume Flags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-14",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.load_channel_configuration_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Skip load_channel_configuration?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.load_channel_configuration_output || {};\nreturn [{ json: { channel: d.channel, content: d.content, style: d.style, branding: d.branding, providers: d.providers, budgets: d.budgets, strategy: d.strategy } }];"
+      },
+      "id": "code-16",
+      "name": "Use Stored Output: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-17",
+      "name": "Prepare Mark-Running Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-18",
+      "name": "Mark Step Running: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id } }];"
+      },
+      "id": "code-19",
+      "name": "Prepare Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-20",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "load_channel_configuration",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-21",
+      "name": "Inject Failure Here? (load_channel_configuration)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step load_channel_configuration', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-22",
+      "name": "Synthesize Injected Failure: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:load-channel-configuration.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-23",
+      "name": "Call: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-24",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-25",
+      "name": "Did load_channel_configuration Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0, error: r.error } }];"
+      },
+      "id": "code-26",
+      "name": "Tag Failure: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-27",
+      "name": "Prepare Mark-Failed Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-28",
+      "name": "Mark Step Failed: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: load_channel_configuration').first().json._passthrough }];"
+      },
+      "id": "code-29",
+      "name": "Recover Failure Tag: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-30",
+      "name": "Prepare Fail-Run Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-31",
+      "name": "Fail Workflow Run: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-32",
+      "name": "Build Failure Response: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-33",
+      "name": "Prepare Mark-Succeeded Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-34",
+      "name": "Mark Step Succeeded: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: load_channel_configuration').first().json._fresh_data;\nreturn [{ json: { channel: d.channel, content: d.content, style: d.style, branding: d.branding, providers: d.providers, budgets: d.budgets, strategy: d.strategy } }];"
+      },
+      "id": "code-35",
+      "name": "Extract Fresh Output: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-36",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.load_approved_script_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-37",
+      "name": "Skip load_approved_script?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.load_approved_script_output || {};\nreturn [{ json: { content_project_id: d.content_project_id, topic: d.topic, target_duration_seconds: d.target_duration_seconds, status: d.status, script_version_id: d.script_version_id, script_content: d.script_content, narration_units: d.narration_units } }];"
+      },
+      "id": "code-38",
+      "name": "Use Stored Output: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_approved_script', sequence: 1,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-39",
+      "name": "Prepare Mark-Running Input: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-40",
+      "name": "Mark Step Running: load_approved_script",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id } }];"
+      },
+      "id": "code-41",
+      "name": "Prepare Input: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-42",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "load_approved_script",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-43",
+      "name": "Inject Failure Here? (load_approved_script)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step load_approved_script', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-44",
+      "name": "Synthesize Injected Failure: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:load-approved-script-for-voiceover.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-45",
+      "name": "Call: load_approved_script",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-46",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-47",
+      "name": "Did load_approved_script Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_approved_script', sequence: 1, error: r.error } }];"
+      },
+      "id": "code-48",
+      "name": "Tag Failure: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-49",
+      "name": "Prepare Mark-Failed Input: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-50",
+      "name": "Mark Step Failed: load_approved_script",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: load_approved_script').first().json._passthrough }];"
+      },
+      "id": "code-51",
+      "name": "Recover Failure Tag: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-52",
+      "name": "Prepare Fail-Run Input: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-53",
+      "name": "Fail Workflow Run: load_approved_script",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-54",
+      "name": "Build Failure Response: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_approved_script', sequence: 1,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-55",
+      "name": "Prepare Mark-Succeeded Input: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-56",
+      "name": "Mark Step Succeeded: load_approved_script",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: load_approved_script').first().json._fresh_data;\nreturn [{ json: { content_project_id: d.content_project_id, topic: d.topic, target_duration_seconds: d.target_duration_seconds, status: d.status, script_version_id: d.script_version_id, script_content: d.script_content, narration_units: d.narration_units } }];"
+      },
+      "id": "code-57",
+      "name": "Extract Fresh Output: load_approved_script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-58",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.voiceover_budget_preflight_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-59",
+      "name": "Skip voiceover_budget_preflight?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.voiceover_budget_preflight_output || {};\nreturn [{ json: { per_video_remaining_usd: d.per_video_remaining_usd, monthly_channel_remaining_usd: d.monthly_channel_remaining_usd, estimated_cost_usd: d.estimated_cost_usd, warnings: d.warnings } }];"
+      },
+      "id": "code-60",
+      "name": "Use Stored Output: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'voiceover_budget_preflight', sequence: 2,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-61",
+      "name": "Prepare Mark-Running Input: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-62",
+      "name": "Mark Step Running: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        10400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet proj; try { proj = $('Extract Fresh Output: load_approved_script').first().json; } catch (e) { proj = $('Use Stored Output: load_approved_script').first().json; }\n// TTS cost is estimable up front from total character count, unlike LLM\n// cost -- see docs/architecture/voiceover-pipeline.md#tts-provider-architecture\n// for the ElevenLabs $0.30/1,000-character estimate this mirrors.\nconst PRICE_PER_1K_CHARS = 0.30;\nconst totalChars = (proj.narration_units || []).reduce((sum, u) => sum + (u.narration || '').length, 0);\nconst estimatedCost = Math.round((totalChars / 1000) * PRICE_PER_1K_CHARS * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  estimated_cost_usd: estimatedCost\n} }];"
+      },
+      "id": "code-63",
+      "name": "Prepare Input: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-64",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "voiceover_budget_preflight",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-65",
+      "name": "Inject Failure Here? (voiceover_budget_preflight)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        10800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step voiceover_budget_preflight', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-66",
+      "name": "Synthesize Injected Failure: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:voiceover-budget-preflight.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-67",
+      "name": "Call: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        11200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-68",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-69",
+      "name": "Did voiceover_budget_preflight Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'voiceover_budget_preflight', sequence: 2, error: r.error } }];"
+      },
+      "id": "code-70",
+      "name": "Tag Failure: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-71",
+      "name": "Prepare Mark-Failed Input: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-72",
+      "name": "Mark Step Failed: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        12000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: voiceover_budget_preflight').first().json._passthrough }];"
+      },
+      "id": "code-73",
+      "name": "Recover Failure Tag: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-74",
+      "name": "Prepare Fail-Run Input: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-75",
+      "name": "Fail Workflow Run: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        12600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-76",
+      "name": "Build Failure Response: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'voiceover_budget_preflight', sequence: 2,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-77",
+      "name": "Prepare Mark-Succeeded Input: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-78",
+      "name": "Mark Step Succeeded: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: voiceover_budget_preflight').first().json._fresh_data;\nreturn [{ json: { per_video_remaining_usd: d.per_video_remaining_usd, monthly_channel_remaining_usd: d.monthly_channel_remaining_usd, estimated_cost_usd: d.estimated_cost_usd, warnings: d.warnings } }];"
+      },
+      "id": "code-79",
+      "name": "Extract Fresh Output: voiceover_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-80",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.prepare_voiceover_chunks_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-81",
+      "name": "Skip prepare_voiceover_chunks?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        13600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.prepare_voiceover_chunks_output || {};\nreturn [{ json: { voiceover_id: d.voiceover_id, version: d.version, provider: d.provider, model: d.model, voice_reference: d.voice_reference, voice_settings: d.voice_settings, chunks_prepared: d.chunks_prepared, chunks_reused: d.chunks_reused, chunks_needing_generation: d.chunks_needing_generation, total_chunks: d.total_chunks } }];"
+      },
+      "id": "code-82",
+      "name": "Use Stored Output: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'prepare_voiceover_chunks', sequence: 3,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-83",
+      "name": "Prepare Mark-Running Input: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-84",
+      "name": "Mark Step Running: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        14200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nconst v = $('Validate Request Shape').first().json;\nlet cfg; try { cfg = $('Extract Fresh Output: load_channel_configuration').first().json; } catch (e) { cfg = $('Use Stored Output: load_channel_configuration').first().json; }\nlet proj; try { proj = $('Extract Fresh Output: load_approved_script').first().json; } catch (e) { proj = $('Use Stored Output: load_approved_script').first().json; }\nconst ttsProviders = (cfg.providers && cfg.providers.tts) || [];\nconst tts = ttsProviders.find((p) => p.enabled) || ttsProviders[0] || {};\nconst settings = tts.settings || {};\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  script_version_id: proj.script_version_id, narration_units: proj.narration_units, provider: tts.provider, model: settings.model,\n  voice_reference: settings.voice_id, voice_settings: settings,\n  revision_trigger: v.revision_trigger, revision_reason: v.revision_reason,\n  force_regenerate_chunk_ids: v.force_regenerate_chunk_ids\n} }];"
+      },
+      "id": "code-85",
+      "name": "Prepare Input: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-86",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "prepare_voiceover_chunks",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-87",
+      "name": "Inject Failure Here? (prepare_voiceover_chunks)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        14600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step prepare_voiceover_chunks', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-88",
+      "name": "Synthesize Injected Failure: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:prepare-voiceover-chunks.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-89",
+      "name": "Call: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        15000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-90",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-91",
+      "name": "Did prepare_voiceover_chunks Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        15200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'prepare_voiceover_chunks', sequence: 3, error: r.error } }];"
+      },
+      "id": "code-92",
+      "name": "Tag Failure: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-93",
+      "name": "Prepare Mark-Failed Input: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-94",
+      "name": "Mark Step Failed: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        15800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: prepare_voiceover_chunks').first().json._passthrough }];"
+      },
+      "id": "code-95",
+      "name": "Recover Failure Tag: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-96",
+      "name": "Prepare Fail-Run Input: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-97",
+      "name": "Fail Workflow Run: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        16400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-98",
+      "name": "Build Failure Response: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'prepare_voiceover_chunks', sequence: 3,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-99",
+      "name": "Prepare Mark-Succeeded Input: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-100",
+      "name": "Mark Step Succeeded: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        17000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: prepare_voiceover_chunks').first().json._fresh_data;\nreturn [{ json: { voiceover_id: d.voiceover_id, version: d.version, provider: d.provider, model: d.model, voice_reference: d.voice_reference, voice_settings: d.voice_settings, chunks_prepared: d.chunks_prepared, chunks_reused: d.chunks_reused, chunks_needing_generation: d.chunks_needing_generation, total_chunks: d.total_chunks } }];"
+      },
+      "id": "code-101",
+      "name": "Extract Fresh Output: prepare_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-102",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.generate_voiceover_chunks_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-103",
+      "name": "Skip generate_voiceover_chunks?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        17400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.generate_voiceover_chunks_output || {};\nreturn [{ json: { voiceover_id: d.voiceover_id, total: d.total, completed: d.completed, failed: d.failed, pending_or_generating: d.pending_or_generating, reused: d.reused, total_attempts: d.total_attempts, total_cost_usd: d.total_cost_usd, all_complete: d.all_complete } }];"
+      },
+      "id": "code-104",
+      "name": "Use Stored Output: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_voiceover_chunks', sequence: 4,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-105",
+      "name": "Prepare Mark-Running Input: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-106",
+      "name": "Mark Step Running: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        18000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet prep; try { prep = $('Extract Fresh Output: prepare_voiceover_chunks').first().json; } catch (e) { prep = $('Use Stored Output: prepare_voiceover_chunks').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  voiceover_id: prep.voiceover_id, provider: prep.provider, model: prep.model, voice_reference: prep.voice_reference,\n  voice_settings: prep.voice_settings, version: prep.version,\n  _max_iterations: Math.max(50, (prep.total_chunks || 0) * 4 + 10)\n} }];"
+      },
+      "id": "code-107",
+      "name": "Prepare Input: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-108",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "generate_voiceover_chunks",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-109",
+      "name": "Inject Failure Here? (generate_voiceover_chunks)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        18400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step generate_voiceover_chunks', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-110",
+      "name": "Synthesize Injected Failure: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-all-voiceover-chunks.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-111",
+      "name": "Call: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        18800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-112",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-113",
+      "name": "Did generate_voiceover_chunks Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        19000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_voiceover_chunks', sequence: 4, error: r.error } }];"
+      },
+      "id": "code-114",
+      "name": "Tag Failure: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-115",
+      "name": "Prepare Mark-Failed Input: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-116",
+      "name": "Mark Step Failed: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        19600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: generate_voiceover_chunks').first().json._passthrough }];"
+      },
+      "id": "code-117",
+      "name": "Recover Failure Tag: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-118",
+      "name": "Prepare Fail-Run Input: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-119",
+      "name": "Fail Workflow Run: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        20200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-120",
+      "name": "Build Failure Response: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_voiceover_chunks', sequence: 4,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-121",
+      "name": "Prepare Mark-Succeeded Input: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-122",
+      "name": "Mark Step Succeeded: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        20800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: generate_voiceover_chunks').first().json._fresh_data;\nreturn [{ json: { voiceover_id: d.voiceover_id, total: d.total, completed: d.completed, failed: d.failed, pending_or_generating: d.pending_or_generating, reused: d.reused, total_attempts: d.total_attempts, total_cost_usd: d.total_cost_usd, all_complete: d.all_complete } }];"
+      },
+      "id": "code-123",
+      "name": "Extract Fresh Output: generate_voiceover_chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-124",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.assemble_voiceover_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-125",
+      "name": "Skip assemble_voiceover?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        21200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.assemble_voiceover_output || {};\nreturn [{ json: { voiceover_id: d.voiceover_id, storage_path: d.storage_path, duration_seconds: d.duration_seconds, timing: d.timing, chunk_summary: d.chunk_summary, subtitle_srt_path: d.subtitle_srt_path, subtitle_vtt_path: d.subtitle_vtt_path, audio_analysis: d.audio_analysis } }];"
+      },
+      "id": "code-126",
+      "name": "Use Stored Output: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'assemble_voiceover', sequence: 5,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-127",
+      "name": "Prepare Mark-Running Input: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-128",
+      "name": "Mark Step Running: assemble_voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        21800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet prep; try { prep = $('Extract Fresh Output: prepare_voiceover_chunks').first().json; } catch (e) { prep = $('Use Stored Output: prepare_voiceover_chunks').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  voiceover_id: prep.voiceover_id, version: prep.version, loudness_target_lufs: -16\n} }];"
+      },
+      "id": "code-129",
+      "name": "Prepare Input: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-130",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "assemble_voiceover",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-131",
+      "name": "Inject Failure Here? (assemble_voiceover)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        22200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step assemble_voiceover', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-132",
+      "name": "Synthesize Injected Failure: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:assemble-voiceover.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-133",
+      "name": "Call: assemble_voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        22600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-134",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-135",
+      "name": "Did assemble_voiceover Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        22800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'assemble_voiceover', sequence: 5, error: r.error } }];"
+      },
+      "id": "code-136",
+      "name": "Tag Failure: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-137",
+      "name": "Prepare Mark-Failed Input: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-138",
+      "name": "Mark Step Failed: assemble_voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        23400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: assemble_voiceover').first().json._passthrough }];"
+      },
+      "id": "code-139",
+      "name": "Recover Failure Tag: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-140",
+      "name": "Prepare Fail-Run Input: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-141",
+      "name": "Fail Workflow Run: assemble_voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        24000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-142",
+      "name": "Build Failure Response: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'assemble_voiceover', sequence: 5,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-143",
+      "name": "Prepare Mark-Succeeded Input: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-144",
+      "name": "Mark Step Succeeded: assemble_voiceover",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        24600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: assemble_voiceover').first().json._fresh_data;\nreturn [{ json: { voiceover_id: d.voiceover_id, storage_path: d.storage_path, duration_seconds: d.duration_seconds, timing: d.timing, chunk_summary: d.chunk_summary, subtitle_srt_path: d.subtitle_srt_path, subtitle_vtt_path: d.subtitle_vtt_path, audio_analysis: d.audio_analysis } }];"
+      },
+      "id": "code-145",
+      "name": "Extract Fresh Output: assemble_voiceover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-146",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.voiceover_quality_control_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-147",
+      "name": "Skip voiceover_quality_control?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        25000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.voiceover_quality_control_output || {};\nreturn [{ json: { success: d.success, data: d.data, error: d.error, runtime: d.runtime } }];"
+      },
+      "id": "code-148",
+      "name": "Use Stored Output: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'voiceover_quality_control', sequence: 6,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-149",
+      "name": "Prepare Mark-Running Input: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-150",
+      "name": "Mark Step Running: voiceover_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        25600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet proj; try { proj = $('Extract Fresh Output: load_approved_script').first().json; } catch (e) { proj = $('Use Stored Output: load_approved_script').first().json; }\nlet prep; try { prep = $('Extract Fresh Output: prepare_voiceover_chunks').first().json; } catch (e) { prep = $('Use Stored Output: prepare_voiceover_chunks').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  voiceover_id: prep.voiceover_id, target_duration_seconds: proj.target_duration_seconds\n} }];"
+      },
+      "id": "code-151",
+      "name": "Prepare Input: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:voiceover-quality-control-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-152",
+      "name": "Call: voiceover_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        26000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-153",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-154",
+      "name": "Did voiceover_quality_control Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        26200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'voiceover_quality_control', sequence: 6, error: r.error } }];"
+      },
+      "id": "code-155",
+      "name": "Tag Failure: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-156",
+      "name": "Prepare Mark-Failed Input: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-157",
+      "name": "Mark Step Failed: voiceover_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        26800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: voiceover_quality_control').first().json._passthrough }];"
+      },
+      "id": "code-158",
+      "name": "Recover Failure Tag: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-159",
+      "name": "Prepare Fail-Run Input: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-160",
+      "name": "Fail Workflow Run: voiceover_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        27400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-161",
+      "name": "Build Failure Response: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'voiceover_quality_control', sequence: 6,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r, error_id: null, _fresh_data: r\n} }];"
+      },
+      "id": "code-162",
+      "name": "Prepare Mark-Succeeded Input: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-163",
+      "name": "Mark Step Succeeded: voiceover_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        28000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: voiceover_quality_control').first().json._fresh_data;\nreturn [{ json: { success: d.success, data: d.data, error: d.error, runtime: d.runtime } }];"
+      },
+      "id": "code-164",
+      "name": "Extract Fresh Output: voiceover_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-165",
+              "leftValue": "={{ $json.data.qc_status === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-166",
+      "name": "Did QC Hard-Fail?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        28400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VOICEOVER_QC_FAILED', message: 'voiceover quality control failed a hard gate: ' + (r.data.hard_fail_reasons || []).join(', '), retryable: false, error_id: null, details: r.data },\n  runtime: r.runtime\n} }];"
+      },
+      "id": "code-167",
+      "name": "Build QC Hard-Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-168",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.create_voiceover_approval_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-169",
+      "name": "Skip create_voiceover_approval?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        28800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.create_voiceover_approval_output || {};\nreturn [{ json: { approval_request_id: d.approval_request_id, status: d.status } }];"
+      },
+      "id": "code-170",
+      "name": "Use Stored Output: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_voiceover_approval', sequence: 7,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-171",
+      "name": "Prepare Mark-Running Input: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-172",
+      "name": "Mark Step Running: create_voiceover_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        29400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet prep; try { prep = $('Extract Fresh Output: prepare_voiceover_chunks').first().json; } catch (e) { prep = $('Use Stored Output: prepare_voiceover_chunks').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  voiceover_id: prep.voiceover_id\n} }];"
+      },
+      "id": "code-173",
+      "name": "Prepare Input: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-voiceover-approval.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-174",
+      "name": "Call: create_voiceover_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        29800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-175",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-176",
+      "name": "Did create_voiceover_approval Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        30000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_voiceover_approval', sequence: 7, error: r.error } }];"
+      },
+      "id": "code-177",
+      "name": "Tag Failure: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-178",
+      "name": "Prepare Mark-Failed Input: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-179",
+      "name": "Mark Step Failed: create_voiceover_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        30600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: create_voiceover_approval').first().json._passthrough }];"
+      },
+      "id": "code-180",
+      "name": "Recover Failure Tag: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-181",
+      "name": "Prepare Fail-Run Input: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-182",
+      "name": "Fail Workflow Run: create_voiceover_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        31200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-183",
+      "name": "Build Failure Response: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_voiceover_approval', sequence: 7,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null, _fresh_data: r.data\n} }];"
+      },
+      "id": "code-184",
+      "name": "Prepare Mark-Succeeded Input: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-185",
+      "name": "Mark Step Succeeded: create_voiceover_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        31800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: create_voiceover_approval').first().json._fresh_data;\nreturn [{ json: { approval_request_id: d.approval_request_id, status: d.status } }];"
+      },
+      "id": "code-186",
+      "name": "Extract Fresh Output: create_voiceover_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet approval; try { approval = $('Extract Fresh Output: create_voiceover_approval').first().json; } catch (e) { approval = $('Use Stored Output: create_voiceover_approval').first().json; }\nreturn [{ json: {\n  success: true, data: { approval_request_id: approval.approval_request_id, status: 'awaiting_voiceover_approval' }, error: null,\n  runtime: {\n    channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id,\n    content_project_id: init.data.content_project_id, correlation_id: init.data.correlation_id\n  }\n} }];"
+      },
+      "id": "code-187",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Request Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request Shape": {
+      "main": [
+        [
+          {
+            "node": "Is Request Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Request Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Init Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Init Input": {
+      "main": [
+        [
+          {
+            "node": "Initialize Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Did Initialize Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Initialize Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Steps Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Init Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Steps Input": {
+      "main": [
+        [
+          {
+            "node": "Get Workflow Run Steps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Workflow Run Steps": {
+      "main": [
+        [
+          {
+            "node": "Compute Resume Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Resume Flags": {
+      "main": [
+        [
+          {
+            "node": "Skip load_channel_configuration?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip load_channel_configuration?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (load_channel_configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (load_channel_configuration)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Did load_channel_configuration Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Did load_channel_configuration Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did load_channel_configuration Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip load_approved_script?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (load_approved_script)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (load_approved_script)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Did load_approved_script Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Did load_approved_script Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did load_approved_script Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: load_approved_script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip voiceover_budget_preflight?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (voiceover_budget_preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (voiceover_budget_preflight)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Did voiceover_budget_preflight Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Did voiceover_budget_preflight Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did voiceover_budget_preflight Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: voiceover_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip prepare_voiceover_chunks?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (prepare_voiceover_chunks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (prepare_voiceover_chunks)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Did prepare_voiceover_chunks Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Did prepare_voiceover_chunks Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did prepare_voiceover_chunks Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: prepare_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip generate_voiceover_chunks?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (generate_voiceover_chunks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (generate_voiceover_chunks)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Did generate_voiceover_chunks Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Did generate_voiceover_chunks Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did generate_voiceover_chunks Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: generate_voiceover_chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip assemble_voiceover?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (assemble_voiceover)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (assemble_voiceover)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Did assemble_voiceover Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Did assemble_voiceover Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did assemble_voiceover Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: assemble_voiceover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Skip load_approved_script?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Skip load_approved_script?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Skip voiceover_budget_preflight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: load_approved_script": {
+      "main": [
+        [
+          {
+            "node": "Skip voiceover_budget_preflight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Skip prepare_voiceover_chunks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: voiceover_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Skip prepare_voiceover_chunks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_voiceover_chunks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: prepare_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_voiceover_chunks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Skip assemble_voiceover?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: generate_voiceover_chunks": {
+      "main": [
+        [
+          {
+            "node": "Skip assemble_voiceover?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Skip voiceover_quality_control?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: assemble_voiceover": {
+      "main": [
+        [
+          {
+            "node": "Skip voiceover_quality_control?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip voiceover_quality_control?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Call: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did voiceover_quality_control Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did voiceover_quality_control Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: voiceover_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did QC Hard-Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: voiceover_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did QC Hard-Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did QC Hard-Fail?": {
+      "main": [
+        [
+          {
+            "node": "Skip create_voiceover_approval?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build QC Hard-Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip create_voiceover_approval?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Call: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Did create_voiceover_approval Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did create_voiceover_approval Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: create_voiceover_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: create_voiceover_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

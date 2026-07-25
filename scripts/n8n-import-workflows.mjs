@@ -139,6 +139,37 @@ const IMPORT_ORDER = [
   'dev-list-pending-script-approvals.json',
   'dev-get-script-approval-package.json',
   'dev-decide-script-approval.json',
+  // Step 8 — voiceover pipeline. Leaf SQL wrappers first, then the
+  // composite provider-calling sub-workflows (generate-all-voiceover-chunks.json
+  // calls itself -- see the self-reference handling in main() below --
+  // so it only needs its own prerequisites imported first, not itself),
+  // then the orchestrator and everything that references it.
+  'load-approved-script-for-voiceover.json',
+  'voiceover-budget-preflight.json',
+  'get-or-create-voiceover.json',
+  'prepare-voiceover-chunks-sql.json',
+  'claim-next-pending-voiceover-chunk.json',
+  'persist-voiceover-chunk-success.json',
+  'mark-voiceover-chunk-failed.json',
+  'get-voiceover-chunk-generation-summary.json',
+  'get-completed-voiceover-chunks-in-order.json',
+  'record-assembled-voiceover.json',
+  'set-voiceover-subtitle-paths.json',
+  'voiceover-quality-control-sql.json',
+  'create-voiceover-approval.json',
+  'resolve-voiceover-approval.json',
+  'get-voiceover-approval-package.json',
+  'get-current-voiceover.json',
+  'prepare-voiceover-chunks.json',
+  'generate-voiceover-chunk.json',
+  'generate-all-voiceover-chunks.json',
+  'assemble-voiceover.json',
+  'voiceover-project.json',
+  'resolve-voiceover-approval-workflow.json',
+  'step8-voiceover-project-test.json',
+  'dev-list-pending-voiceover-approvals.json',
+  'dev-get-voiceover-approval-package.json',
+  'dev-decide-voiceover-approval.json',
 ];
 
 async function main() {
@@ -160,6 +191,18 @@ async function main() {
     }
     const def = JSON.parse(readFileSync(join(workflowsDir, file), 'utf8'));
 
+    // A workflow that calls itself (generate-all-voiceover-chunks.json's
+    // bounded recursive claim-loop, see docs/architecture/voiceover-pipeline.md#chunk-generation-loop)
+    // can't resolve its own ID on a first-ever creation -- it doesn't
+    // exist yet. Those nodes are deferred and patched in a second PUT
+    // once this workflow has an ID of its own. On every subsequent
+    // re-import (an update, not a create) the ID is already known
+    // up front — n8n validates sub-workflow references at save time,
+    // not just at activation, so on updates the self-reference must be
+    // resolved in this same first pass or the PUT itself is rejected.
+    const knownWorkflowId = workflowIdByName[def.name];
+    const selfRefNodes = [];
+
     for (const node of def.nodes) {
       if (node.credentials) {
         for (const [credType, ref] of Object.entries(node.credentials)) {
@@ -179,6 +222,14 @@ async function main() {
         // is meant to call, then that file's freshly-imported ID.
         const sourceFile = EXECUTE_WORKFLOW_TARGETS[node.name];
         if (sourceFile) {
+          if (sourceFile === file) {
+            if (knownWorkflowId) {
+              node.parameters.workflowId.value = knownWorkflowId;
+            } else {
+              selfRefNodes.push(node);
+            }
+            continue;
+          }
           const targetId = workflowIdByName[FILE_TO_WORKFLOW_NAME[sourceFile]];
           if (!targetId) {
             throw new Error(`Node "${node.name}" in ${file} needs "${sourceFile}" imported first.`);
@@ -198,6 +249,12 @@ async function main() {
       workflowId = created.id;
       workflowIdByName[def.name] = workflowId;
       console.log(`created: ${def.name} (${workflowId})`);
+    }
+
+    if (selfRefNodes.length > 0) {
+      for (const node of selfRefNodes) node.parameters.workflowId.value = workflowId;
+      await api(`/workflows/${workflowId}`, { method: 'PUT', body: JSON.stringify(payload) });
+      console.log(`patched self-reference: ${def.name}`);
     }
 
     await api(`/workflows/${workflowId}/activate`, { method: 'POST' });
@@ -364,6 +421,71 @@ const EXECUTE_WORKFLOW_TARGETS = {
   'Resume: Script Project': 'script-project.json',
   'Resolve Script Approval': 'resolve-script-approval-workflow.json',
   'Script Project': 'script-project.json',
+  // Step 8 — voiceover pipeline. "Prepare Voiceover Chunks" composite.
+  'Get Or Create Voiceover': 'get-or-create-voiceover.json',
+  'Prepare Voiceover Chunks SQL': 'prepare-voiceover-chunks-sql.json',
+  // "Generate Voiceover Chunk" composite.
+  'Mark Voiceover Chunk Failed (TTS)': 'mark-voiceover-chunk-failed.json',
+  'Mark Voiceover Chunk Failed (Invalid)': 'mark-voiceover-chunk-failed.json',
+  'Record Usage: Characters': 'record-provider-usage-event.json',
+  'Persist Voiceover Chunk Success': 'persist-voiceover-chunk-success.json',
+  // "Generate All Voiceover Chunks" composite -- the last entry is a
+  // genuine self-reference, resolved by the two-pass patch in main().
+  'Claim Next Pending Voiceover Chunk': 'claim-next-pending-voiceover-chunk.json',
+  'Get Voiceover Chunk Generation Summary': 'get-voiceover-chunk-generation-summary.json',
+  'Generate Voiceover Chunk': 'generate-voiceover-chunk.json',
+  'Generate All Voiceover Chunks (Recurse)': 'generate-all-voiceover-chunks.json',
+  // "Assemble Voiceover" composite.
+  'Get Completed Voiceover Chunks In Order': 'get-completed-voiceover-chunks-in-order.json',
+  'Record Assembled Voiceover': 'record-assembled-voiceover.json',
+  'Set Voiceover Subtitle Paths': 'set-voiceover-subtitle-paths.json',
+  // "Voiceover Project" orchestrator (7 unrolled resumable steps plus a
+  // manually-wired voiceover_quality_control/create_voiceover_approval
+  // tail, same Mark Running/Call/Mark Failed/Fail Workflow Run/Mark
+  // Succeeded cluster pattern as "Research Project"/"Script Project").
+  // "Mark Step Running/Failed/Succeeded: load_channel_configuration",
+  // "Call: load_channel_configuration", and "Fail Workflow Run:
+  // load_channel_configuration" reuse the Step 6 entries above.
+  'Mark Step Running: load_approved_script': 'mark-workflow-step.json',
+  'Call: load_approved_script': 'load-approved-script-for-voiceover.json',
+  'Mark Step Failed: load_approved_script': 'mark-workflow-step.json',
+  'Fail Workflow Run: load_approved_script': 'fail-workflow-run.json',
+  'Mark Step Succeeded: load_approved_script': 'mark-workflow-step.json',
+  'Mark Step Running: voiceover_budget_preflight': 'mark-workflow-step.json',
+  'Call: voiceover_budget_preflight': 'voiceover-budget-preflight.json',
+  'Mark Step Failed: voiceover_budget_preflight': 'mark-workflow-step.json',
+  'Fail Workflow Run: voiceover_budget_preflight': 'fail-workflow-run.json',
+  'Mark Step Succeeded: voiceover_budget_preflight': 'mark-workflow-step.json',
+  'Mark Step Running: prepare_voiceover_chunks': 'mark-workflow-step.json',
+  'Call: prepare_voiceover_chunks': 'prepare-voiceover-chunks.json',
+  'Mark Step Failed: prepare_voiceover_chunks': 'mark-workflow-step.json',
+  'Fail Workflow Run: prepare_voiceover_chunks': 'fail-workflow-run.json',
+  'Mark Step Succeeded: prepare_voiceover_chunks': 'mark-workflow-step.json',
+  'Mark Step Running: generate_voiceover_chunks': 'mark-workflow-step.json',
+  'Call: generate_voiceover_chunks': 'generate-all-voiceover-chunks.json',
+  'Mark Step Failed: generate_voiceover_chunks': 'mark-workflow-step.json',
+  'Fail Workflow Run: generate_voiceover_chunks': 'fail-workflow-run.json',
+  'Mark Step Succeeded: generate_voiceover_chunks': 'mark-workflow-step.json',
+  'Mark Step Running: assemble_voiceover': 'mark-workflow-step.json',
+  'Call: assemble_voiceover': 'assemble-voiceover.json',
+  'Mark Step Failed: assemble_voiceover': 'mark-workflow-step.json',
+  'Fail Workflow Run: assemble_voiceover': 'fail-workflow-run.json',
+  'Mark Step Succeeded: assemble_voiceover': 'mark-workflow-step.json',
+  'Mark Step Running: voiceover_quality_control': 'mark-workflow-step.json',
+  'Call: voiceover_quality_control': 'voiceover-quality-control-sql.json',
+  'Mark Step Failed: voiceover_quality_control': 'mark-workflow-step.json',
+  'Fail Workflow Run: voiceover_quality_control': 'fail-workflow-run.json',
+  'Mark Step Succeeded: voiceover_quality_control': 'mark-workflow-step.json',
+  'Mark Step Running: create_voiceover_approval': 'mark-workflow-step.json',
+  'Call: create_voiceover_approval': 'create-voiceover-approval.json',
+  'Mark Step Failed: create_voiceover_approval': 'mark-workflow-step.json',
+  'Fail Workflow Run: create_voiceover_approval': 'fail-workflow-run.json',
+  'Mark Step Succeeded: create_voiceover_approval': 'mark-workflow-step.json',
+  // Step 8 — "Resolve Voiceover Approval" orchestrator + dev webhooks.
+  'Resolve Voiceover Approval SQL': 'resolve-voiceover-approval.json',
+  'Resume: Voiceover Project': 'voiceover-project.json',
+  'Resolve Voiceover Approval': 'resolve-voiceover-approval-workflow.json',
+  'Voiceover Project': 'voiceover-project.json',
 };
 const FILE_TO_WORKFLOW_NAME = {
   'initialize-workflow-run.json': 'Initialize Workflow Run',
@@ -417,6 +539,29 @@ const FILE_TO_WORKFLOW_NAME = {
   'generate-review-and-revise-script.json': 'Generate Review And Revise Script',
   'script-project.json': 'Script Project',
   'resolve-script-approval-workflow.json': 'Resolve Script Approval',
+  // Step 8 — voiceover pipeline.
+  'load-approved-script-for-voiceover.json': 'Load Approved Script For Voiceover',
+  'voiceover-budget-preflight.json': 'Voiceover Budget Preflight',
+  'get-or-create-voiceover.json': 'Get Or Create Voiceover',
+  'prepare-voiceover-chunks-sql.json': 'Prepare Voiceover Chunks SQL',
+  'claim-next-pending-voiceover-chunk.json': 'Claim Next Pending Voiceover Chunk',
+  'persist-voiceover-chunk-success.json': 'Persist Voiceover Chunk Success',
+  'mark-voiceover-chunk-failed.json': 'Mark Voiceover Chunk Failed',
+  'get-voiceover-chunk-generation-summary.json': 'Get Voiceover Chunk Generation Summary',
+  'get-completed-voiceover-chunks-in-order.json': 'Get Completed Voiceover Chunks In Order',
+  'record-assembled-voiceover.json': 'Record Assembled Voiceover',
+  'set-voiceover-subtitle-paths.json': 'Set Voiceover Subtitle Paths',
+  'voiceover-quality-control-sql.json': 'Voiceover Quality Control SQL',
+  'create-voiceover-approval.json': 'Create Voiceover Approval',
+  'resolve-voiceover-approval.json': 'Resolve Voiceover Approval SQL',
+  'get-voiceover-approval-package.json': 'Get Voiceover Approval Package',
+  'get-current-voiceover.json': 'Get Current Voiceover',
+  'prepare-voiceover-chunks.json': 'Prepare Voiceover Chunks',
+  'generate-voiceover-chunk.json': 'Generate Voiceover Chunk',
+  'generate-all-voiceover-chunks.json': 'Generate All Voiceover Chunks',
+  'assemble-voiceover.json': 'Assemble Voiceover',
+  'voiceover-project.json': 'Voiceover Project',
+  'resolve-voiceover-approval-workflow.json': 'Resolve Voiceover Approval',
 };
 
 main().catch((err) => {

@@ -1,0 +1,39 @@
+[
+  {
+    "section_id": "hook",
+    "section_type": "hook",
+    "narration": "What if a single volcano changed the course of an empire? Stay with me. Let's find out.",
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 8
+  },
+  {
+    "section_id": "intro",
+    "section_type": "intro",
+    "narration": "In 79 CE, Mount Vesuvius buried Pompeii in ash. Dr. Elena Kowalczyk has spent a decade excavating the site.",
+    "pronunciation_notes": [
+      { "term": "Kowalczyk", "pronunciation_guide": "koh-VAL-chik", "note": "Polish surname, stress on second syllable" }
+    ],
+    "estimated_duration_seconds": 10
+  },
+  {
+    "section_id": "body-1",
+    "section_type": "explainer",
+    "narration": "The eruption released roughly 1.5 million tons of material per second. Ash fell for nearly 18 hours straight. Most residents who stayed did not survive.",
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 16
+  },
+  {
+    "section_id": "outro",
+    "section_type": "outro",
+    "narration": "Pompeii's ruins remain remarkably preserved to this day.",
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 6
+  },
+  {
+    "section_id": "cta",
+    "section_type": "cta",
+    "narration": "Subscribe for more stories from the ancient world.",
+    "pronunciation_notes": [],
+    "estimated_duration_seconds": 4
+  }
+]

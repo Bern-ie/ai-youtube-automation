@@ -53,7 +53,18 @@
             "SCRIPT_GROUNDING_FAILED",
             "SCRIPT_QC_FAILED",
             "SCRIPT_REVISION_LIMIT_REACHED",
-            "SCRIPT_APPROVAL_REJECTED"
+            "SCRIPT_APPROVAL_REJECTED",
+            "VOICEOVER_PROJECT_NOT_FOUND",
+            "VOICEOVER_INVALID_PROJECT_STATE",
+            "VOICEOVER_SCRIPT_NOT_APPROVED",
+            "VOICEOVER_PROVIDER_NOT_CONFIGURED",
+            "VOICEOVER_BUDGET_EXCEEDED",
+            "VOICEOVER_CHUNK_GENERATION_FAILED",
+            "VOICEOVER_CHUNK_INVALID",
+            "VOICEOVER_ASSEMBLY_FAILED",
+            "VOICEOVER_QC_FAILED",
+            "VOICEOVER_APPROVAL_REJECTED",
+            "VOICEOVER_REVISION_LIMIT_REACHED"
           ]
         },
         "message": { "type": "string" },

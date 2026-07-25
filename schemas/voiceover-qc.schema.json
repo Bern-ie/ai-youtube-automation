@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/voiceover-qc.schema.json",
+  "title": "Voiceover Quality Control Result",
+  "description": "The 'data' payload returned by voiceover_quality_control() / the 'voiceover_quality_control' workflow step. Fully deterministic — every field is computed from relational chunk data and the renderer's ffprobe/loudnorm/silencedetect output, never an LLM judgment of audio quality. See docs/architecture/voiceover-pipeline.md#full-voiceover-qc.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "qc_score", "qc_status", "chunk_summary", "target_deviation_pct", "timing_issue_count",
+    "audio_analysis", "sub_scores", "hard_fail", "hard_fail_reasons"
+  ],
+  "properties": {
+    "qc_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "qc_status": { "type": "string", "enum": ["passed", "revision_needed", "failed"] },
+    "chunk_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "completed", "failed", "pending_or_generating", "reused", "total_attempts", "total_cost_usd", "all_complete"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "completed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "pending_or_generating": { "type": "integer", "minimum": 0 },
+        "reused": { "type": "integer", "minimum": 0 },
+        "total_attempts": { "type": "integer", "minimum": 0 },
+        "total_cost_usd": { "type": "number", "minimum": 0 },
+        "all_complete": { "type": "boolean" }
+      }
+    },
+    "target_deviation_pct": { "type": ["number", "null"] },
+    "timing_issue_count": { "type": "integer", "minimum": 0 },
+    "audio_analysis": {
+      "type": "object",
+      "description": "The renderer's /audio/assemble response, passed through verbatim.",
+      "additionalProperties": true
+    },
+    "sub_scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completeness", "duration_match", "silence", "loudness", "timing_continuity", "subtitle_validity"],
+      "properties": {
+        "completeness": { "type": "number" },
+        "duration_match": { "type": "number" },
+        "silence": { "type": "number" },
+        "loudness": { "type": "number" },
+        "timing_continuity": { "type": "number" },
+        "subtitle_validity": { "type": "number" }
+      }
+    },
+    "hard_fail": { "type": "boolean" },
+    "hard_fail_reasons": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["missing_chunk", "missing_final_master", "missing_audio_stream", "corrupt_audio", "severe_truncation", "invalid_timing"] }
+    }
+  }
+}

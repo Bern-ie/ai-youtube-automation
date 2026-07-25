@@ -1,0 +1,7 @@
+{
+  "statusCode": 500,
+  "detail": {
+    "status": "internal_server_error",
+    "message": "An unexpected error occurred while processing the request."
+  }
+}

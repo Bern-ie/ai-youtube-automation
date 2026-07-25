@@ -11,6 +11,7 @@
     "test:ffmpeg": "node src/ffmpeg-capability-test.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1095.0",
     "express": "4.22.2"
   }
 }

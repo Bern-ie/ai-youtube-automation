@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.ai-youtube-automation.internal/approval-decision.schema.json",
   "title": "Approval Decision Request",
-  "description": "Request body accepted by the development approval endpoints (POST /internal/dev/research-approval/decide and POST /internal/dev/script-approval/decide) and passed through to resolve_research_approval()/resolve_script_approval() respectively — one shared shape for both stages, since the decision contract is identical. See docs/architecture/research-pipeline.md#approval-actions and docs/architecture/script-pipeline.md#approval-actions.",
+  "description": "Request body accepted by the development approval endpoints (POST /internal/dev/{research,script,voiceover}-approval/decide) and passed through to resolve_research_approval()/resolve_script_approval()/resolve_voiceover_approval() respectively — one shared shape for all three stages, since the decision contract is identical. `target_chunk_ids` is voiceover-specific (see docs/architecture/voiceover-pipeline.md#targeted-revision) and simply ignored by the research/script resolvers, which don't accept it. See docs/architecture/research-pipeline.md#approval-actions and docs/architecture/script-pipeline.md#approval-actions.",
   "type": "object",
   "additionalProperties": false,
   "required": ["decision"],
@@ -11,7 +11,12 @@
     "reviewer_reference": { "type": ["string", "null"] },
     "revision_instructions": {
       "type": ["string", "null"],
-      "description": "Required (non-empty) when decision is 'revision_requested' — enforced by resolve_research_approval()."
+      "description": "Required (non-empty) when decision is 'revision_requested' — enforced by resolve_research_approval()/resolve_script_approval()/resolve_voiceover_approval()."
+    },
+    "target_chunk_ids": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "description": "Voiceover approvals only: prior-version voiceover_chunks ids the reviewer wants regenerated. Empty (the default) means the whole track — see docs/architecture/voiceover-pipeline.md#targeted-revision."
     }
   }
 }

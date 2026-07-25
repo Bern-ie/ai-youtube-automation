@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/voiceover-approval-package.schema.json",
+  "title": "Voiceover Approval Package",
+  "description": "The human-facing payload assembled by get_voiceover_approval_package() and served by the development approval endpoint. See docs/architecture/voiceover-pipeline.md#human-voiceover-approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_request_id", "status", "content_project_id", "topic", "target_duration_seconds",
+    "script_version_id", "voiceover", "chunk_summary", "estimated_cost_usd", "requested_at"
+  ],
+  "properties": {
+    "approval_request_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "topic": { "type": "string" },
+    "target_duration_seconds": { "type": ["integer", "null"] },
+    "script_version_id": { "type": ["string", "null"], "format": "uuid" },
+    "voiceover": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["voiceover_id", "version", "provider", "status", "duration_seconds", "storage_path", "timing", "qc_score", "qc_status"],
+      "properties": {
+        "voiceover_id": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "provider": { "type": ["string", "null"] },
+        "model": { "type": ["string", "null"] },
+        "voice_reference": { "type": ["string", "null"] },
+        "status": { "type": "string" },
+        "duration_seconds": { "type": ["number", "null"] },
+        "storage_path": { "type": ["string", "null"] },
+        "mp3_storage_path": { "type": ["string", "null"] },
+        "subtitle_srt_path": { "type": ["string", "null"] },
+        "subtitle_vtt_path": { "type": ["string", "null"] },
+        "timing": { "$ref": "https://schemas.ai-youtube-automation.internal/voiceover-timing.schema.json" },
+        "qc_score": { "type": ["number", "null"] },
+        "qc_status": { "type": ["string", "null"] },
+        "qc_details": { "type": "object" }
+      }
+    },
+    "chunk_summary": { "type": "object" },
+    "estimated_cost_usd": { "type": "number", "minimum": 0 },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}

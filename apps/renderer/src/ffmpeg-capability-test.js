@@ -14,7 +14,7 @@
 // from `ffmpeg -version`) before that image's ARM64 support is marked
 // verified in docs/architecture/arm64-compatibility.md.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from './logger.js';
@@ -115,6 +115,46 @@ function main() {
   // --- Steps 9-10: probe the pipeline output and verify both streams. ---
   record('ffprobe validates h264 video + aac audio streams', true, () => {
     requireStreams(pipelineOut, { video: { codec: 'h264' }, audio: { codec: 'aac' } });
+  });
+
+  // --- Voiceover pipeline (Step 8): WAV/PCM transcode, concat demuxer,
+  // silencedetect -- the exact operations apps/renderer/src/audio.js runs
+  // against provider TTS chunks. Covered separately from the primary
+  // pipeline above since none of those ops appear in video rendering. ---
+  const toneA = join(WORKDIR, 'tone-a.wav');
+  const toneB = join(WORKDIR, 'tone-b.wav');
+  record('WAV/PCM transcode (pcm_s16le, mono, 44.1kHz)', true, () => {
+    ffmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-ac', '1', '-ar', '44100', '-c:a', 'pcm_s16le', toneA]);
+    ffmpeg(['-f', 'lavfi', '-i', 'sine=frequency=880:duration=1', '-ac', '1', '-ar', '44100', '-c:a', 'pcm_s16le', toneB]);
+    requireStreams(toneA, { audio: { codec: 'pcm_s16le' } });
+  });
+
+  const concatOut = join(WORKDIR, 'concat.wav');
+  record('concatenation (concat demuxer, WAV chunks)', true, () => {
+    const listPath = join(WORKDIR, 'concat-list.txt');
+    writeFileSync(listPath, `file '${toneA}'\nfile '${toneB}'\n`, 'utf8');
+    ffmpeg(['-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', concatOut]);
+    requireStreams(concatOut, { audio: { codec: 'pcm_s16le' } });
+  });
+
+  record('silencedetect filter (leading/trailing silence analysis)', true, () => {
+    const silentWav = join(WORKDIR, 'silence.wav');
+    ffmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono', '-t', '1', '-c:a', 'pcm_s16le', silentWav]);
+    // ffmpeg with -f null exits 0 regardless of what silencedetect finds --
+    // the events land on stderr, so this check spawns directly rather than
+    // via the throw-on-nonzero-exit ffmpeg() helper (matches audio.js's
+    // detectSilence(), which reads stderr the same way).
+    const proc = spawnSync('ffmpeg', [
+      '-i', silentWav, '-af', 'silencedetect=noise=-30dB:d=0.1', '-f', 'null', '-',
+    ], { encoding: 'utf8' });
+    if (proc.status !== 0) throw new Error(`ffmpeg exited ${proc.status}: ${proc.stderr}`);
+    if (!/silence_start/.test(proc.stderr)) throw new Error(`expected a silence_start event in stderr, got: ${proc.stderr.slice(0, 500)}`);
+  });
+
+  record('loudnorm measurement pass (JSON stats)', true, () => {
+    execFileSync('ffmpeg', [
+      '-i', toneA, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json', '-f', 'null', '-',
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
   });
 
   // --- Subtitle burn-in ---

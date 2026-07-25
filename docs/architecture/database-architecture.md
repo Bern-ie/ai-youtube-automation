@@ -1,13 +1,15 @@
 # Database Architecture
 
-Status: **implemented (Step 3), extended through Step 7.** PostgreSQL
+Status: **implemented (Step 3), extended through Step 8.** PostgreSQL
 domain schema, real migrations, role separation, and channel isolation
 are live and tested. Step 4 added the workflow-runtime SQL layer, Step 5
-added topic intake, Step 6 added versioned research plans/packages, and
-Step 7 added script grounding/QC/versioning — see
-[research-pipeline.md](research-pipeline.md) and
-[script-pipeline.md](script-pipeline.md) for the workflows that consume
-the additions described below.
+added topic intake, Step 6 added versioned research plans/packages, Step
+7 added script grounding/QC/versioning, and Step 8 added voiceover
+versioning/chunk-identity/QC — see
+[research-pipeline.md](research-pipeline.md),
+[script-pipeline.md](script-pipeline.md), and
+[voiceover-pipeline.md](voiceover-pipeline.md) for the workflows that
+consume the additions described below.
 
 ## Migration system
 
@@ -192,10 +194,11 @@ erDiagram
 | Infrastructure (not domain) | `_infra.healthcheck` |
 
 45 tables total (43 from Step 3 + `research_plans`/`research_packages`
-added in Step 6; Step 7 added no new tables — `scripts`/`script_versions`
-already existed from Step 3 and only gained columns). See the migration
-files in `database/migrations/` for exact columns — each is commented
-with the reasoning behind non-obvious choices.
+added in Step 6; neither Step 7 nor Step 8 added new tables —
+`scripts`/`script_versions` (Step 7) and `voiceovers`/`voiceover_chunks`
+(Step 8) all already existed from Step 3 and only gained columns). See
+the migration files in `database/migrations/` for exact columns — each
+is commented with the reasoning behind non-obvious choices.
 
 ### Step 6 additions: `research_plans` and `research_packages`
 
@@ -284,6 +287,56 @@ Also from `20260722230000_script_pipeline_schema.sql` /
 review), and `combined` (the final weighted result from
 `script_quality_control()`) — rather than a new column per QC phase; see
 [script-pipeline.md#qc-weighting--hard-gates](script-pipeline.md#qc-weighting--hard-gates).
+
+### Step 8 additions: `voiceovers`/`voiceover_chunks` versioning, chunk identity, `voiceover_stage`
+
+No new tables — `voiceovers` and `voiceover_chunks` already existed from
+Step 3 (with the right shape of idea, chunk-level resumable TTS) but
+were missing the fields a real versioned, approvable, cost-tracked
+pipeline needs, added by `20260722240000_voiceover_pipeline_schema.sql`:
+
+- `voiceovers.content_project_id`, `version`/`is_current` (a partial
+  unique index, `idx_voiceovers_one_current_per_project`, enforces
+  exactly one current version per project — the same pattern
+  `research_packages.is_current`/`scripts.current_script_version_id`
+  already established), `revision_trigger`/`revision_reason`,
+  `mp3_storage_path`, `timing` (JSONB), `subtitle_srt_path`/
+  `subtitle_vtt_path`, `qc_score`/`qc_status`/`qc_details`,
+  `completed_at`/`approved_at` — see
+  [voiceover-pipeline.md#full-voiceover-qc](voiceover-pipeline.md#full-voiceover-qc)
+  and
+  [voiceover-pipeline.md#timing-data](voiceover-pipeline.md#timing-data).
+- `voiceover_chunks.content_project_id`/`script_version_id`,
+  `section_id`/`unit_index` (position within a script section),
+  `identity_checksum` (the deterministic cross-version reuse key,
+  indexed via `idx_voiceover_chunks_identity`), `pronunciation_text`,
+  `provider`/`model`/`voice_reference`/`voice_settings_checksum`,
+  `attempt` (bounded-retry counter), `usage_quantity`/`usage_unit`/
+  `cost_usd`/`estimated`, `reused_from_chunk_id`, `error_id` (composite
+  FK to `errors(id, channel_id)`) — see
+  [voiceover-pipeline.md#chunk-identity](voiceover-pipeline.md#chunk-identity)
+  and
+  [voiceover-pipeline.md#tts-retry-policy](voiceover-pipeline.md#tts-retry-policy).
+  `idx_voiceover_chunks_pending` (`WHERE status = 'pending'`) supports
+  `claim_next_pending_voiceover_chunk()`'s `FOR UPDATE SKIP LOCKED`
+  claiming, the same safe-concurrent-claiming pattern
+  `claim_next_workflow_run`/`claim_next_render_job` already use.
+
+Also from the same migration:
+
+- `content_projects.status` gains `awaiting_voiceover_approval` — the
+  one genuine gap in the Step 3 status enum (every other approval stage
+  already had a pause state); `voiceover` no longer transitions directly
+  to `asset_planning`.
+- `approval_requests.stage` gains `voiceover`;
+  `approval_requests.target_chunk_ids` (JSONB, generic on the table but
+  populated only by voiceover approvals) supports scoping a
+  `revision_requested` decision to specific chunks — see
+  [voiceover-pipeline.md#targeted-revision](voiceover-pipeline.md#targeted-revision).
+- `channel_budget_limits.limit_type` gains `voiceover_stage` — same
+  hard/soft + warning-threshold machinery `research_stage`/
+  `script_stage` already use. See
+  [voiceover-pipeline.md#voiceover-stage-cost-ceiling](voiceover-pipeline.md#voiceover-stage-cost-ceiling).
 
 ## Channel isolation
 
@@ -403,7 +456,13 @@ call is made (see
 reuses both writers as-is for every script generation/QC/revision call —
 no duplicated cost-tracking logic — with `channel_budget_limits.limit_type
 = 'script_stage'` as its own preflight ceiling (see
-[script-pipeline.md#script-budget-preflight](script-pipeline.md)).
+[script-pipeline.md#script-budget-preflight](script-pipeline.md)). Step
+8 reuses the same two writers for every TTS chunk generation call
+(`voiceover_chunks.cost_usd` is also denormalized onto the chunk row
+itself, since `voiceover_budget_preflight()`'s `voiceover_stage` check
+sums directly over `voiceover_chunks` rather than joining back through
+`cost_events` — see
+[voiceover-pipeline.md#voiceover-budget-preflight](voiceover-pipeline.md#voiceover-budget-preflight)).
 
 ## Workflow resume & job claiming
 

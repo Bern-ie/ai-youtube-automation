@@ -4,7 +4,7 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 7 — Source-grounded script generation (complete)
+## Status: Step 8 — TTS voiceover generation, chunking, audio QC, subtitle timing, and human approval (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
@@ -14,26 +14,34 @@ every content workflow builds on (Step 4), manual topic intake (Step 5),
 source-backed research (Step 6 — **`Research Project`**: plans what to
 research, collects real sources, extracts and verifies claims against
 them, synthesizes a versioned research package, runs deterministic QC,
-and pauses for DB-backed human approval), and now the second workflow
-allowed to call paid external APIs: **`Script Project`**. Given a
-`content_project_id` whose research has already been approved, it
-writes a structured, spoken-language script grounded *only* in that
-research (every factual narration unit must cite a real `source_id`/
-`claim_id` — fabricated citations are rejected structurally, never
-trusted from the LLM), estimates runtime deterministically from word
-count, runs deterministic + independent LLM quality control (0–100,
-hard gates for fabricated citations/unsupported quotes/plagiarism risk
-that no score can override, up to 3 automatic revision cycles), and
-pauses for a human approval that survives an n8n/Docker restart the same
-DB-backed way research approval does. No TTS/media/rendering/publishing
+and pauses for DB-backed human approval), source-grounded script
+generation (Step 7 — **`Script Project`**: writes a structured,
+spoken-language script grounded *only* in the approved research,
+estimates runtime deterministically from word count, runs deterministic
++ independent LLM quality control with hard gates, up to 3 automatic
+revision cycles, and pauses for DB-backed human approval), and now the
+third workflow allowed to spend money — the first to call a non-LLM
+paid API and do real binary media processing: **`Voiceover Project`**.
+Given a `content_project_id` whose script has already been approved, it
+splits the narration into sentence-bounded TTS chunks (ElevenLabs),
+generates and validates each chunk's audio (truncation/silence
+heuristics via real FFmpeg in the `renderer` service), assembles and
+loudness-normalizes the full track, generates SRT/WebVTT subtitles from
+deterministic chunk timing, runs fully deterministic full-track audio
+QC, and pauses for a human approval — including a per-chunk *targeted*
+revision path — that survives an n8n/Docker restart the same DB-backed
+way research/script approval does. No visual-asset/rendering/publishing
 workflow or Oracle deployment exist yet — this step ends with an
-approved, source-grounded script ready for voiceover. See
-[docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md)
+approved voiceover (narration master, subtitles, timing) ready for
+visual asset planning. See
+[docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md)
 for the full contract,
+[docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md)
+for the Step 7 foundation it consumes,
 [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
-for the Step 6 foundation it consumes,
+for the Step 6 foundation script generation itself consumes,
 [docs/architecture/workflow-runtime.md](docs/architecture/workflow-runtime.md)
-for the Step 4 foundation both build on, and
+for the Step 4 foundation all three build on, and
 [docs/operations/development-commands.md](docs/operations/development-commands.md)
 to run it yourself.
 
@@ -144,6 +152,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Manual topic intake architecture](docs/architecture/topic-intake.md)
 - [Research pipeline architecture](docs/architecture/research-pipeline.md)
 - [Script pipeline architecture](docs/architecture/script-pipeline.md)
+- [Voiceover pipeline architecture](docs/architecture/voiceover-pipeline.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -190,7 +199,7 @@ Full index: [docs/README.md](docs/README.md)
   pending real API credentials (fixture suite fully passes without
   them). See
   [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md).
-- **Step 7 (this step) — Source-grounded script generation.** The
+- **Step 7 — Source-grounded script generation.** The
   `Script Project` reusable workflow (20 new SQL-backed/composite n8n
   workflows, a 107-node orchestrator, a 45-node self-contained
   generate/review/revise sub-workflow with up to 3 automatic revisions),
@@ -212,10 +221,34 @@ Full index: [docs/README.md](docs/README.md)
   validation pending real API credentials (fixture suite fully passes
   without them). See
   [docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md).
-- **Later steps:** TTS/voiceover, media/rendering, thumbnails,
-  YouTube upload, analytics; Oracle Ampere A1 provisioning and deployment
-  (Level 2 native ARM64 validation happens here); first channel
-  configuration and end-to-end single-channel test.
+- **Step 8 (this step) — TTS voiceover generation, chunking, audio QC,
+  subtitle timing, and human approval.** The `Voiceover Project`
+  reusable workflow (24 new SQL-backed/composite n8n workflows, a
+  162-node orchestrator, a recursive per-chunk claim/generate/persist
+  loop), 2 migrations (`voiceovers`/`voiceover_chunks` versioning,
+  approval-wait, and chunk-identity/cost columns, an
+  `awaiting_voiceover_approval` project status, a `voiceover_stage`
+  budget ceiling, a `target_chunk_ids` column for targeted revisions), 6
+  new JSON Schemas, ElevenLabs TTS integration, sentence-bounded
+  500-character chunking with a deterministic per-chunk identity
+  checksum (script + text + voice settings) enabling zero-cost
+  cross-version chunk reuse, chunk-level bounded retry (permanent vs.
+  transient provider errors classified and never silently retried
+  forever), real FFmpeg-based audio validation/assembly/loudness
+  normalization/subtitle generation in the `renderer` service (no host
+  port, credentials never touch n8n), fully deterministic full-track QC
+  with hard gates, a per-chunk *targeted* human revision path, a
+  64-check automated test suite (synthetic audio generated at runtime,
+  zero committed binary fixtures) proving resume, DB-backed approval
+  waiting, and **n8n/Docker restart survival** through real n8n and
+  renderer execution. Complete — live-provider validation pending real
+  API credentials (fixture/synthetic-audio suite fully passes without
+  them). See
+  [docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md).
+- **Later steps:** visual asset planning/collection, media/rendering,
+  thumbnails, YouTube upload, analytics; Oracle Ampere A1 provisioning
+  and deployment (Level 2 native ARM64 validation happens here); first
+  channel configuration and end-to-end single-channel test.
 
 ## Engineering rules
 

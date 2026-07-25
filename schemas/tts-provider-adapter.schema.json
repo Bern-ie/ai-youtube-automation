@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/tts-provider-adapter.schema.json",
+  "title": "TTS Provider Adapter Contract",
+  "description": "Two related shapes every TTS provider adapter must normalize to/from, so provider-specific request/response shapes never leak past the composite `Generate Voiceover Chunk` workflow — see docs/architecture/voiceover-pipeline.md#tts-provider-architecture. `$defs/request` is what n8n builds before calling the provider; `$defs/response` is what n8n builds from the provider's HTTP response (headers + status) after the audio bytes themselves are handed off to the renderer — audio is never represented as JSON here.",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "voice", "model"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "description": "Pronunciation-adjusted TTS input text — see docs/architecture/voiceover-pipeline.md#pronunciation-handling. Never the raw narration if a pronunciation transform applied." },
+        "voice": { "type": "string", "minLength": 1, "description": "Provider voice ID/reference, from channel_provider_settings." },
+        "model": { "type": "string", "minLength": 1 },
+        "language": { "type": ["string", "null"] },
+        "settings": {
+          "type": "object",
+          "description": "Provider-specific tuning (stability, similarity, style, speaking_rate, output_format, sample_rate, ...) — passed through opaquely, never interpreted by the shared workflow logic.",
+          "additionalProperties": true
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "provider_request_id", "usage_quantity", "usage_unit", "model"],
+      "properties": {
+        "provider": { "type": "string" },
+        "provider_request_id": { "type": ["string", "null"] },
+        "usage_quantity": { "type": "number", "minimum": 0, "description": "Provider billing unit quantity (e.g. characters sent)." },
+        "usage_unit": { "type": "string", "enum": ["characters", "tokens", "seconds"] },
+        "duration_seconds": { "type": ["number", "null"], "description": "Provider-reported duration, if any — the renderer's own ffprobe measurement is authoritative, this is informational only." },
+        "model": { "type": "string" },
+        "metadata": { "type": "object", "description": "Non-secret provider response metadata only — never a credential or raw auth header." }
+      }
+    }
+  }
+}

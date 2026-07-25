@@ -7,10 +7,12 @@
 - [architecture/topic-intake.md](architecture/topic-intake.md) — the `Manual Topic Intake` workflow: request contract, normalization/fingerprinting, duplicate/similarity detection, topic-rule enforcement, budget/capacity gates, topic lifecycle, idempotency, resume behavior, error codes.
 - [architecture/research-pipeline.md](architecture/research-pipeline.md) — the `Research Project` workflow: provider architecture, source collection/scoring/dedup, claim extraction/verification/conflict handling, research package/versioning, deterministic QC, human approval lifecycle, DB-backed wait/resume, cost tracking, error codes.
 - [architecture/script-pipeline.md](architecture/script-pipeline.md) — the `Script Project` workflow: source-grounding rule, structured script contract, runtime estimation, deterministic + LLM QC, revision loop, versioning, human approval lifecycle, DB-backed wait/resume, cost tracking, error codes.
+- [architecture/voiceover-pipeline.md](architecture/voiceover-pipeline.md) — the `Voiceover Project` workflow: TTS provider architecture, chunking strategy, chunk identity/reuse, pronunciation handling, budget preflight, retry policy, audio format/loudness normalization, silence/truncation detection, timing/subtitle generation, deterministic full-track QC, human approval lifecycle (including targeted per-chunk revision), DB-backed wait/resume, error codes.
 - [architecture/arm64-compatibility.md](architecture/arm64-compatibility.md) — AMD64/ARM64 support matrix for every service; build approach.
 - [deployment/oracle-deployment-assumptions.md](deployment/oracle-deployment-assumptions.md) — Oracle Always Free topology assumptions, cost controls, security posture.
 - [operations/development-commands.md](operations/development-commands.md) — commands for local dev, database ops, n8n workflow setup, and multi-arch builds.
 
-All of the above are living documents for a project currently at **Step 7
-(source-grounded script generation)**. See the root [README.md](../README.md)
-for overall project status.
+All of the above are living documents for a project currently at **Step 8
+(TTS voiceover generation, chunking, audio QC, subtitle timing, and human
+approval)**. See the root [README.md](../README.md) for overall project
+status.
