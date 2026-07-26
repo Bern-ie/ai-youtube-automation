@@ -1,0 +1,1454 @@
+{
+  "name": "Resolve Visual Requirement",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: Object.assign({}, b, { _tier_index: b._tier_index || 0 }) }];"
+      },
+      "id": "code-2",
+      "name": "Normalize Tier Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst strategy = Array.isArray(b.fallback_strategy) && b.fallback_strategy.length > 0 ? b.fallback_strategy : [b.visual_type];\nconst tierType = strategy[b._tier_index] ?? null;\nreturn [{ json: Object.assign({}, b, { _tier_type: tierType, _fallback_strategy: strategy }) }];"
+      },
+      "id": "code-3",
+      "name": "Compute Tier Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json._tier_type === null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Tiers Exhausted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  channel_id: b.channel_id, shot_id: b.shot_id, workflow_run_id: b.workflow_run_id,\n  error_code: 'VISUAL_ASSET_GENERATION_FAILED', message: 'every fallback_strategy tier was exhausted for shot ' + b.shot_id,\n  sanitized_details: { fallback_strategy: b._fallback_strategy }, retryable: true\n} }];"
+      },
+      "id": "code-6",
+      "name": "Prepare Mark-Failed Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-visual-shot-failed.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-7",
+      "name": "Mark Visual Shot Failed (Exhausted)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: {\n  success: false, data: null,\n  error: { code: 'VISUAL_ASSET_GENERATION_FAILED', message: 'all fallback tiers exhausted', retryable: true, error_id: null },\n  runtime: {}\n} }];"
+      },
+      "id": "code-8",
+      "name": "Build Exhausted Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst identityInput = [b.content_project_id, b._tier_type, b.search_query || b.generation_prompt || b.overlay_text || b.shot_id].join('|');\nreturn [{ json: Object.assign({}, b, { _identity_input: identityInput }) }];"
+      },
+      "id": "code-9",
+      "name": "Compute Identity Components",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT encode(sha256(convert_to($1,'UTF8')),'hex') AS checksum;",
+        "options": {
+          "queryReplacement": "={{ [$json._identity_input] }}"
+        }
+      },
+      "id": "pg-10",
+      "name": "Compute Identity Checksum",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "PLACEHOLDER_PG",
+          "name": "postgres-app-runtime"
+        }
+      },
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const checksum = $input.first().json.checksum;\nconst b = $('Compute Identity Components').first().json;\nreturn [{ json: Object.assign({}, b, { _identity_checksum: checksum }) }];"
+      },
+      "id": "code-11",
+      "name": "Attach Checksum",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, content_project_id: b.content_project_id, identity_checksum: b._identity_checksum, _ctx: b } }];"
+      },
+      "id": "code-12",
+      "name": "Prepare Find-Reusable Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:find-reusable-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-13",
+      "name": "Find Reusable Asset",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-14",
+              "leftValue": "={{ $json !== null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Is Reusable Asset Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const asset = $input.first().json;\nconst ctx = $('Prepare Find-Reusable Input').first().json._ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, shot_id: ctx.shot_id, asset_type: asset.asset_type || ctx._tier_type,\n  provider: asset.provider, provider_asset_id: null, source_url: null, download_url: null, creator: null,\n  license_type: null, license_url: null, attribution_required: false, attribution_text: null, commercial_use_allowed: true,\n  storage_path: asset.storage_path, checksum: asset.checksum, width_px: asset.width_px, height_px: asset.height_px,\n  duration_seconds: asset.duration_seconds, generated: false, generation_prompt: null, request_id: null,\n  cost_usd: 0, identity_checksum: ctx._identity_checksum, channel_reusable: false, metadata: {}, _ctx: ctx\n} }];"
+      },
+      "id": "code-16",
+      "name": "Prepare Reuse Persist Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-resolved-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-17",
+      "name": "Persist Resolved Asset (Reuse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-18",
+      "name": "Build Reuse Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-19",
+                    "leftValue": "={{ $json._tier_type === 'stock_video' || $json._tier_type === 'stock_image' }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "stock"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-20",
+                    "leftValue": "={{ $json._tier_type === 'generated_image' }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "generated_image"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "switch-21",
+      "name": "Dispatch By Tier Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, content_project_id: b.content_project_id, visual_type: b._tier_type, search_query: b.search_query, providers: b.providers, _ctx: b } }];"
+      },
+      "id": "code-22",
+      "name": "Prepare Stock Search Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:search-stock-media.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-23",
+      "name": "Search Stock Media",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-24",
+              "leftValue": "={{ $json.success === true && $json.data && $json.data.candidates && $json.data.candidates.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-25",
+      "name": "Did Stock Search Find A Candidate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst ctx = $('Prepare Stock Search Input').first().json._ctx;\n// Deterministic scoring: prefer landscape orientation (16:9-ish), then\n// resolution >= 1920x1080, then raw pixel count.\nconst scored = r.data.candidates.map((c) => {\n  const landscape = c.width > c.height;\n  const hd = c.width >= 1920 && c.height >= 1080;\n  return { c, score: (landscape ? 100 : 0) + (hd ? 50 : 0) + Math.min(c.width * c.height / 10000, 40) };\n}).sort((a, b2) => b2.score - a.score);\nconst best = scored[0].c;\nconst assetId = Date.now().toString(16) + Math.random().toString(16).slice(2);\nreturn [{ json: Object.assign({ _candidate: best, _asset_id: assetId }, ctx) }];"
+      },
+      "id": "code-26",
+      "name": "Pick Best Stock Candidate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { body: { channel_id: b.channel_id, content_project_id: b.content_project_id, asset_type: b._tier_type, asset_id: b._asset_id, url: b._candidate.download_url }, _ctx: b } }];"
+      },
+      "id": "code-27",
+      "name": "Prepare Fetch-And-Store Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:3000/visual/assets/fetch-and-store",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-28",
+      "name": "Call Renderer: Fetch And Store",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-29",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-30",
+      "name": "Is Fetched Stock Asset Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stored = $input.first().json;\nconst { _ctx: ctx, _candidate: cand } = $('Prepare Fetch-And-Store Input').first().json;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, shot_id: ctx.shot_id, asset_type: ctx._tier_type,\n  provider: cand.provider, provider_asset_id: cand.provider_asset_id, source_url: cand.source_page_url, download_url: cand.download_url,\n  creator: cand.creator, license_type: cand.license, license_url: null, attribution_required: cand.attribution_required,\n  attribution_text: null, commercial_use_allowed: cand.commercial_use_allowed,\n  storage_path: stored.storage_path, checksum: stored.checksum, width_px: stored.width_px, height_px: stored.height_px,\n  duration_seconds: stored.duration_seconds, generated: false, generation_prompt: null, request_id: null,\n  cost_usd: 0, identity_checksum: ctx._identity_checksum, channel_reusable: false, metadata: {}, _ctx: ctx\n} }];"
+      },
+      "id": "code-31",
+      "name": "Prepare Stock Persist Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-resolved-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-32",
+      "name": "Persist Resolved Asset (Stock)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-33",
+      "name": "Build Stock Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, content_project_id: b.content_project_id, generation_prompt: b.generation_prompt, providers: b.providers, _ctx: b } }];"
+      },
+      "id": "code-34",
+      "name": "Prepare Image Gen Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-image-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-35",
+      "name": "Generate Image Asset",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-36",
+              "leftValue": "={{ $json.success === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-37",
+      "name": "Did Image Generation Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst ctx = $('Prepare Image Gen Input').first().json._ctx;\nconst assetId = Date.now().toString(16) + Math.random().toString(16).slice(2);\nreturn [{ json: { image: r.data, _ctx: ctx, _asset_id: assetId } }];"
+      },
+      "id": "code-38",
+      "name": "Prepare Store-Bytes Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const { image, _ctx: ctx, _asset_id: assetId } = $input.first().json;\nreturn [{\n  json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, asset_type: 'generated_image', asset_id: assetId, image, ctx: ctx },\n  binary: { data: { data: image.b64_data, mimeType: 'image/png', fileName: 'generated.png' } },\n}];"
+      },
+      "id": "code-39",
+      "name": "Prepare Binary Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://renderer:3000/visual/assets/store-bytes?channel_id=' + $json.channel_id + '&content_project_id=' + $json.content_project_id + '&asset_type=' + $json.asset_type + '&asset_id=' + $json.asset_id + '&ext=png' }}",
+        "sendBody": true,
+        "specifyBody": "raw",
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-40",
+      "name": "Call Renderer: Store Bytes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        7040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-41",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-42",
+      "name": "Is Generated Asset Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stored = $input.first().json;\nconst { image, ctx } = $('Prepare Binary Payload').first().json;\nreturn [{ json: {\n  channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, shot_id: ctx.shot_id, asset_type: 'generated_image',\n  provider: image.provider, provider_asset_id: null, source_url: null, download_url: null, creator: null,\n  license_type: 'generated', license_url: null, attribution_required: false, attribution_text: null, commercial_use_allowed: true,\n  storage_path: stored.storage_path, checksum: stored.checksum, width_px: stored.width_px, height_px: stored.height_px,\n  duration_seconds: stored.duration_seconds, generated: true, generation_prompt: image.revised_prompt || image.prompt, request_id: image.request_id,\n  cost_usd: image.cost_usd || 0, identity_checksum: ctx._identity_checksum, channel_reusable: false,\n  metadata: { model: image.model, size: image.metadata && image.metadata.size }, _ctx: ctx\n} }];"
+      },
+      "id": "code-43",
+      "name": "Prepare Generated Persist Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-resolved-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-44",
+      "name": "Persist Resolved Asset (Generated)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-45",
+      "name": "Build Generated Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\n// No live adapter implemented for these visual_types in this pass (see\n// docs/architecture/visual-asset-pipeline.md#known-limitations) -- a\n// spec-only asset carries the shot's own treatment (overlay_text/\n// motion_plan/generation_prompt) with no storage_path, so downstream\n// rendering can still act on it even though nothing was acquired.\nreturn [{ json: {\n  channel_id: b.channel_id, content_project_id: b.content_project_id, shot_id: b.shot_id, asset_type: b._tier_type,\n  provider: 'internal-spec-only', provider_asset_id: null, source_url: null, download_url: null, creator: null,\n  license_type: 'generated', license_url: null, attribution_required: false, attribution_text: null, commercial_use_allowed: true,\n  storage_path: null, checksum: null, width_px: null, height_px: null, duration_seconds: null,\n  generated: true, generation_prompt: b.generation_prompt || null, request_id: null, cost_usd: 0,\n  identity_checksum: b._identity_checksum, channel_reusable: false,\n  metadata: { overlay_text: b.overlay_text || null, motion_plan: b.motion_plan || {} }, _ctx: b\n} }];"
+      },
+      "id": "code-46",
+      "name": "Prepare Spec-Only Persist Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-resolved-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-47",
+      "name": "Persist Resolved Asset (Spec-Only)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-48",
+      "name": "Build Spec-Only Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Pick Best Stock Candidate').first().json;\nreturn [{ json: Object.assign({}, ctx, { _tier_index: ctx._tier_index + 1 }) }];"
+      },
+      "id": "code-49",
+      "name": "Prepare Next Tier Input (Stock)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8800,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Stock Search Input').first().json._ctx;\nreturn [{ json: Object.assign({}, ctx, { _tier_index: ctx._tier_index + 1 }) }];"
+      },
+      "id": "code-50",
+      "name": "Prepare Next Tier Input (Stock No Candidate)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9020,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Image Gen Input').first().json._ctx;\nreturn [{ json: Object.assign({}, ctx, { _tier_index: ctx._tier_index + 1 }) }];"
+      },
+      "id": "code-51",
+      "name": "Prepare Next Tier Input (Image Gen Failed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9240,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const { ctx } = $('Prepare Binary Payload').first().json;\nreturn [{ json: Object.assign({}, ctx, { _tier_index: ctx._tier_index + 1 }) }];"
+      },
+      "id": "code-52",
+      "name": "Prepare Next Tier Input (Image Invalid)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9460,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-visual-requirement.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-53",
+      "name": "Resolve Visual Requirement (Recurse: Stock)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9680,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-visual-requirement.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-54",
+      "name": "Resolve Visual Requirement (Recurse: Stock No Candidate)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9900,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-visual-requirement.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-55",
+      "name": "Resolve Visual Requirement (Recurse: Image Gen Failed)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        10120,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-visual-requirement.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-56",
+      "name": "Resolve Visual Requirement (Recurse: Image Invalid)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        10340,
+        1400
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Tier Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Tier Input": {
+      "main": [
+        [
+          {
+            "node": "Compute Tier Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Tier Type": {
+      "main": [
+        [
+          {
+            "node": "Tiers Exhausted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tiers Exhausted?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute Identity Components",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Visual Shot Failed (Exhausted)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Visual Shot Failed (Exhausted)": {
+      "main": [
+        [
+          {
+            "node": "Build Exhausted Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Identity Components": {
+      "main": [
+        [
+          {
+            "node": "Compute Identity Checksum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Identity Checksum": {
+      "main": [
+        [
+          {
+            "node": "Attach Checksum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Checksum": {
+      "main": [
+        [
+          {
+            "node": "Prepare Find-Reusable Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Find-Reusable Input": {
+      "main": [
+        [
+          {
+            "node": "Find Reusable Asset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Reusable Asset": {
+      "main": [
+        [
+          {
+            "node": "Is Reusable Asset Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Reusable Asset Found?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Reuse Persist Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dispatch By Tier Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Reuse Persist Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Resolved Asset (Reuse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Resolved Asset (Reuse)": {
+      "main": [
+        [
+          {
+            "node": "Build Reuse Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatch By Tier Type": {
+      "main": [
+        [
+          {
+            "node": "Prepare Stock Search Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Image Gen Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Spec-Only Persist Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Stock Search Input": {
+      "main": [
+        [
+          {
+            "node": "Search Stock Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Stock Media": {
+      "main": [
+        [
+          {
+            "node": "Did Stock Search Find A Candidate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Stock Search Find A Candidate?": {
+      "main": [
+        [
+          {
+            "node": "Pick Best Stock Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Next Tier Input (Stock No Candidate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Best Stock Candidate": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fetch-And-Store Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fetch-And-Store Input": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Fetch And Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Fetch And Store": {
+      "main": [
+        [
+          {
+            "node": "Is Fetched Stock Asset Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Fetched Stock Asset Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Stock Persist Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Next Tier Input (Stock)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Stock Persist Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Resolved Asset (Stock)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Resolved Asset (Stock)": {
+      "main": [
+        [
+          {
+            "node": "Build Stock Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Tier Input (Stock)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Visual Requirement (Recurse: Stock)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Tier Input (Stock No Candidate)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Visual Requirement (Recurse: Stock No Candidate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Image Gen Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Image Asset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Asset": {
+      "main": [
+        [
+          {
+            "node": "Did Image Generation Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Image Generation Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Store-Bytes Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Next Tier Input (Image Gen Failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Store-Bytes Input": {
+      "main": [
+        [
+          {
+            "node": "Prepare Binary Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Binary Payload": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Store Bytes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Store Bytes": {
+      "main": [
+        [
+          {
+            "node": "Is Generated Asset Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Generated Asset Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Generated Persist Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Next Tier Input (Image Invalid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Generated Persist Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Resolved Asset (Generated)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Resolved Asset (Generated)": {
+      "main": [
+        [
+          {
+            "node": "Build Generated Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Tier Input (Image Gen Failed)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Visual Requirement (Recurse: Image Gen Failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Tier Input (Image Invalid)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Visual Requirement (Recurse: Image Invalid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Spec-Only Persist Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Resolved Asset (Spec-Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Resolved Asset (Spec-Only)": {
+      "main": [
+        [
+          {
+            "node": "Build Spec-Only Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

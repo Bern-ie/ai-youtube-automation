@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/visual-qc.schema.json",
+  "title": "Visual Quality Control Result",
+  "description": "The deterministic output of visual_quality_control() -- never an LLM judgment of visual/legal quality. Hard-fail reasons here always force qc_status='failed' regardless of the numeric score. See docs/architecture/visual-asset-pipeline.md#visual-qc-score.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["qc_score", "qc_status", "hard_fail", "hard_fail_reasons", "sub_scores"],
+  "properties": {
+    "qc_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "qc_status": { "type": "string", "enum": ["pending", "passed", "revision_needed", "failed"] },
+    "hard_fail": { "type": "boolean" },
+    "hard_fail_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "missing_shot", "missing_asset", "license_invalid", "timeline_coverage_failed", "missing_source_traceability"
+        ]
+      }
+    },
+    "timeline_coverage_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+    "max_consecutive_static_shots": { "type": "integer", "minimum": 0 },
+    "max_single_asset_reuse": { "type": "integer", "minimum": 0 },
+    "bad_license_shot_count": { "type": "integer", "minimum": 0 },
+    "missing_traceability_count": { "type": "integer", "minimum": 0 },
+    "sub_scores": {
+      "type": "object",
+      "required": ["completeness", "timeline_coverage", "license_validity", "visual_diversity", "source_traceability", "budget_compliance"],
+      "properties": {
+        "completeness": { "type": "number" },
+        "timeline_coverage": { "type": "number" },
+        "license_validity": { "type": "number" },
+        "visual_diversity": { "type": "number" },
+        "source_traceability": { "type": "number" },
+        "budget_compliance": { "type": "number" }
+      }
+    }
+  }
+}

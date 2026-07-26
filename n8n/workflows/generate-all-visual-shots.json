@@ -1,0 +1,534 @@
+{
+  "name": "Generate All Visual Shots",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: Object.assign({}, b, {\n  _iteration: (b._iteration || 0) + 1,\n  _max_iterations: b._max_iterations || 300,\n}) }];"
+      },
+      "id": "code-2",
+      "name": "Normalize Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json._iteration > $json._max_iterations }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Is Iteration Budget Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VISUAL_ASSET_GENERATION_FAILED', message: 'visual shot resolution loop exceeded its safety iteration budget (' + b._max_iterations + ') -- aborting to prevent an unbounded cost loop', retryable: false, error_id: null },\n  runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-5",
+      "name": "Build Loop Budget Exceeded Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, shot_list_id: b.shot_list_id } }];"
+      },
+      "id": "code-6",
+      "name": "Prepare Claim Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:claim-next-pending-visual-shot.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-7",
+      "name": "Claim Next Pending Visual Shot",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-8",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Did Claim Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-10",
+      "name": "Build Claim Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-11",
+              "leftValue": "={{ $json.data !== null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-12",
+      "name": "Was A Shot Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nreturn [{ json: { channel_id: ctx.channel_id, shot_list_id: ctx.shot_list_id, _ctx: ctx } }];"
+      },
+      "id": "code-13",
+      "name": "Prepare Summary Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-visual-shot-resolution-summary.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-14",
+      "name": "Get Visual Shot Resolution Summary",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-15",
+              "leftValue": "={{ $json.all_complete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-16",
+      "name": "Did All Shots Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summary = $input.first().json;\nconst ctx = $('Prepare Summary Input').first().json._ctx;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VISUAL_ASSET_GENERATION_FAILED', message: (summary.failed) + ' of ' + (summary.total) + ' visual shots permanently failed (retry budget exhausted) -- resolve via a targeted revision or fix the underlying provider issue and resume', retryable: true, error_id: null, details: summary },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-17",
+      "name": "Build Incomplete-Shots Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summary = $input.first().json;\nconst ctx = $('Prepare Summary Input').first().json._ctx;\nreturn [{ json: {\n  success: true, data: Object.assign({ shot_list_id: ctx.shot_list_id }, summary),\n  error: null, runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-18",
+      "name": "Build Generate-All-Shots Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nconst claimed = $json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  shot_list_id: ctx.shot_list_id, providers: ctx.providers,\n  shot_id: claimed.shot_id, sequence: claimed.sequence, section_id: claimed.section_id, unit_index: claimed.unit_index,\n  start_ms: claimed.start_ms, end_ms: claimed.end_ms, duration_ms: claimed.duration_ms, visual_type: claimed.visual_type,\n  visual_purpose: claimed.visual_purpose, search_query: claimed.search_query, generation_prompt: claimed.generation_prompt,\n  overlay_text: claimed.overlay_text, motion_plan: claimed.motion_plan, reuse_allowed: claimed.reuse_allowed,\n  fallback_strategy: claimed.fallback_strategy, attempt: claimed.attempt, _tier_index: 0,\n  _loop: { _iteration: ctx._iteration, _max_iterations: ctx._max_iterations }\n} }];"
+      },
+      "id": "code-19",
+      "name": "Merge Shot With Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-visual-requirement.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-20",
+      "name": "Resolve Visual Requirement",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const merged = $('Merge Shot With Context').first().json;\nreturn [{ json: {\n  channel_id: merged.channel_id, workflow_run_id: merged.workflow_run_id, content_project_id: merged.content_project_id,\n  shot_list_id: merged.shot_list_id, providers: merged.providers,\n  _iteration: merged._loop._iteration, _max_iterations: merged._loop._max_iterations\n} }];"
+      },
+      "id": "code-21",
+      "name": "Prepare Next Iteration Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-all-visual-shots.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-22",
+      "name": "Generate All Visual Shots (Recurse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3740,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Is Iteration Budget Exceeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Iteration Budget Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Build Loop Budget Exceeded Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Claim Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Claim Input": {
+      "main": [
+        [
+          {
+            "node": "Claim Next Pending Visual Shot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Next Pending Visual Shot": {
+      "main": [
+        [
+          {
+            "node": "Did Claim Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Claim Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Was A Shot Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Claim Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was A Shot Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Merge Shot With Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Summary Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Summary Input": {
+      "main": [
+        [
+          {
+            "node": "Get Visual Shot Resolution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Visual Shot Resolution Summary": {
+      "main": [
+        [
+          {
+            "node": "Did All Shots Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did All Shots Complete?": {
+      "main": [
+        [
+          {
+            "node": "Build Generate-All-Shots Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Incomplete-Shots Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Shot With Context": {
+      "main": [
+        [
+          {
+            "node": "Resolve Visual Requirement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Visual Requirement": {
+      "main": [
+        [
+          {
+            "node": "Prepare Next Iteration Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Iteration Input": {
+      "main": [
+        [
+          {
+            "node": "Generate All Visual Shots (Recurse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

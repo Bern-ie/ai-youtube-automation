@@ -1,0 +1,195 @@
+{
+  "name": "Generate Image Asset",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst imageProviders = (b.providers && b.providers.image_gen) || [];\nconst provider = imageProviders.find((p) => p.enabled && p.provider === 'openai') || imageProviders[0] || { provider: 'openai', settings: {} };\nconst settings = provider.settings || {};\nconst size = settings.size || '1536x1024';\nconst quality = settings.quality || 'medium';\nconst model = settings.model || 'gpt-image-1';\nreturn [{ json: {\n  ctx: b, model, size, quality,\n  requestBody: { model, prompt: b.generation_prompt || '', size, quality, n: 1 }\n} }];"
+      },
+      "id": "code-2",
+      "name": "Prepare OpenAI Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-3",
+      "name": "Call OpenAI Images",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "openai-images-api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.data !== undefined && $json.data.length > 0 && $json.data[0].b64_json !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Did Generation Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst { ctx } = $('Prepare OpenAI Request').first().json;\nconst statusCode = resp.statusCode || resp.status || (resp.error ? 400 : 0);\nconst retryable = statusCode === 0 || statusCode === 429 || statusCode >= 500;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VISUAL_ASSET_GENERATION_FAILED', message: 'OpenAI image generation call failed (status ' + statusCode + ')', retryable, error_id: null },\n  runtime: { channel_id: ctx.channel_id }\n} }];"
+      },
+      "id": "code-6",
+      "name": "Build Generation Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst { ctx, model, size, quality } = $('Prepare OpenAI Request').first().json;\nconst item = resp.data[0];\nconst [w, h] = size.split('x').map((n) => parseInt(n, 10));\n// Documented flat estimate per size/quality tier -- gpt-image-1 does not\n// return per-call cost in its response. See\n// docs/architecture/visual-asset-pipeline.md#generated-images.\nconst COST_BY_QUALITY = { low: 0.02, medium: 0.04, high: 0.19 };\nconst costUsd = COST_BY_QUALITY[quality] ?? 0.04;\nreturn [{ json: {\n  success: true,\n  data: {\n    provider: 'openai', model, request_id: resp.created ? ('req_' + resp.created) : null,\n    width: w, height: h, prompt: ctx.generation_prompt || '', revised_prompt: item.revised_prompt || null,\n    cost_usd: costUsd, metadata: { size, quality }, b64_data: item.b64_json,\n  },\n  error: null, runtime: { channel_id: ctx.channel_id },\n} }];"
+      },
+      "id": "code-7",
+      "name": "Normalize OpenAI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare OpenAI Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare OpenAI Request": {
+      "main": [
+        [
+          {
+            "node": "Call OpenAI Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI Images": {
+      "main": [
+        [
+          {
+            "node": "Did Generation Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Generation Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Normalize OpenAI Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Generation Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

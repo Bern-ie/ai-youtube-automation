@@ -1,0 +1,14 @@
+{
+  "provider": "pexels",
+  "provider_asset_id": "pexels-photo-1181671",
+  "type": "image",
+  "source_page_url": "https://www.pexels.com/photo/example-1181671/",
+  "download_url": "https://images.pexels.com/photos/example/1181671.jpeg",
+  "width": 1920,
+  "height": 1280,
+  "duration_seconds": null,
+  "creator": "Example Photographer",
+  "license": "Pexels License",
+  "attribution_required": false,
+  "commercial_use_allowed": true
+}

@@ -28,7 +28,14 @@ WAV/PCM transcode, the concat demuxer, `silencedetect`, and a `loudnorm`
 measurement pass — the exact operations the new voiceover audio pipeline
 (`apps/renderer/src/audio.js`) performs. All four passed on both AMD64
 and ARM64 Level 1 (QEMU); no new container or base image was introduced —
-see [FFmpeg validation results](#ffmpeg-validation-results). **Nothing in
+see [FFmpeg validation results](#ffmpeg-validation-results). **Step 9
+added `apps/renderer/src/visual.js`/`routes-visual.js` (image/video
+probing and SSRF-guarded downloading for the visual asset pipeline) —
+these reuse the identical `ffprobe` binary Step 8 already validated on
+both platforms and introduce no new native dependency (no sharp/Canvas/
+Chromium), so no new capability-test entries were needed; the renderer
+image was rebuilt and re-verified passing all existing checks on both
+AMD64 and ARM64 Level 1 (QEMU) after these additions.** **Nothing in
 this matrix is Level 2 (native Oracle Ampere A1) verified yet** — that
 happens once the VM exists, a later step.
 

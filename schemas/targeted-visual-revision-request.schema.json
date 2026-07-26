@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/targeted-visual-revision-request.schema.json",
+  "title": "Targeted Visual Revision Request",
+  "description": "The decision payload for resolve_visual_approval() when decision=revision_requested. target_shot_ids empty/omitted means the whole package needs rework; a non-empty list scopes regeneration to only those shots, keeping every other shot's asset assignment untouched (see create_visual_revision()). See docs/architecture/visual-asset-pipeline.md#targeted-revision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "revision_instructions"],
+  "properties": {
+    "decision": { "const": "revision_requested" },
+    "revision_instructions": { "type": "string", "minLength": 1 },
+    "reviewer_reference": { "type": ["string", "null"] },
+    "target_shot_ids": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" },
+      "description": "Empty/omitted = revise the entire shot list. Non-empty = regenerate only these shots; every other resolved shot's asset assignment carries over at zero cost."
+    }
+  }
+}

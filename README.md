@@ -4,44 +4,46 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 8 — TTS voiceover generation, chunking, audio QC, subtitle timing, and human approval (complete)
+## Status: Step 9 — visual asset planning, shot lists, media acquisition, licensing, asset QC, and human approval (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
 role-separated, channel-isolated PostgreSQL domain schema (Step 3), five
 reusable n8n workflows providing the common workflow-run entry point
 every content workflow builds on (Step 4), manual topic intake (Step 5),
-source-backed research (Step 6 — **`Research Project`**: plans what to
-research, collects real sources, extracts and verifies claims against
-them, synthesizes a versioned research package, runs deterministic QC,
-and pauses for DB-backed human approval), source-grounded script
-generation (Step 7 — **`Script Project`**: writes a structured,
-spoken-language script grounded *only* in the approved research,
-estimates runtime deterministically from word count, runs deterministic
-+ independent LLM quality control with hard gates, up to 3 automatic
-revision cycles, and pauses for DB-backed human approval), and now the
-third workflow allowed to spend money — the first to call a non-LLM
-paid API and do real binary media processing: **`Voiceover Project`**.
-Given a `content_project_id` whose script has already been approved, it
-splits the narration into sentence-bounded TTS chunks (ElevenLabs),
-generates and validates each chunk's audio (truncation/silence
-heuristics via real FFmpeg in the `renderer` service), assembles and
-loudness-normalizes the full track, generates SRT/WebVTT subtitles from
-deterministic chunk timing, runs fully deterministic full-track audio
-QC, and pauses for a human approval — including a per-chunk *targeted*
-revision path — that survives an n8n/Docker restart the same DB-backed
-way research/script approval does. No visual-asset/rendering/publishing
-workflow or Oracle deployment exist yet — this step ends with an
-approved voiceover (narration master, subtitles, timing) ready for
-visual asset planning. See
-[docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md)
+source-backed research (Step 6 — **`Research Project`**), source-grounded
+script generation (Step 7 — **`Script Project`**), TTS voiceover
+generation (Step 8 — **`Voiceover Project`**: sentence-bounded chunking,
+per-chunk audio validation, full-track assembly/loudness normalization,
+SRT/WebVTT subtitle generation, deterministic full-track QC, and human
+approval with targeted per-chunk revision), and now the fourth workflow
+allowed to spend money — the first to call a stock-media search API and
+an image-generation API: **`Visual Asset Project`**. Given a
+`content_project_id` whose voiceover has already been approved, it has
+an LLM decide visual TREATMENT (never new factual content) for every
+narration unit, derives exact shot timing server-side from the
+voiceover's own timing package, resolves each shot to a licensed asset
+(existing reusable asset → free stock search (Pexels) → generated image
+(OpenAI Images) → a documented spec-only fallback for
+chart/map/text/brand treatments) with deterministic license validation
+and real FFprobe-based asset QC in the `renderer` service, runs
+deterministic timeline-coverage and visual-diversity QC, and pauses for
+a human approval — including a per-shot *targeted* revision path — that
+survives an n8n/Docker restart the same DB-backed way every earlier
+stage's approval does. No final rendering/thumbnails/publishing workflow
+or Oracle deployment exist yet — this step ends with an approved visual
+asset package (shot list, a QC'd/licensed asset for every shot, timing/
+motion/transition metadata) ready for final scene rendering. See
+[docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md)
 for the full contract,
+[docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md)
+for the Step 8 foundation it consumes,
 [docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md)
-for the Step 7 foundation it consumes,
+and
 [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
-for the Step 6 foundation script generation itself consumes,
+for the foundations further upstream,
 [docs/architecture/workflow-runtime.md](docs/architecture/workflow-runtime.md)
-for the Step 4 foundation all three build on, and
+for the Step 4 foundation everything builds on, and
 [docs/operations/development-commands.md](docs/operations/development-commands.md)
 to run it yourself.
 
@@ -153,6 +155,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Research pipeline architecture](docs/architecture/research-pipeline.md)
 - [Script pipeline architecture](docs/architecture/script-pipeline.md)
 - [Voiceover pipeline architecture](docs/architecture/voiceover-pipeline.md)
+- [Visual asset pipeline architecture](docs/architecture/visual-asset-pipeline.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -221,7 +224,7 @@ Full index: [docs/README.md](docs/README.md)
   validation pending real API credentials (fixture suite fully passes
   without them). See
   [docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md).
-- **Step 8 (this step) — TTS voiceover generation, chunking, audio QC,
+- **Step 8 — TTS voiceover generation, chunking, audio QC,
   subtitle timing, and human approval.** The `Voiceover Project`
   reusable workflow (24 new SQL-backed/composite n8n workflows, a
   162-node orchestrator, a recursive per-chunk claim/generate/persist
@@ -245,10 +248,42 @@ Full index: [docs/README.md](docs/README.md)
   API credentials (fixture/synthetic-audio suite fully passes without
   them). See
   [docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md).
-- **Later steps:** visual asset planning/collection, media/rendering,
-  thumbnails, YouTube upload, analytics; Oracle Ampere A1 provisioning
-  and deployment (Level 2 native ARM64 validation happens here); first
-  channel configuration and end-to-end single-channel test.
+- **Step 9 (this step) — visual asset planning, shot lists, media
+  acquisition, licensing, asset QC, and human approval.** The `Visual
+  Asset Project` reusable workflow (29 new SQL-backed/composite n8n
+  workflows, an orchestrator mirroring Step 8's resumable-step pattern,
+  a recursive per-shot claim/resolve/persist loop), 2 migrations
+  (`visual_shot_lists`/`visual_shots`/`shot_asset_assignments`,
+  provenance/idempotency fields and a widened license-status gate on the
+  Step 3 `assets`/`asset_licenses` tables, an
+  `awaiting_visual_approval` project status, a `visual_stage` budget
+  ceiling, a `target_shot_ids` column for targeted revisions), 10 new
+  JSON Schemas, one new LLM prompt (`visual-planning` — decides shot
+  *treatment* only, never new factual content), Pexels stock-media and
+  OpenAI Images (`gpt-image-1`) provider integration, shot timing always
+  derived server-side from the voiceover's own timing package (never
+  trusted from the LLM), a deterministic per-shot/per-asset identity
+  checksum enabling zero-cost reuse, a deterministic (never-LLM)
+  licensing gate, real FFprobe-based asset validation/SSRF-guarded
+  downloading in the `renderer` service (`apps/renderer/src/visual.js`/
+  `routes-visual.js`, no new native dependency), deterministic timeline-
+  coverage and visual-diversity QC with hard gates, a per-shot *targeted*
+  human revision path, a 62-check automated test suite (synthetic
+  images/video generated at runtime via real FFmpeg, zero committed
+  binary fixtures) proving resume, DB-backed approval waiting, and
+  **n8n/Docker restart survival** through real n8n and renderer
+  execution. One genuine defect found and fixed along the way: a
+  hand-transcribed copy of the pre-existing `load_channel_configuration()`
+  function dropped its `strategy` block and silently changed a
+  `LEFT JOIN` to an inner `JOIN`, breaking Step 4-7's channel-isolation
+  test until caught and fixed against the verified original. Complete —
+  live-provider validation pending real API credentials (fixture/
+  synthetic-media suite fully passes without them). See
+  [docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md).
+- **Later steps:** final scene rendering, thumbnails, YouTube metadata/
+  upload, analytics; Oracle Ampere A1 provisioning and deployment
+  (Level 2 native ARM64 validation happens here); first channel
+  configuration and end-to-end single-channel test.
 
 ## Engineering rules
 

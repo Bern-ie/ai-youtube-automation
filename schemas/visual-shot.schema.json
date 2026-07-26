@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/visual-shot.schema.json",
+  "title": "Visual Shot",
+  "description": "One planned shot: either the LLM-generated plan input (see $defs/generated_shot, consumed by persist_generated_shots) or the fully-resolved read shape (see $defs/resolved_shot, returned by get_resolved_shots_in_order/get_current_visual_shot_list). See docs/architecture/visual-asset-pipeline.md#shot-list.",
+  "$defs": {
+    "visual_type": {
+      "type": "string",
+      "enum": [
+        "stock_video", "stock_image", "generated_image", "generated_video", "screenshot",
+        "chart", "map", "motion_graphic", "text_animation", "public_domain_archive", "brand_asset"
+      ]
+    },
+    "transition": { "type": "string", "enum": ["cut", "dissolve", "fade", "zoom", "match_cut", "none"] },
+    "generated_shot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section_id", "unit_index_start", "unit_index_end", "visual_type"],
+      "properties": {
+        "section_id": { "type": "string", "minLength": 1 },
+        "unit_index_start": { "type": "integer", "minimum": 0 },
+        "unit_index_end": { "type": "integer", "minimum": 0 },
+        "visual_type": { "$ref": "#/$defs/visual_type" },
+        "visual_purpose": { "type": ["string", "null"] },
+        "search_query": { "type": ["string", "null"] },
+        "generation_prompt": { "type": ["string", "null"] },
+        "overlay_text": { "type": ["string", "null"] },
+        "motion_plan": { "type": "object" },
+        "transition_in": { "$ref": "#/$defs/transition" },
+        "transition_out": { "$ref": "#/$defs/transition" },
+        "source_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "claim_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "reuse_allowed": { "type": "boolean" },
+        "priority": { "type": "integer" },
+        "fallback_strategy": { "type": "array", "items": { "$ref": "#/$defs/visual_type" }, "minItems": 1 }
+      }
+    },
+    "resolved_shot": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["shot_id", "sequence", "section_id", "start_ms", "end_ms", "duration_ms", "visual_type"],
+      "properties": {
+        "shot_id": { "type": "string", "format": "uuid" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "section_id": { "type": "string" },
+        "unit_index": { "type": "integer" },
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "end_ms": { "type": "integer" },
+        "duration_ms": { "type": "integer", "minimum": 1 },
+        "visual_type": { "$ref": "#/$defs/visual_type" },
+        "overlay_text": { "type": ["string", "null"] },
+        "motion_plan": { "type": "object" },
+        "transition_in": { "$ref": "#/$defs/transition" },
+        "transition_out": { "$ref": "#/$defs/transition" },
+        "source_ids": { "type": "array" },
+        "claim_ids": { "type": "array" },
+        "asset": {
+          "type": "object",
+          "properties": {
+            "asset_id": { "type": ["string", "null"], "format": "uuid" },
+            "asset_type": { "type": ["string", "null"] },
+            "storage_path": { "type": ["string", "null"] },
+            "checksum": { "type": ["string", "null"] },
+            "width_px": { "type": ["integer", "null"] },
+            "height_px": { "type": ["integer", "null"] },
+            "duration_seconds": { "type": ["number", "null"] },
+            "license_status": { "type": ["string", "null"] },
+            "provider": { "type": ["string", "null"] },
+            "generated": { "type": ["boolean", "null"] }
+          }
+        }
+      }
+    }
+  },
+  "type": "object"
+}

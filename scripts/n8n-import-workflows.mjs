@@ -170,6 +170,41 @@ const IMPORT_ORDER = [
   'dev-list-pending-voiceover-approvals.json',
   'dev-get-voiceover-approval-package.json',
   'dev-decide-voiceover-approval.json',
+  // Step 9 — visual asset pipeline. Leaf SQL wrappers first, then the
+  // composite provider-calling sub-workflows (generate-all-visual-shots.json
+  // and resolve-visual-requirement.json each call themselves -- see the
+  // self-reference handling in main() -- so they only need their own
+  // prerequisites imported first, not themselves), then the orchestrator
+  // and everything that references it.
+  'load-visual-inputs.json',
+  'visual-budget-preflight.json',
+  'get-or-create-visual-shot-list.json',
+  'persist-generated-shots.json',
+  'claim-next-pending-visual-shot.json',
+  'find-reusable-asset.json',
+  'persist-resolved-asset.json',
+  'mark-visual-shot-failed.json',
+  'get-visual-shot-resolution-summary.json',
+  'get-resolved-shots-in-order.json',
+  'finalize-asset-assignments.json',
+  'visual-quality-control-sql.json',
+  'create-visual-approval.json',
+  'resolve-visual-approval.json',
+  'get-visual-approval-package.json',
+  'list-pending-visual-approvals.json',
+  'get-current-visual-shot-list.json',
+  'create-visual-revision.json',
+  'generate-shot-list.json',
+  'search-stock-media.json',
+  'generate-image-asset.json',
+  'resolve-visual-requirement.json',
+  'generate-all-visual-shots.json',
+  'visual-project.json',
+  'resolve-visual-approval-workflow.json',
+  'step9-visual-project-test.json',
+  'dev-list-pending-visual-approvals.json',
+  'dev-get-visual-approval-package.json',
+  'dev-decide-visual-approval.json',
 ];
 
 async function main() {
@@ -486,6 +521,83 @@ const EXECUTE_WORKFLOW_TARGETS = {
   'Resume: Voiceover Project': 'voiceover-project.json',
   'Resolve Voiceover Approval': 'resolve-voiceover-approval-workflow.json',
   'Voiceover Project': 'voiceover-project.json',
+  // Step 9 — visual asset pipeline. "Mark Step Running/Failed/Succeeded:
+  // load_channel_configuration", "Call: load_channel_configuration", and
+  // "Fail Workflow Run: load_channel_configuration" reuse the Step 6
+  // entries above (same node names, same target files). "Get Channel
+  // Prompt", "Record Usage: Input/Output Tokens", and "Record Cost Event"
+  // reuse the Step 6 entries too.
+  'Mark Step Running: load_visual_inputs': 'mark-workflow-step.json',
+  'Call: load_visual_inputs': 'load-visual-inputs.json',
+  'Mark Step Failed: load_visual_inputs': 'mark-workflow-step.json',
+  'Fail Workflow Run: load_visual_inputs': 'fail-workflow-run.json',
+  'Mark Step Succeeded: load_visual_inputs': 'mark-workflow-step.json',
+  'Mark Step Running: visual_budget_preflight': 'mark-workflow-step.json',
+  'Call: visual_budget_preflight': 'visual-budget-preflight.json',
+  'Mark Step Failed: visual_budget_preflight': 'mark-workflow-step.json',
+  'Fail Workflow Run: visual_budget_preflight': 'fail-workflow-run.json',
+  'Mark Step Succeeded: visual_budget_preflight': 'mark-workflow-step.json',
+  'Mark Step Running: get_or_create_visual_shot_list': 'mark-workflow-step.json',
+  'Call: get_or_create_visual_shot_list': 'get-or-create-visual-shot-list.json',
+  'Mark Step Failed: get_or_create_visual_shot_list': 'mark-workflow-step.json',
+  'Fail Workflow Run: get_or_create_visual_shot_list': 'fail-workflow-run.json',
+  'Mark Step Succeeded: get_or_create_visual_shot_list': 'mark-workflow-step.json',
+  'Mark Step Running: generate_shot_list': 'mark-workflow-step.json',
+  'Call: generate_shot_list': 'generate-shot-list.json',
+  'Mark Step Failed: generate_shot_list': 'mark-workflow-step.json',
+  'Fail Workflow Run: generate_shot_list': 'fail-workflow-run.json',
+  'Mark Step Succeeded: generate_shot_list': 'mark-workflow-step.json',
+  'Mark Step Running: generate_all_visual_shots': 'mark-workflow-step.json',
+  'Call: generate_all_visual_shots': 'generate-all-visual-shots.json',
+  'Mark Step Failed: generate_all_visual_shots': 'mark-workflow-step.json',
+  'Fail Workflow Run: generate_all_visual_shots': 'fail-workflow-run.json',
+  'Mark Step Succeeded: generate_all_visual_shots': 'mark-workflow-step.json',
+  'Mark Step Running: finalize_asset_assignments': 'mark-workflow-step.json',
+  'Call: finalize_asset_assignments': 'finalize-asset-assignments.json',
+  'Mark Step Failed: finalize_asset_assignments': 'mark-workflow-step.json',
+  'Fail Workflow Run: finalize_asset_assignments': 'fail-workflow-run.json',
+  'Mark Step Succeeded: finalize_asset_assignments': 'mark-workflow-step.json',
+  'Mark Step Running: visual_quality_control': 'mark-workflow-step.json',
+  'Call: visual_quality_control': 'visual-quality-control-sql.json',
+  'Mark Step Failed: visual_quality_control': 'mark-workflow-step.json',
+  'Fail Workflow Run: visual_quality_control': 'fail-workflow-run.json',
+  'Mark Step Succeeded: visual_quality_control': 'mark-workflow-step.json',
+  'Mark Step Running: create_visual_approval': 'mark-workflow-step.json',
+  'Call: create_visual_approval': 'create-visual-approval.json',
+  'Mark Step Failed: create_visual_approval': 'mark-workflow-step.json',
+  'Fail Workflow Run: create_visual_approval': 'fail-workflow-run.json',
+  'Mark Step Succeeded: create_visual_approval': 'mark-workflow-step.json',
+  // "Generate Shot List" composite.
+  'Persist Generated Shots': 'persist-generated-shots.json',
+  // "Resolve Visual Requirement" composite -- the four "(Recurse: ...)"
+  // nodes are genuine self-references, resolved by the two-pass patch in
+  // main().
+  'Mark Visual Shot Failed (Exhausted)': 'mark-visual-shot-failed.json',
+  'Find Reusable Asset': 'find-reusable-asset.json',
+  'Persist Resolved Asset (Reuse)': 'persist-resolved-asset.json',
+  'Search Stock Media': 'search-stock-media.json',
+  'Persist Resolved Asset (Stock)': 'persist-resolved-asset.json',
+  'Generate Image Asset': 'generate-image-asset.json',
+  'Persist Resolved Asset (Generated)': 'persist-resolved-asset.json',
+  'Persist Resolved Asset (Spec-Only)': 'persist-resolved-asset.json',
+  'Resolve Visual Requirement (Recurse: Stock)': 'resolve-visual-requirement.json',
+  'Resolve Visual Requirement (Recurse: Stock No Candidate)': 'resolve-visual-requirement.json',
+  'Resolve Visual Requirement (Recurse: Image Gen Failed)': 'resolve-visual-requirement.json',
+  'Resolve Visual Requirement (Recurse: Image Invalid)': 'resolve-visual-requirement.json',
+  // "Generate All Visual Shots" composite -- the last entry is a genuine
+  // self-reference, resolved by the two-pass patch in main().
+  'Claim Next Pending Visual Shot': 'claim-next-pending-visual-shot.json',
+  'Get Visual Shot Resolution Summary': 'get-visual-shot-resolution-summary.json',
+  'Resolve Visual Requirement': 'resolve-visual-requirement.json',
+  'Generate All Visual Shots (Recurse)': 'generate-all-visual-shots.json',
+  // "Visual Project" orchestrator.
+  'Visual Project': 'visual-project.json',
+  // "Resolve Visual Approval" orchestrator + dev webhooks.
+  'Resolve Visual Approval SQL': 'resolve-visual-approval.json',
+  'Initialize Revision Workflow Run': 'initialize-workflow-run.json',
+  'Create Visual Revision': 'create-visual-revision.json',
+  'Resume: Visual Project': 'visual-project.json',
+  'Resolve Visual Approval': 'resolve-visual-approval-workflow.json',
 };
 const FILE_TO_WORKFLOW_NAME = {
   'initialize-workflow-run.json': 'Initialize Workflow Run',
@@ -562,6 +674,32 @@ const FILE_TO_WORKFLOW_NAME = {
   'assemble-voiceover.json': 'Assemble Voiceover',
   'voiceover-project.json': 'Voiceover Project',
   'resolve-voiceover-approval-workflow.json': 'Resolve Voiceover Approval',
+  // Step 9 — visual asset pipeline.
+  'load-visual-inputs.json': 'Load Visual Inputs',
+  'visual-budget-preflight.json': 'Visual Budget Preflight',
+  'get-or-create-visual-shot-list.json': 'Get Or Create Visual Shot List',
+  'persist-generated-shots.json': 'Persist Generated Shots',
+  'claim-next-pending-visual-shot.json': 'Claim Next Pending Visual Shot',
+  'find-reusable-asset.json': 'Find Reusable Asset',
+  'persist-resolved-asset.json': 'Persist Resolved Asset',
+  'mark-visual-shot-failed.json': 'Mark Visual Shot Failed',
+  'get-visual-shot-resolution-summary.json': 'Get Visual Shot Resolution Summary',
+  'get-resolved-shots-in-order.json': 'Get Resolved Shots In Order',
+  'finalize-asset-assignments.json': 'Finalize Asset Assignments',
+  'visual-quality-control-sql.json': 'Visual Quality Control SQL',
+  'create-visual-approval.json': 'Create Visual Approval',
+  'resolve-visual-approval.json': 'Resolve Visual Approval SQL',
+  'get-visual-approval-package.json': 'Get Visual Approval Package',
+  'list-pending-visual-approvals.json': 'List Pending Visual Approvals',
+  'get-current-visual-shot-list.json': 'Get Current Visual Shot List',
+  'create-visual-revision.json': 'Create Visual Revision',
+  'generate-shot-list.json': 'Generate Shot List',
+  'search-stock-media.json': 'Search Stock Media',
+  'generate-image-asset.json': 'Generate Image Asset',
+  'resolve-visual-requirement.json': 'Resolve Visual Requirement',
+  'generate-all-visual-shots.json': 'Generate All Visual Shots',
+  'visual-project.json': 'Visual Project',
+  'resolve-visual-approval-workflow.json': 'Resolve Visual Approval',
 };
 
 main().catch((err) => {

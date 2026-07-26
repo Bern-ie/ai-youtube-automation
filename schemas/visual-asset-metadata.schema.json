@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/visual-asset-metadata.schema.json",
+  "title": "Visual Asset Metadata",
+  "description": "The persisted `assets` row shape for a Step 9 visual asset -- provenance, licensing gate, and storage/QC facts. Never contains the binary itself (storage_path is a pointer, not the payload) and never a provider credential. See docs/architecture/visual-asset-pipeline.md#asset-provenance.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["asset_id", "asset_type", "provider", "license_status", "status"],
+  "properties": {
+    "asset_id": { "type": "string", "format": "uuid" },
+    "asset_type": {
+      "type": "string",
+      "enum": [
+        "stock_video", "stock_image", "generated_image", "generated_video", "screenshot",
+        "chart", "map", "motion_graphic", "text_animation", "public_domain_archive", "brand_asset"
+      ]
+    },
+    "provider": { "type": ["string", "null"] },
+    "provider_asset_id": { "type": ["string", "null"] },
+    "source_url": { "type": ["string", "null"] },
+    "download_url": { "type": ["string", "null"] },
+    "creator": { "type": ["string", "null"] },
+    "generated": { "type": "boolean" },
+    "generation_prompt": { "type": ["string", "null"] },
+    "request_id": { "type": ["string", "null"] },
+    "license_status": {
+      "type": "string",
+      "enum": ["unknown", "verified_usable", "attribution_required", "public_domain", "generated", "incompatible", "rejected"]
+    },
+    "storage_path": { "type": ["string", "null"] },
+    "checksum": { "type": ["string", "null"] },
+    "width_px": { "type": ["integer", "null"] },
+    "height_px": { "type": ["integer", "null"] },
+    "aspect_ratio": { "type": ["number", "null"] },
+    "duration_seconds": { "type": ["number", "null"] },
+    "cost_usd": { "type": ["number", "null"] },
+    "status": { "type": "string", "enum": ["pending", "acquiring", "acquired", "failed", "rejected"] },
+    "channel_reusable": { "type": "boolean" },
+    "reuse_count": { "type": "integer", "minimum": 0 },
+    "identity_checksum": { "type": ["string", "null"] }
+  }
+}

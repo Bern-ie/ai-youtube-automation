@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/stock-provider-result.schema.json",
+  "title": "Stock Provider Normalized Result",
+  "description": "Normalized shape every stock-media provider adapter (Pexels today) must produce, so provider-specific response shapes never leak into the rest of the Visual Asset pipeline. See docs/architecture/visual-asset-pipeline.md#stock-media-providers.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["provider", "provider_asset_id", "type", "source_page_url", "download_url", "width", "height", "license", "attribution_required"],
+  "properties": {
+    "provider": { "type": "string" },
+    "provider_asset_id": { "type": "string" },
+    "type": { "type": "string", "enum": ["video", "image"] },
+    "source_page_url": { "type": "string", "format": "uri" },
+    "download_url": { "type": "string", "format": "uri" },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "duration_seconds": { "type": ["number", "null"] },
+    "creator": { "type": ["string", "null"] },
+    "license": { "type": "string" },
+    "attribution_required": { "type": "boolean" },
+    "commercial_use_allowed": { "type": "boolean" }
+  }
+}

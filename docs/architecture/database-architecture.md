@@ -338,6 +338,60 @@ Also from the same migration:
   `script_stage` already use. See
   [voiceover-pipeline.md#voiceover-stage-cost-ceiling](voiceover-pipeline.md#voiceover-stage-cost-ceiling).
 
+### Step 9 additions: `visual_shot_lists`/`visual_shots`/`shot_asset_assignments`, richer `assets`/`asset_licenses`, `visual_stage`
+
+Two new tables (`20260722250000_visual_asset_pipeline_schema.sql`), plus
+extensions to two Step 3 tables that existed with only a minimal shape:
+
+- `visual_shot_lists` — versioned like `voiceovers` (`version`/
+  `is_current` with the same partial-unique-index pattern,
+  `revision_trigger`/`revision_reason`, `qc_score`/`qc_status`/
+  `qc_details`, `timeline_coverage_pct`, `total_cost_usd`,
+  `completed_at`/`approved_at`). See
+  [visual-asset-pipeline.md#shot-list](visual-asset-pipeline.md#shot-list).
+- `visual_shots` — one row per planned shot, with `start_ms`/`end_ms`/
+  `duration_ms` always derived from the owning voiceover's `timing`
+  array (never trusted from the LLM), `identity_checksum` for reuse,
+  `candidate_results` (scored search candidates considered, for
+  auditability), `fallback_strategy` (JSONB array). `idx_visual_shots_pending`
+  supports `claim_next_pending_visual_shot()`'s `FOR UPDATE SKIP LOCKED`
+  claiming, same pattern as `voiceover_chunks`. See
+  [visual-asset-pipeline.md#shot-timing-derivation](visual-asset-pipeline.md#shot-timing-derivation).
+- `shot_asset_assignments` — which asset is attached to which shot, in
+  fallback-preference order; a partial unique index
+  (`idx_shot_asset_assignments_one_selected_per_shot`) enforces at most
+  one `selected` assignment per shot.
+- `assets` (Step 3, previously a minimal single-attempt record) gains
+  provenance/idempotency fields — `provider_asset_id`, `download_url`,
+  `creator`, `generated`, `request_id`, `aspect_ratio`,
+  `channel_reusable`/`reuse_count`, `identity_checksum`,
+  `origin_shot_id`, `attempt`, `error_id`, `metadata` — and both its
+  `asset_type` and `license_status` CHECK constraints were widened/
+  redefined (table was empty, so a clean redefinition, not a data
+  migration): `license_status` now supports
+  `unknown|verified_usable|attribution_required|public_domain|generated|incompatible|rejected`,
+  the hard rendering gate — see
+  [visual-asset-pipeline.md#licensing](visual-asset-pipeline.md#licensing).
+- `asset_licenses` (Step 3, already had the right shape) gains
+  `provider_terms_reference`/`verified_at`.
+- `channel_branding.visual_policy` (JSONB, secret-guarded) — the
+  per-channel visual production policy (blocked categories, reuse
+  rules, asset resolution priority, motion/transition/text-overlay
+  defaults). See
+  [visual-asset-pipeline.md#channel-visual-configuration](visual-asset-pipeline.md#channel-visual-configuration).
+- `content_projects.status` gains `awaiting_visual_approval` (the same
+  genuine-gap-closing pattern Step 8 applied for voiceover).
+- `approval_requests.stage` gains `visual`;
+  `approval_requests.target_shot_ids` (JSONB) supports targeted
+  revision, mirroring `target_chunk_ids`.
+- `channel_budget_limits.limit_type` gains `visual_stage`.
+- `channel_provider_settings.service_type` needed **no change** —
+  `image_gen`/`video_gen`/`stock_media` were already valid values since
+  Step 3, so `load_channel_configuration()`'s generic `providers` block
+  exposed the new Step 9 provider rows (Pexels, OpenAI Images) with zero
+  code change; only one field (`style.visual_policy`) was added to that
+  function's output.
+
 ## Channel isolation
 
 Cross-channel data leakage is treated as a production-blocking defect,

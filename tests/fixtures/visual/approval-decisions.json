@@ -1,0 +1,12 @@
+{
+  "approve": { "decision": "approved", "reviewer_reference": "harness-reviewer" },
+  "reject": { "decision": "rejected", "reviewer_reference": "harness-reviewer", "revision_instructions": "Wrong tone for this channel, start over." },
+  "revision_whole_package": {
+    "decision": "revision_requested", "reviewer_reference": "harness-reviewer",
+    "revision_instructions": "Too many static images in a row in the middle section -- add motion.", "target_shot_ids": []
+  },
+  "revision_targeted": {
+    "decision": "revision_requested", "reviewer_reference": "harness-reviewer",
+    "revision_instructions": "The chart shot shows the wrong statistic treatment -- regenerate just that one.", "target_shot_ids": []
+  }
+}

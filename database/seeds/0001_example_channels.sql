@@ -457,4 +457,102 @@ VALUES
   ('11111111-1111-1111-1111-111111111111', 'cccccccc-0000-0000-0000-000000000003', 'cccccccc-0000-0000-0000-000000000031')
 ON CONFLICT (channel_id, prompt_id) DO NOTHING;
 
+-- ------------------------------------------------------------------
+-- Step 9 (visual asset pipeline) additions to Channel 1.
+-- ------------------------------------------------------------------
+
+-- image_gen/stock_media were already valid channel_provider_settings
+-- service_type values since Step 3 -- these are the first rows to
+-- actually use them. Pexels is free (no monthly_limit_usd ceiling
+-- needed for search itself -- the cost this pipeline tracks is
+-- generated-image spend, not stock search calls, which are free).
+-- OpenAI Images (gpt-image-1) is the configured generated-image
+-- fallback -- see docs/architecture/visual-asset-pipeline.md#generated-images.
+INSERT INTO channel_provider_settings (channel_id, service_type, provider, enabled, priority, monthly_limit_usd, settings)
+VALUES
+  ('11111111-1111-1111-1111-111111111111', 'stock_media', 'pexels', true, 1, NULL, '{"orientation": "landscape", "min_width": 1920, "min_height": 1080}'::jsonb),
+  ('11111111-1111-1111-1111-111111111111', 'image_gen', 'openai', true, 1, 5.00, '{"model": "gpt-image-1", "size": "1536x1024", "quality": "medium"}'::jsonb)
+ON CONFLICT (channel_id, service_type, provider) DO NOTHING;
+
+-- Per-project visual-stage ceiling — see
+-- docs/architecture/visual-asset-pipeline.md#visual-budget-preflight.
+-- Generous relative to research/script/voiceover: a handful of
+-- gpt-image-1 generations (the only paid asset source configured) at
+-- ~$0.04-0.17 each comfortably fits, with most shots expected to
+-- resolve via free stock search first.
+INSERT INTO channel_budget_limits (channel_id, limit_type, amount_usd, enforcement, warning_threshold_pct)
+VALUES ('11111111-1111-1111-1111-111111111111', 'visual_stage', 2.00, 'hard', 80.0)
+ON CONFLICT (channel_id, limit_type) DO NOTHING;
+
+-- Only sets visual_policy if it is still the column default -- never
+-- clobbers a value someone has since configured by hand. See
+-- docs/architecture/visual-asset-pipeline.md#channel-visual-configuration.
+UPDATE channel_branding SET visual_policy = '{
+  "blocked_categories": ["graphic_violence", "identifiable_minors", "crime_scene_photos"],
+  "license_requirements": {"allow_attribution_required": true, "require_commercial_use": true},
+  "reuse_rules": {"max_reuse_per_project": 3, "min_seconds_between_reuse": 45, "max_reuse_across_recent_videos": 2},
+  "asset_resolution_priority": ["reusable_asset", "stock_media", "generated_image", "generated_video"],
+  "motion_intensity": "moderate",
+  "transition_style": "cut_and_dissolve",
+  "text_overlay_style": "lower_third, muted accent color, max 6 words",
+  "archival_preferences": ["wikimedia_commons", "public_domain_archive"],
+  "approval_required": true,
+  "max_targeted_revision_attempts": 2
+}'::jsonb
+WHERE channel_id = '11111111-1111-1111-1111-111111111111' AND visual_policy = '{}'::jsonb;
+
+INSERT INTO prompts (id, name, purpose, scope, status)
+VALUES (
+  'dddddddd-0000-0000-0000-000000000001', 'visual-planning',
+  'Decides, for every narration unit of an approved script, the visual TREATMENT (shot type, search query or generation prompt, overlay text, motion/transition plan) -- never new factual content.',
+  'shared', 'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'dddddddd-0000-0000-0000-000000000011', 'dddddddd-0000-0000-0000-000000000001', 1,
+$prompt$You are a visual director for a YouTube video. The narration has already been written, fact-checked, recorded, and timed -- your job is to decide what the viewer SEES during each part of it, not to add or change anything about what they HEAR.
+
+You will be given:
+- the approved script (hook, intro, sections, outro, cta), each unit's section_id and its cited source_ids/claim_ids
+- the voiceover's narration timing units: for every (section_id, unit_index) pair, its actual start_ms/end_ms in the final audio
+- the channel's visual style, brand colors, fonts, logo/intro/outro assets, and visual_policy (blocked categories, license requirements, reuse rules, asset resolution priority, motion intensity, transition style, text-overlay style, archival preferences)
+- the target video format and duration
+
+Produce an ordered list of shots covering the full narration timeline. For each shot, specify:
+- section_id, unit_index_start, unit_index_end: the exact (inclusive) range of narration timing units this shot covers. Every timing unit in the script must be covered by exactly one shot -- do not skip units, and do not let two shots claim the same unit.
+- visual_type: one of stock_video, stock_image, generated_image, generated_video, screenshot, chart, map, motion_graphic, text_animation, public_domain_archive, brand_asset. Choose based on content, not habit -- do not make every shot the same type. Prefer stock_video/stock_image for concrete visual B-roll, chart for quantitative claims, map for geographic claims, text_animation sparingly for a key term/statistic/date, brand_asset only for actual intro/outro/logo moments.
+- visual_purpose: one sentence on what this shot is doing for the viewer (illustrate, provide evidence, add pacing/energy, transition, emphasize a term).
+- search_query: for stock_video/stock_image/public_domain_archive, a short, concrete, literal search phrase (e.g. "stone masons carving temple wall", not the narration sentence verbatim and not vague single words).
+- generation_prompt: for generated_image/generated_video, a specific visual-composition prompt. For a factual/historical subject, prefer an illustrative/diagrammatic/artistic treatment over attempting photorealism, unless the content genuinely supports a clearly-labeled photorealistic recreation -- generated imagery must never be presented as if it were an authentic photograph of a real, identifiable person or specific historical moment.
+- overlay_text: on-screen text if any (a short statistic, term, name, or date -- never a duplicate of the narration paragraph). Leave null if none.
+- source_ids, claim_ids: REQUIRED (copied exactly from what you were given, never invented) whenever the shot itself communicates a factual assertion -- this is mandatory for chart/map/screenshot and for any shot whose overlay_text states a fact. Generic aesthetic B-roll illustrating mood/setting does not need them -- leave both empty arrays in that case.
+- motion_plan: for still images, a simple treatment such as {"movement": "slow_zoom_in"} or {"movement": "pan_left"} or {"movement": "static"}. Do not invent a rendering-engine-specific format -- keep it to a movement name and, if relevant, a direction.
+- transition_in, transition_out: one of cut, dissolve, fade, zoom, match_cut, none. Default to "cut" for most shots -- avoid excessive flashy transitions; match the channel's configured transition_style.
+- reuse_allowed: true unless this shot is uniquely tied to a specific fact/moment that should never appear again in this video or others.
+- priority: 0 for a normal shot, higher for one that must not be dropped/simplified if resolution is constrained (e.g. the hook's opening shot).
+- fallback_strategy: an ordered array of visual_type values to try if the primary visual_type can't be resolved (e.g. ["stock_video", "stock_image", "generated_image", "text_animation"]). A shot must always be resolvable to SOMETHING -- the last entry should be a type that can always succeed (text_animation or brand_asset).
+
+Shot-length rules -- avoid both extremes:
+- Do not assign one shot to an entire multi-sentence section (that is a slideshow, not a video). Prefer roughly 3-8 second shots for ordinary B-roll.
+- Do not cut faster than necessary -- do not create a new shot for every half-second. Group consecutive narration units that share the same natural visual idea into one shot; split at genuine content/topic changes within a section, not mechanically.
+- Charts/maps/explanatory graphics may hold longer (up to the length of the explanation) since the viewer needs time to read them.
+- The hook and any high-energy moment may use shorter, punchier cuts than an explanatory section.
+
+Non-negotiable:
+- You decide visual TREATMENT only. Never introduce a new fact, statistic, date, name, or claim that was not already in the approved script/research you were given.
+- Respect the channel's blocked_categories and archival_preferences from visual_policy.
+- Every shot must be traceable back to a real (section_id, unit_index) range you were actually given -- never invent a section_id or an out-of-range unit_index.
+
+Return only the structured shot list matching the provided schema.$prompt$,
+  '{"schema": "visual-shot-list.schema.json"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO channel_prompt_assignments (channel_id, prompt_id, prompt_version_id)
+VALUES ('11111111-1111-1111-1111-111111111111', 'dddddddd-0000-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000011')
+ON CONFLICT (channel_id, prompt_id) DO NOTHING;
+
 COMMIT;

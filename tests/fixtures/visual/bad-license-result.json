@@ -1,0 +1,14 @@
+{
+  "provider": "generic-stock-reupload-site",
+  "provider_asset_id": "reupload-9981",
+  "type": "image",
+  "source_page_url": "https://example-reupload-site.invalid/photo/9981",
+  "download_url": "https://example-reupload-site.invalid/dl/9981.jpg",
+  "width": 1920,
+  "height": 1080,
+  "duration_seconds": null,
+  "creator": null,
+  "license": "Editorial use only -- unclear ownership, not licensed for commercial reuse",
+  "attribution_required": true,
+  "commercial_use_allowed": false
+}

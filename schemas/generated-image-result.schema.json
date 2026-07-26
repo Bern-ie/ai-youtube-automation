@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/generated-image-result.schema.json",
+  "title": "Generated Image Adapter Result",
+  "description": "Normalized shape the generated-image provider adapter (OpenAI Images today) must produce. Persists the actual generation prompt for provenance -- see docs/architecture/visual-asset-pipeline.md#generated-images.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["provider", "model", "request_id", "width", "height", "prompt"],
+  "properties": {
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "request_id": { "type": "string" },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "prompt": { "type": "string" },
+    "revised_prompt": { "type": ["string", "null"] },
+    "cost_usd": { "type": ["number", "null"] },
+    "metadata": { "type": "object" }
+  }
+}

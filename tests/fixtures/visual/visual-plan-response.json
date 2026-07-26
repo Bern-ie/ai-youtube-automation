@@ -1,0 +1,122 @@
+[
+  {
+    "section_id": "hook",
+    "unit_index_start": 0,
+    "unit_index_end": 1,
+    "visual_type": "stock_video",
+    "visual_purpose": "Open with energetic, concrete B-roll matching the hook's tension.",
+    "search_query": "ancient stone quarry workers carving rock",
+    "generation_prompt": null,
+    "overlay_text": null,
+    "motion_plan": {
+      "movement": "static"
+    },
+    "transition_in": "cut",
+    "transition_out": "cut",
+    "source_ids": [],
+    "claim_ids": [],
+    "reuse_allowed": true,
+    "priority": 2,
+    "fallback_strategy": [
+      "stock_video",
+      "stock_image",
+      "generated_image",
+      "text_animation"
+    ]
+  },
+  {
+    "section_id": "intro",
+    "unit_index_start": 0,
+    "unit_index_end": 1,
+    "visual_type": "stock_image",
+    "visual_purpose": "Establish setting while the intro narration plays.",
+    "search_query": "ancient irrigation canal aerial view",
+    "generation_prompt": null,
+    "overlay_text": null,
+    "motion_plan": {
+      "movement": "slow_zoom_in"
+    },
+    "transition_in": "dissolve",
+    "transition_out": "cut",
+    "source_ids": [],
+    "claim_ids": [],
+    "reuse_allowed": true,
+    "priority": 0,
+    "fallback_strategy": [
+      "stock_image",
+      "generated_image",
+      "text_animation"
+    ]
+  },
+  {
+    "section_id": "body-1",
+    "unit_index_start": 0,
+    "unit_index_end": 1,
+    "visual_type": "chart",
+    "visual_purpose": "Show the statistic the narration is citing.",
+    "search_query": null,
+    "generation_prompt": null,
+    "overlay_text": "Channel length: 4.2 km",
+    "motion_plan": {
+      "movement": "static"
+    },
+    "transition_in": "cut",
+    "transition_out": "fade",
+    "source_ids": [
+      "11111111-2222-3333-4444-555555555555"
+    ],
+    "claim_ids": [],
+    "reuse_allowed": false,
+    "priority": 1,
+    "fallback_strategy": [
+      "chart",
+      "text_animation"
+    ]
+  },
+  {
+    "section_id": "outro",
+    "unit_index_start": 0,
+    "unit_index_end": 0,
+    "visual_type": "brand_asset",
+    "visual_purpose": "Close on channel branding.",
+    "search_query": null,
+    "generation_prompt": null,
+    "overlay_text": null,
+    "motion_plan": {
+      "movement": "static"
+    },
+    "transition_in": "fade",
+    "transition_out": "cut",
+    "source_ids": [],
+    "claim_ids": [],
+    "reuse_allowed": true,
+    "priority": 0,
+    "fallback_strategy": [
+      "brand_asset",
+      "text_animation"
+    ]
+  },
+  {
+    "section_id": "cta",
+    "unit_index_start": 0,
+    "unit_index_end": 0,
+    "visual_type": "text_animation",
+    "visual_purpose": "Reinforce the subscribe CTA visually.",
+    "search_query": null,
+    "generation_prompt": null,
+    "overlay_text": "Subscribe for more",
+    "motion_plan": {
+      "movement": "static"
+    },
+    "transition_in": "cut",
+    "transition_out": "none",
+    "source_ids": [],
+    "claim_ids": [],
+    "reuse_allowed": true,
+    "priority": 0,
+    "fallback_strategy": [
+      "text_animation",
+      "brand_asset"
+    ]
+  }
+]

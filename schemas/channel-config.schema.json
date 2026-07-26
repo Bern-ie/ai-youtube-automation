@@ -66,7 +66,8 @@
         "cta_type": { "type": ["string", "null"], "enum": ["subscribe", "comment", "affiliate_link", "newsletter", "next_video", "product", "community", null], "description": "Added Step 7 — the fixed CTA goal script generation scripts, distinct from cta_style's free-text tone guidance." },
         "video_format": { "type": ["string", "null"] },
         "visual_style": { "type": ["string", "null"] },
-        "thumbnail_rules": { "type": "object" }
+        "thumbnail_rules": { "type": "object" },
+        "visual_policy": { "type": "object", "description": "Added Step 9 — per-channel visual production policy (blocked categories, reuse rules, asset resolution priority, motion/transition/text-overlay defaults). See visual-asset-pipeline.md#channel-visual-configuration." }
       }
     },
     "branding": {

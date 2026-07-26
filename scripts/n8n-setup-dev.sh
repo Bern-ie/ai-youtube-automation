@@ -25,7 +25,7 @@ require_env N8N_ADMIN_EMAIL N8N_ADMIN_PASSWORD POSTGRES_DB APP_DB_USER APP_DB_PA
 # CHANGE_ME placeholder must not block setup. Only the opt-in live smoke
 # test (RUN_LIVE_AI_TESTS=1) needs real values; see
 # docs/architecture/research-pipeline.md#test-mode--cost-control.
-for var in ANTHROPIC_API_KEY TAVILY_API_KEY BRAVE_SEARCH_API_KEY ELEVENLABS_API_KEY; do
+for var in ANTHROPIC_API_KEY TAVILY_API_KEY BRAVE_SEARCH_API_KEY ELEVENLABS_API_KEY STOCK_MEDIA_PROVIDER_API_KEY OPENAI_API_KEY; do
   if [[ -z "${!var:-}" || "${!var:-}" == "CHANGE_ME" ]]; then
     warn "$var is still CHANGE_ME — fine for fixture tests, but live-provider calls (and RUN_LIVE_AI_TESTS=1) will fail until it's set."
   fi
@@ -132,5 +132,16 @@ ensure_credential "brave-search-api" "httpHeaderAuth" \
 # Step 8 voiceover pipeline — see docs/architecture/voiceover-pipeline.md#tts-provider-architecture.
 ensure_credential "elevenlabs-api" "httpHeaderAuth" \
   "{\"name\": \"xi-api-key\", \"value\": \"$ELEVENLABS_API_KEY\"}"
+
+# Step 9 visual asset pipeline — see docs/architecture/visual-asset-pipeline.md#stock-media-providers
+# and #generated-images. Pexels wants the raw key as the Authorization
+# header value (no "Bearer " prefix); OpenAI wants the standard "Bearer "
+# form. CHANGE_ME placeholders are fine here too -- the fixture test
+# suite never calls these APIs (see docs/architecture/visual-asset-pipeline.md#test-mode--cost-control).
+ensure_credential "pexels-api" "httpHeaderAuth" \
+  "{\"name\": \"Authorization\", \"value\": \"$STOCK_MEDIA_PROVIDER_API_KEY\"}"
+
+ensure_credential "openai-images-api" "httpHeaderAuth" \
+  "{\"name\": \"Authorization\", \"value\": \"Bearer $OPENAI_API_KEY\"}"
 
 pass "n8n dev setup complete. Run scripts/n8n-import-workflows.mjs next."

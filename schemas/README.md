@@ -1,6 +1,6 @@
 # schemas
 
-Status: **implemented (Steps 4–7).** JSON Schema, Draft 2020-12
+Status: **implemented (Steps 4–9).** JSON Schema, Draft 2020-12
 (`"$schema": "https://json-schema.org/draft/2020-12/schema"` on every
 file) — chosen since nothing in this project had standardized an earlier
 draft yet.
@@ -50,17 +50,46 @@ draft yet.
 `approval-decision.schema.json` (Step 6) is reused as-is for script
 approval decisions — the request shape is identical for both stages.
 
-All twenty-two compile together via `ajv` with cross-file `$ref`
-resolution (`$id` + `addSchema`, see `n8n/tests/run.js`, `run-step5.js`,
-`run-step6.js`, and `run-step7.js`) and are validated against **real
-captured output**, not just checked for internal consistency — every JSON
-response the test suites get back from the live webhooks is asserted
-against these schemas on every run.
+## Step 8 — TTS voiceover generation
+
+| File | Validates |
+|---|---|
+| `voiceover-request.schema.json` | Input to `Voiceover Project` — base fields plus `force_regenerate_chunk_ids`/`revision_trigger`/`revision_reason` for targeted revision. |
+| `tts-provider-adapter.schema.json` | Two related shapes (`$defs` for the normalized TTS request/response) every TTS provider adapter (ElevenLabs) must conform to. |
+| `voiceover-chunk.schema.json` | One paid (or reused) TTS generation unit, as returned by `claim_next_pending_voiceover_chunk()`/`get_completed_voiceover_chunks_in_order()`. |
+| `voiceover-timing.schema.json` | The deterministic per-chunk timing package `record_assembled_voiceover()` computes. |
+| `voiceover-qc.schema.json` | The deterministic `voiceover_quality_control()` result. |
+| `voiceover-approval-package.schema.json` | The human-facing payload served by the development voiceover-approval endpoint. |
+
+## Step 9 — visual asset planning and acquisition
+
+| File | Validates |
+|---|---|
+| `visual-request.schema.json` | Input to `Visual Asset Project` — base fields plus `target_shot_ids`/`revision_trigger`/`revision_reason` for targeted revision. |
+| `visual-shot.schema.json` | Two related shapes (`$defs/generated_shot`, the LLM shot-plan input to `persist_generated_shots()`; `$defs/resolved_shot`, the fully-resolved read shape from `get_resolved_shots_in_order()`/`get_current_visual_shot_list()`). |
+| `visual-shot-list.schema.json` | The visual-planning LLM's full output — an array of `visual-shot.schema.json#/$defs/generated_shot`. Deliberately excludes `start_ms`/`end_ms` — those are always derived server-side from the voiceover's timing package, never trusted from the LLM. |
+| `stock-provider-result.schema.json` | The normalized shape every stock-media provider adapter (Pexels) must produce. |
+| `generated-image-result.schema.json` | The normalized shape the generated-image provider adapter (OpenAI Images) must produce. |
+| `visual-asset-metadata.schema.json` | The persisted `assets` row shape — provenance, the `license_status` rendering gate, storage/QC facts. |
+| `license-validation-result.schema.json` | The deterministic `resolve_license_status()` output. |
+| `visual-qc.schema.json` | The deterministic `visual_quality_control()` result — hard-fail reasons, sub-scores, timeline coverage. |
+| `visual-approval-package.schema.json` | The human-facing payload served by the development visual-approval endpoint. |
+| `targeted-visual-revision-request.schema.json` | Request body for a `revision_requested` decision scoped to specific `target_shot_ids`. |
+
+All thirty-eight compile together via `ajv` with cross-file `$ref`
+resolution (`$id` + `addSchema`, see `n8n/tests/run.js` through
+`run-step9.js`) and are validated against **real captured output**, not
+just checked for internal consistency — every JSON response the test
+suites get back from the live webhooks (or, for Steps 8–9, from direct
+SQL/renderer calls where a live paid provider credential isn't
+available) is asserted against these schemas on every run.
 
 See
 [docs/architecture/workflow-runtime.md](../docs/architecture/workflow-runtime.md),
 [docs/architecture/topic-intake.md](../docs/architecture/topic-intake.md),
 [docs/architecture/research-pipeline.md](../docs/architecture/research-pipeline.md),
+[docs/architecture/script-pipeline.md](../docs/architecture/script-pipeline.md),
+[docs/architecture/voiceover-pipeline.md](../docs/architecture/voiceover-pipeline.md),
 and
-[docs/architecture/script-pipeline.md](../docs/architecture/script-pipeline.md)
+[docs/architecture/visual-asset-pipeline.md](../docs/architecture/visual-asset-pipeline.md)
 for the full contracts these schemas encode.

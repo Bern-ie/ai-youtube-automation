@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/license-validation-result.schema.json",
+  "title": "License Validation Result",
+  "description": "The deterministic output of resolve_license_status() -- never an LLM judgment, per docs/architecture/visual-asset-pipeline.md#license-validation. unknown and incompatible are hard-blocked from final rendering by visual_quality_control's hard-fail rule.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["license_status"],
+  "properties": {
+    "license_status": {
+      "type": "string",
+      "enum": ["unknown", "verified_usable", "attribution_required", "public_domain", "generated", "incompatible", "rejected"]
+    },
+    "license_type": { "type": ["string", "null"], "description": "The raw provider/license descriptor this status was derived from (e.g. \"CC BY 4.0\", \"Pexels License\")." },
+    "attribution_required": { "type": "boolean" },
+    "attribution_text": { "type": ["string", "null"] },
+    "commercial_use_allowed": { "type": "boolean" },
+    "provider_terms_reference": { "type": ["string", "null"] }
+  }
+}

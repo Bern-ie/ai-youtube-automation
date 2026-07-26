@@ -1,0 +1,80 @@
+{
+  "name": "Persist Resolved Asset",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT persist_resolved_asset($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.content_project_id, $json.shot_id, $json.asset_type, $json.provider, $json.provider_asset_id || null, $json.source_url || null, $json.download_url || null, $json.creator || null, $json.license_type || null, $json.license_url || null, $json.attribution_required === true, $json.attribution_text || null, $json.commercial_use_allowed !== false, $json.storage_path || null, $json.checksum || null, $json.width_px || null, $json.height_px || null, $json.duration_seconds || null, $json.generated === true, $json.generation_prompt || null, $json.request_id || null, $json.cost_usd || 0, $json.identity_checksum, $json.channel_reusable === true, JSON.stringify($json.metadata || {})] }}"
+        }
+      },
+      "id": "pg-2",
+      "name": "Call Persist Resolved Asset",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "PLACEHOLDER_PG",
+          "name": "postgres-app-runtime"
+        }
+      },
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-3",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Persist Resolved Asset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Persist Resolved Asset": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/visual-approval-package.schema.json",
+  "title": "Visual Approval Package",
+  "description": "The full human-facing review payload returned by get_visual_approval_package() for the `visual` approval stage. One approval covers the entire shot list -- never one per shot/asset. See docs/architecture/visual-asset-pipeline.md#human-visual-approval.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["approval_request_id", "status", "content_project_id", "shot_list", "shots", "shot_summary"],
+  "properties": {
+    "approval_request_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "topic": { "type": ["string", "null"] },
+    "target_duration_seconds": { "type": ["integer", "null"] },
+    "shot_list": {
+      "type": "object",
+      "properties": {
+        "shot_list_id": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer" },
+        "status": { "type": "string" },
+        "timeline_coverage_pct": { "type": ["number", "null"] },
+        "total_cost_usd": { "type": ["number", "null"] },
+        "qc_score": { "type": ["number", "null"] },
+        "qc_status": { "type": ["string", "null"] },
+        "qc_details": { "type": "object" }
+      }
+    },
+    "shots": { "type": "array", "items": { "$ref": "https://schemas.ai-youtube-automation.internal/visual-shot.schema.json#/$defs/resolved_shot" } },
+    "shot_summary": { "type": "object" },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}

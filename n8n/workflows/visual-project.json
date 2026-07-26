@@ -1,0 +1,5572 @@
+{
+  "name": "Visual Project",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst errors = [];\nconst isUuid = (s) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);\nconst allowedKeys = new Set(['channel_id','content_project_id','idempotency_key','correlation_id','_dev_fail_after_step','target_shot_ids','revision_trigger','revision_reason']);\nfor (const k of Object.keys(b)) { if (!allowedKeys.has(k)) errors.push(`unknown field: ${k}`); }\nif (!isUuid(b.channel_id)) errors.push('channel_id must be a UUID');\nif (!isUuid(b.content_project_id)) errors.push('content_project_id must be a UUID');\nif (typeof b.idempotency_key !== 'string' || b.idempotency_key.length === 0 || b.idempotency_key.length > 500) errors.push('idempotency_key must be a non-empty string up to 500 characters');\nif (b.correlation_id != null && !isUuid(b.correlation_id)) errors.push('correlation_id must be a UUID');\nif (b.target_shot_ids != null && !Array.isArray(b.target_shot_ids)) errors.push('target_shot_ids must be an array');\nreturn [{ json: {\n  valid: errors.length === 0, errors,\n  channel_id: b.channel_id, content_project_id: b.content_project_id,\n  idempotency_key: b.idempotency_key ?? null, correlation_id: b.correlation_id ?? null,\n  target_shot_ids: b.target_shot_ids ?? [],\n  revision_trigger: b.revision_trigger ?? 'initial_generation', revision_reason: b.revision_reason ?? null,\n  _dev_fail_after_step: b._dev_fail_after_step ?? null\n} }];"
+      },
+      "id": "code-2",
+      "name": "Validate Request Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Is Request Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const v = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'INVALID_EXECUTION_CONTEXT', message: 'request failed validation: ' + v.errors.join('; '), retryable: false, error_id: null },\n  runtime: { channel_id: null, workflow_run_id: null, content_project_id: null, correlation_id: v.correlation_id ?? null }\n} }];"
+      },
+      "id": "code-5",
+      "name": "Build Validation Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const v = $('Validate Request Shape').first().json;\nreturn [{ json: {\n  channel_id: v.channel_id, workflow_name: 'visual-project', idempotency_key: v.idempotency_key,\n  content_project_id: v.content_project_id, correlation_id: v.correlation_id,\n  input: {}, max_retries: 3\n} }];"
+      },
+      "id": "code-6",
+      "name": "Prepare Init Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:initialize-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-7",
+      "name": "Initialize Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-8",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Did Initialize Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-10",
+      "name": "Build Init Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id } }];"
+      },
+      "id": "code-11",
+      "name": "Prepare Get-Steps Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-workflow-run-steps.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-12",
+      "name": "Get Workflow Run Steps",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stepsArr = $input.first().json.steps || [];\nconst byName = {};\nfor (const s of stepsArr) byName[s.step_name] = s;\nconst flag = (n) => byName[n]?.status === 'succeeded';\nconst out = (n) => byName[n]?.output ?? null;\nreturn [{ json: {\n  load_channel_configuration_done: flag('load_channel_configuration'), load_channel_configuration_output: out('load_channel_configuration'),\n  load_visual_inputs_done: flag('load_visual_inputs'), load_visual_inputs_output: out('load_visual_inputs'),\n  visual_budget_preflight_done: flag('visual_budget_preflight'), visual_budget_preflight_output: out('visual_budget_preflight'),\n  get_or_create_visual_shot_list_done: flag('get_or_create_visual_shot_list'), get_or_create_visual_shot_list_output: out('get_or_create_visual_shot_list'),\n  generate_shot_list_done: flag('generate_shot_list'), generate_shot_list_output: out('generate_shot_list'),\n  generate_all_visual_shots_done: flag('generate_all_visual_shots'), generate_all_visual_shots_output: out('generate_all_visual_shots'),\n  finalize_asset_assignments_done: flag('finalize_asset_assignments'), finalize_asset_assignments_output: out('finalize_asset_assignments'),\n  visual_quality_control_done: flag('visual_quality_control'), visual_quality_control_output: out('visual_quality_control'),\n  create_visual_approval_done: flag('create_visual_approval'), create_visual_approval_output: out('create_visual_approval'),\n} }];"
+      },
+      "id": "code-13",
+      "name": "Compute Resume Flags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-14",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.load_channel_configuration_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Skip load_channel_configuration?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.load_channel_configuration_output || {};\nreturn [{ json: { channel: d.channel, content: d.content, style: d.style, branding: d.branding, providers: d.providers, budgets: d.budgets, publishing: d.publishing, prompts: d.prompts, credentials: d.credentials } }];"
+      },
+      "id": "code-16",
+      "name": "Use Stored Output: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-17",
+      "name": "Prepare Mark-Running Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-18",
+      "name": "Mark Step Running: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id } }];"
+      },
+      "id": "code-19",
+      "name": "Prepare Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-20",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "load_channel_configuration",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-21",
+      "name": "Inject Failure Here? (load_channel_configuration)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step load_channel_configuration', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-22",
+      "name": "Synthesize Injected Failure: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:load-channel-configuration.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-23",
+      "name": "Call: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-24",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-25",
+      "name": "Did load_channel_configuration Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0, error: r.error } }];"
+      },
+      "id": "code-26",
+      "name": "Tag Failure: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-27",
+      "name": "Prepare Mark-Failed Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-28",
+      "name": "Mark Step Failed: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4840,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: load_channel_configuration').first().json._passthrough }];"
+      },
+      "id": "code-29",
+      "name": "Recover Failure Tag: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-30",
+      "name": "Prepare Fail-Run Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-31",
+      "name": "Fail Workflow Run: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5500,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-32",
+      "name": "Build Failure Response: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-33",
+      "name": "Prepare Mark-Succeeded Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-34",
+      "name": "Mark Step Succeeded: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: load_channel_configuration').first().json._fresh_data;\nreturn [{ json: { channel: d.channel, content: d.content, style: d.style, branding: d.branding, providers: d.providers, budgets: d.budgets, publishing: d.publishing, prompts: d.prompts, credentials: d.credentials } }];"
+      },
+      "id": "code-35",
+      "name": "Extract Fresh Output: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-36",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.load_visual_inputs_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-37",
+      "name": "Skip load_visual_inputs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.load_visual_inputs_output || {};\nreturn [{ json: { content_project_id: d.content_project_id, topic: d.topic, target_duration_seconds: d.target_duration_seconds, status: d.status, script_version_id: d.script_version_id, script_content: d.script_content, voiceover_id: d.voiceover_id, voiceover_version: d.voiceover_version, narration_timing: d.narration_timing, narration_duration_seconds: d.narration_duration_seconds, narration_storage_path: d.narration_storage_path, subtitle_srt_path: d.subtitle_srt_path, subtitle_vtt_path: d.subtitle_vtt_path } }];"
+      },
+      "id": "code-38",
+      "name": "Use Stored Output: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_visual_inputs', sequence: 1,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-39",
+      "name": "Prepare Mark-Running Input: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-40",
+      "name": "Mark Step Running: load_visual_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id } }];"
+      },
+      "id": "code-41",
+      "name": "Prepare Input: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-42",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "load_visual_inputs",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-43",
+      "name": "Inject Failure Here? (load_visual_inputs)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step load_visual_inputs', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-44",
+      "name": "Synthesize Injected Failure: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:load-visual-inputs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-45",
+      "name": "Call: load_visual_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-46",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-47",
+      "name": "Did load_visual_inputs Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_visual_inputs', sequence: 1, error: r.error } }];"
+      },
+      "id": "code-48",
+      "name": "Tag Failure: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8580,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-49",
+      "name": "Prepare Mark-Failed Input: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-50",
+      "name": "Mark Step Failed: load_visual_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9020,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: load_visual_inputs').first().json._passthrough }];"
+      },
+      "id": "code-51",
+      "name": "Recover Failure Tag: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9240,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-52",
+      "name": "Prepare Fail-Run Input: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9460,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-53",
+      "name": "Fail Workflow Run: load_visual_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9680,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-54",
+      "name": "Build Failure Response: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9900,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_visual_inputs', sequence: 1,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-55",
+      "name": "Prepare Mark-Succeeded Input: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-56",
+      "name": "Mark Step Succeeded: load_visual_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        10340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: load_visual_inputs').first().json._fresh_data;\nreturn [{ json: { content_project_id: d.content_project_id, topic: d.topic, target_duration_seconds: d.target_duration_seconds, status: d.status, script_version_id: d.script_version_id, script_content: d.script_content, voiceover_id: d.voiceover_id, voiceover_version: d.voiceover_version, narration_timing: d.narration_timing, narration_duration_seconds: d.narration_duration_seconds, narration_storage_path: d.narration_storage_path, subtitle_srt_path: d.subtitle_srt_path, subtitle_vtt_path: d.subtitle_vtt_path } }];"
+      },
+      "id": "code-57",
+      "name": "Extract Fresh Output: load_visual_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-58",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.visual_budget_preflight_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-59",
+      "name": "Skip visual_budget_preflight?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        10780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.visual_budget_preflight_output || {};\nreturn [{ json: { per_video_remaining_usd: d.per_video_remaining_usd, monthly_channel_remaining_usd: d.monthly_channel_remaining_usd, estimated_cost_usd: d.estimated_cost_usd, warnings: d.warnings } }];"
+      },
+      "id": "code-60",
+      "name": "Use Stored Output: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'visual_budget_preflight', sequence: 2,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-61",
+      "name": "Prepare Mark-Running Input: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-62",
+      "name": "Mark Step Running: visual_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        11440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __V; try { __V = $('Extract Fresh Output: load_visual_inputs').first().json; } catch (e) { __V = $('Use Stored Output: load_visual_inputs').first().json; }\nconst li = __V;\n// Shot count isn't known until the LLM plans the shot list, so\n// approximate a conservative up-front ceiling: assume a fairly\n// aggressive ~6-second average shot length, with every shot\n// potentially costing as much as one gpt-image-1 generation\n// ($0.04-0.19, see channel_provider_settings.image_gen.settings) if\n// stock search fails for it. Deliberately over-estimates -- most shots\n// resolve via free stock search -- see\n// docs/architecture/visual-asset-pipeline.md#visual-budget-preflight.\nconst AVG_SHOT_SECONDS = 6;\nconst PER_SHOT_CEILING_USD = 0.19;\nconst durationSeconds = li.narration_duration_seconds || 0;\nconst estimatedShots = Math.max(1, Math.ceil(durationSeconds / AVG_SHOT_SECONDS));\nconst estimatedCost = Math.round(estimatedShots * PER_SHOT_CEILING_USD * 1000000) / 1000000;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  estimated_cost_usd: estimatedCost\n} }];"
+      },
+      "id": "code-63",
+      "name": "Prepare Input: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-64",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "visual_budget_preflight",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-65",
+      "name": "Inject Failure Here? (visual_budget_preflight)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step visual_budget_preflight', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-66",
+      "name": "Synthesize Injected Failure: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:visual-budget-preflight.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-67",
+      "name": "Call: visual_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        12320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-68",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-69",
+      "name": "Did visual_budget_preflight Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        12540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'visual_budget_preflight', sequence: 2, error: r.error } }];"
+      },
+      "id": "code-70",
+      "name": "Tag Failure: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12760,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-71",
+      "name": "Prepare Mark-Failed Input: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12980,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-72",
+      "name": "Mark Step Failed: visual_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: visual_budget_preflight').first().json._passthrough }];"
+      },
+      "id": "code-73",
+      "name": "Recover Failure Tag: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13420,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-74",
+      "name": "Prepare Fail-Run Input: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13640,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-75",
+      "name": "Fail Workflow Run: visual_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13860,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-76",
+      "name": "Build Failure Response: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14080,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'visual_budget_preflight', sequence: 2,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-77",
+      "name": "Prepare Mark-Succeeded Input: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-78",
+      "name": "Mark Step Succeeded: visual_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        14520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: visual_budget_preflight').first().json._fresh_data;\nreturn [{ json: { per_video_remaining_usd: d.per_video_remaining_usd, monthly_channel_remaining_usd: d.monthly_channel_remaining_usd, estimated_cost_usd: d.estimated_cost_usd, warnings: d.warnings } }];"
+      },
+      "id": "code-79",
+      "name": "Extract Fresh Output: visual_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-80",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.get_or_create_visual_shot_list_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-81",
+      "name": "Skip get_or_create_visual_shot_list?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        14960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.get_or_create_visual_shot_list_output || {};\nreturn [{ json: { shot_list_id: d.shot_list_id, created: d.created, version: d.version } }];"
+      },
+      "id": "code-82",
+      "name": "Use Stored Output: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'get_or_create_visual_shot_list', sequence: 3,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-83",
+      "name": "Prepare Mark-Running Input: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-84",
+      "name": "Mark Step Running: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        15620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nconst v = $('Validate Request Shape').first().json;\nlet __V; try { __V = $('Extract Fresh Output: load_visual_inputs').first().json; } catch (e) { __V = $('Use Stored Output: load_visual_inputs').first().json; }\nconst li = __V;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  script_version_id: li.script_version_id, voiceover_id: li.voiceover_id, target_duration_seconds: li.target_duration_seconds,\n  revision_trigger: v.revision_trigger, revision_reason: v.revision_reason\n} }];"
+      },
+      "id": "code-85",
+      "name": "Prepare Input: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-86",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "get_or_create_visual_shot_list",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-87",
+      "name": "Inject Failure Here? (get_or_create_visual_shot_list)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        16060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step get_or_create_visual_shot_list', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-88",
+      "name": "Synthesize Injected Failure: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-or-create-visual-shot-list.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-89",
+      "name": "Call: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        16500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-90",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-91",
+      "name": "Did get_or_create_visual_shot_list Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        16720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'get_or_create_visual_shot_list', sequence: 3, error: r.error } }];"
+      },
+      "id": "code-92",
+      "name": "Tag Failure: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16940,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-93",
+      "name": "Prepare Mark-Failed Input: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17160,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-94",
+      "name": "Mark Step Failed: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        17380,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: get_or_create_visual_shot_list').first().json._passthrough }];"
+      },
+      "id": "code-95",
+      "name": "Recover Failure Tag: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-96",
+      "name": "Prepare Fail-Run Input: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17820,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-97",
+      "name": "Fail Workflow Run: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        18040,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-98",
+      "name": "Build Failure Response: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18260,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'get_or_create_visual_shot_list', sequence: 3,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-99",
+      "name": "Prepare Mark-Succeeded Input: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-100",
+      "name": "Mark Step Succeeded: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        18700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: get_or_create_visual_shot_list').first().json._fresh_data;\nreturn [{ json: { shot_list_id: d.shot_list_id, created: d.created, version: d.version } }];"
+      },
+      "id": "code-101",
+      "name": "Extract Fresh Output: get_or_create_visual_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-102",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.generate_shot_list_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-103",
+      "name": "Skip generate_shot_list?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        19140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.generate_shot_list_output || {};\nreturn [{ json: { shot_list_id: d.shot_list_id, shots_inserted: d.shots_inserted, shots_resumed: d.shots_resumed, total_shots: d.total_shots, skipped: d.skipped } }];"
+      },
+      "id": "code-104",
+      "name": "Use Stored Output: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_shot_list', sequence: 4,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-105",
+      "name": "Prepare Mark-Running Input: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-106",
+      "name": "Mark Step Running: generate_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        19800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __V; try { __V = $('Extract Fresh Output: load_channel_configuration').first().json; } catch (e) { __V = $('Use Stored Output: load_channel_configuration').first().json; }\nconst cfg = __V;\nlet __V2; try { __V2 = $('Extract Fresh Output: load_visual_inputs').first().json; } catch (e) { __V2 = $('Use Stored Output: load_visual_inputs').first().json; }\nconst li = __V2;\nlet __V3; try { __V3 = $('Extract Fresh Output: get_or_create_visual_shot_list').first().json; } catch (e) { __V3 = $('Use Stored Output: get_or_create_visual_shot_list').first().json; }\nconst goc = __V3;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  shot_list_id: goc.shot_list_id, script_version_id: li.script_version_id, voiceover_id: li.voiceover_id,\n  script_content: li.script_content, narration_timing: li.narration_timing, target_duration_seconds: li.target_duration_seconds,\n  style: cfg.style, branding: cfg.branding, providers: cfg.providers\n} }];"
+      },
+      "id": "code-107",
+      "name": "Prepare Input: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20020,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-108",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "generate_shot_list",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-109",
+      "name": "Inject Failure Here? (generate_shot_list)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        20240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step generate_shot_list', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-110",
+      "name": "Synthesize Injected Failure: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-shot-list.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-111",
+      "name": "Call: generate_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        20680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-112",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-113",
+      "name": "Did generate_shot_list Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        20900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_shot_list', sequence: 4, error: r.error } }];"
+      },
+      "id": "code-114",
+      "name": "Tag Failure: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21120,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-115",
+      "name": "Prepare Mark-Failed Input: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21340,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-116",
+      "name": "Mark Step Failed: generate_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        21560,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: generate_shot_list').first().json._passthrough }];"
+      },
+      "id": "code-117",
+      "name": "Recover Failure Tag: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21780,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-118",
+      "name": "Prepare Fail-Run Input: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-119",
+      "name": "Fail Workflow Run: generate_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        22220,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-120",
+      "name": "Build Failure Response: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22440,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_shot_list', sequence: 4,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-121",
+      "name": "Prepare Mark-Succeeded Input: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-122",
+      "name": "Mark Step Succeeded: generate_shot_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        22880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: generate_shot_list').first().json._fresh_data;\nreturn [{ json: { shot_list_id: d.shot_list_id, shots_inserted: d.shots_inserted, shots_resumed: d.shots_resumed, total_shots: d.total_shots, skipped: d.skipped } }];"
+      },
+      "id": "code-123",
+      "name": "Extract Fresh Output: generate_shot_list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-124",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.generate_all_visual_shots_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-125",
+      "name": "Skip generate_all_visual_shots?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        23320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.generate_all_visual_shots_output || {};\nreturn [{ json: { total: d.total, resolved: d.resolved, failed: d.failed, pending_or_resolving: d.pending_or_resolving, total_attempts: d.total_attempts, all_complete: d.all_complete } }];"
+      },
+      "id": "code-126",
+      "name": "Use Stored Output: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_all_visual_shots', sequence: 5,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-127",
+      "name": "Prepare Mark-Running Input: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-128",
+      "name": "Mark Step Running: generate_all_visual_shots",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        23980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __V; try { __V = $('Extract Fresh Output: load_channel_configuration').first().json; } catch (e) { __V = $('Use Stored Output: load_channel_configuration').first().json; }\nconst cfg = __V;\nlet __V3; try { __V3 = $('Extract Fresh Output: get_or_create_visual_shot_list').first().json; } catch (e) { __V3 = $('Use Stored Output: get_or_create_visual_shot_list').first().json; }\nconst goc = __V3;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  shot_list_id: goc.shot_list_id, providers: cfg.providers, _max_iterations: 300\n} }];"
+      },
+      "id": "code-129",
+      "name": "Prepare Input: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-130",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "generate_all_visual_shots",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-131",
+      "name": "Inject Failure Here? (generate_all_visual_shots)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        24420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step generate_all_visual_shots', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-132",
+      "name": "Synthesize Injected Failure: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-all-visual-shots.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-133",
+      "name": "Call: generate_all_visual_shots",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        24860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-134",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-135",
+      "name": "Did generate_all_visual_shots Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        25080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_all_visual_shots', sequence: 5, error: r.error } }];"
+      },
+      "id": "code-136",
+      "name": "Tag Failure: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25300,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-137",
+      "name": "Prepare Mark-Failed Input: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25520,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-138",
+      "name": "Mark Step Failed: generate_all_visual_shots",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        25740,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: generate_all_visual_shots').first().json._passthrough }];"
+      },
+      "id": "code-139",
+      "name": "Recover Failure Tag: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25960,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-140",
+      "name": "Prepare Fail-Run Input: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26180,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-141",
+      "name": "Fail Workflow Run: generate_all_visual_shots",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        26400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-142",
+      "name": "Build Failure Response: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26620,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_all_visual_shots', sequence: 5,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-143",
+      "name": "Prepare Mark-Succeeded Input: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-144",
+      "name": "Mark Step Succeeded: generate_all_visual_shots",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        27060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: generate_all_visual_shots').first().json._fresh_data;\nreturn [{ json: { total: d.total, resolved: d.resolved, failed: d.failed, pending_or_resolving: d.pending_or_resolving, total_attempts: d.total_attempts, all_complete: d.all_complete } }];"
+      },
+      "id": "code-145",
+      "name": "Extract Fresh Output: generate_all_visual_shots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-146",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.finalize_asset_assignments_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-147",
+      "name": "Skip finalize_asset_assignments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        27500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.finalize_asset_assignments_output || {};\nreturn [{ json: { shot_list_id: d.shot_list_id, timeline_coverage_pct: d.timeline_coverage_pct, total_cost_usd: d.total_cost_usd, shot_summary: d.shot_summary } }];"
+      },
+      "id": "code-148",
+      "name": "Use Stored Output: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'finalize_asset_assignments', sequence: 6,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-149",
+      "name": "Prepare Mark-Running Input: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-150",
+      "name": "Mark Step Running: finalize_asset_assignments",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        28160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __V3; try { __V3 = $('Extract Fresh Output: get_or_create_visual_shot_list').first().json; } catch (e) { __V3 = $('Use Stored Output: get_or_create_visual_shot_list').first().json; }\nconst goc = __V3;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  shot_list_id: goc.shot_list_id\n} }];"
+      },
+      "id": "code-151",
+      "name": "Prepare Input: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-152",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "finalize_asset_assignments",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-153",
+      "name": "Inject Failure Here? (finalize_asset_assignments)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        28600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step finalize_asset_assignments', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-154",
+      "name": "Synthesize Injected Failure: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:finalize-asset-assignments.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-155",
+      "name": "Call: finalize_asset_assignments",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        29040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-156",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-157",
+      "name": "Did finalize_asset_assignments Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        29260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'finalize_asset_assignments', sequence: 6, error: r.error } }];"
+      },
+      "id": "code-158",
+      "name": "Tag Failure: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29480,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-159",
+      "name": "Prepare Mark-Failed Input: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29700,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-160",
+      "name": "Mark Step Failed: finalize_asset_assignments",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        29920,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: finalize_asset_assignments').first().json._passthrough }];"
+      },
+      "id": "code-161",
+      "name": "Recover Failure Tag: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30140,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-162",
+      "name": "Prepare Fail-Run Input: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30360,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-163",
+      "name": "Fail Workflow Run: finalize_asset_assignments",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        30580,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-164",
+      "name": "Build Failure Response: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'finalize_asset_assignments', sequence: 6,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-165",
+      "name": "Prepare Mark-Succeeded Input: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31020,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-166",
+      "name": "Mark Step Succeeded: finalize_asset_assignments",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        31240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: finalize_asset_assignments').first().json._fresh_data;\nreturn [{ json: { shot_list_id: d.shot_list_id, timeline_coverage_pct: d.timeline_coverage_pct, total_cost_usd: d.total_cost_usd, shot_summary: d.shot_summary } }];"
+      },
+      "id": "code-167",
+      "name": "Extract Fresh Output: finalize_asset_assignments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-168",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.visual_quality_control_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-169",
+      "name": "Skip visual_quality_control?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        31680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.visual_quality_control_output || {};\nreturn [{ json: { qc_score: d.qc_score, qc_status: d.qc_status, shot_summary: d.shot_summary, timeline_coverage_pct: d.timeline_coverage_pct, max_consecutive_static_shots: d.max_consecutive_static_shots, max_consecutive_static_ms: d.max_consecutive_static_ms, max_single_asset_reuse: d.max_single_asset_reuse, bad_license_shot_count: d.bad_license_shot_count, missing_traceability_count: d.missing_traceability_count, sub_scores: d.sub_scores, hard_fail: d.hard_fail, hard_fail_reasons: d.hard_fail_reasons } }];"
+      },
+      "id": "code-170",
+      "name": "Use Stored Output: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'visual_quality_control', sequence: 7,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-171",
+      "name": "Prepare Mark-Running Input: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-172",
+      "name": "Mark Step Running: visual_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        32340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __V3; try { __V3 = $('Extract Fresh Output: get_or_create_visual_shot_list').first().json; } catch (e) { __V3 = $('Use Stored Output: get_or_create_visual_shot_list').first().json; }\nconst goc = __V3;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  shot_list_id: goc.shot_list_id, min_coverage_pct: 90\n} }];"
+      },
+      "id": "code-173",
+      "name": "Prepare Input: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-174",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "visual_quality_control",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-175",
+      "name": "Inject Failure Here? (visual_quality_control)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step visual_quality_control', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-176",
+      "name": "Synthesize Injected Failure: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:visual-quality-control-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-177",
+      "name": "Call: visual_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        33220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-178",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-179",
+      "name": "Did visual_quality_control Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        33440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'visual_quality_control', sequence: 7, error: r.error } }];"
+      },
+      "id": "code-180",
+      "name": "Tag Failure: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33660,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-181",
+      "name": "Prepare Mark-Failed Input: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-182",
+      "name": "Mark Step Failed: visual_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        34100,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: visual_quality_control').first().json._passthrough }];"
+      },
+      "id": "code-183",
+      "name": "Recover Failure Tag: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34320,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-184",
+      "name": "Prepare Fail-Run Input: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34540,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-185",
+      "name": "Fail Workflow Run: visual_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        34760,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-186",
+      "name": "Build Failure Response: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34980,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'visual_quality_control', sequence: 7,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-187",
+      "name": "Prepare Mark-Succeeded Input: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        35200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-188",
+      "name": "Mark Step Succeeded: visual_quality_control",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        35420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: visual_quality_control').first().json._fresh_data;\nreturn [{ json: { qc_score: d.qc_score, qc_status: d.qc_status, shot_summary: d.shot_summary, timeline_coverage_pct: d.timeline_coverage_pct, max_consecutive_static_shots: d.max_consecutive_static_shots, max_consecutive_static_ms: d.max_consecutive_static_ms, max_single_asset_reuse: d.max_single_asset_reuse, bad_license_shot_count: d.bad_license_shot_count, missing_traceability_count: d.missing_traceability_count, sub_scores: d.sub_scores, hard_fail: d.hard_fail, hard_fail_reasons: d.hard_fail_reasons } }];"
+      },
+      "id": "code-189",
+      "name": "Extract Fresh Output: visual_quality_control",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        35640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-190",
+              "leftValue": "={{ $json.hard_fail === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-191",
+      "name": "Did Visual QC Hard-Fail?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        35860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'VISUAL_ASSET_QC_FAILED', message: 'visual quality control failed a hard gate: ' + (r.hard_fail_reasons || []).join(', '), retryable: false, error_id: null, details: r },\n  runtime: {}\n} }];"
+      },
+      "id": "code-192",
+      "name": "Build QC Hard-Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        36080,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-193",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.create_visual_approval_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-194",
+      "name": "Skip create_visual_approval?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        36300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.create_visual_approval_output || {};\nreturn [{ json: { approval_request_id: d.approval_request_id, status: d.status } }];"
+      },
+      "id": "code-195",
+      "name": "Use Stored Output: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        36520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_visual_approval', sequence: 8,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-196",
+      "name": "Prepare Mark-Running Input: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        36740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-197",
+      "name": "Mark Step Running: create_visual_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        36960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __V3; try { __V3 = $('Extract Fresh Output: get_or_create_visual_shot_list').first().json; } catch (e) { __V3 = $('Use Stored Output: get_or_create_visual_shot_list').first().json; }\nconst goc = __V3;\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  shot_list_id: goc.shot_list_id\n} }];"
+      },
+      "id": "code-198",
+      "name": "Prepare Input: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        37180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-199",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "create_visual_approval",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-200",
+      "name": "Inject Failure Here? (create_visual_approval)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        37400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step create_visual_approval', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-201",
+      "name": "Synthesize Injected Failure: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        37620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-visual-approval.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-202",
+      "name": "Call: create_visual_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        37840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-203",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-204",
+      "name": "Did create_visual_approval Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        38060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_visual_approval', sequence: 8, error: r.error } }];"
+      },
+      "id": "code-205",
+      "name": "Tag Failure: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        38280,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-206",
+      "name": "Prepare Mark-Failed Input: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        38500,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-207",
+      "name": "Mark Step Failed: create_visual_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        38720,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: create_visual_approval').first().json._passthrough }];"
+      },
+      "id": "code-208",
+      "name": "Recover Failure Tag: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        38940,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-209",
+      "name": "Prepare Fail-Run Input: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        39160,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-210",
+      "name": "Fail Workflow Run: create_visual_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        39380,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-211",
+      "name": "Build Failure Response: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        39600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_visual_approval', sequence: 8,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-212",
+      "name": "Prepare Mark-Succeeded Input: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        39820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-213",
+      "name": "Mark Step Succeeded: create_visual_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        40040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: create_visual_approval').first().json._fresh_data;\nreturn [{ json: { approval_request_id: d.approval_request_id, status: d.status } }];"
+      },
+      "id": "code-214",
+      "name": "Extract Fresh Output: create_visual_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet approval; try { approval = $('Extract Fresh Output: create_visual_approval').first().json; } catch (e) { approval = $('Use Stored Output: create_visual_approval').first().json; }\nreturn [{ json: {\n  success: true, data: { approval_request_id: approval.approval_request_id, status: 'awaiting_visual_approval' }, error: null,\n  runtime: {\n    channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id,\n    content_project_id: init.data.content_project_id, correlation_id: init.data.correlation_id\n  }\n} }];"
+      },
+      "id": "code-215",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Request Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request Shape": {
+      "main": [
+        [
+          {
+            "node": "Is Request Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Request Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Init Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Init Input": {
+      "main": [
+        [
+          {
+            "node": "Initialize Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Did Initialize Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Initialize Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Steps Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Init Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Steps Input": {
+      "main": [
+        [
+          {
+            "node": "Get Workflow Run Steps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Workflow Run Steps": {
+      "main": [
+        [
+          {
+            "node": "Compute Resume Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Resume Flags": {
+      "main": [
+        [
+          {
+            "node": "Skip load_channel_configuration?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip load_channel_configuration?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (load_channel_configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (load_channel_configuration)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Did load_channel_configuration Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Did load_channel_configuration Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did load_channel_configuration Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Skip load_visual_inputs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Skip load_visual_inputs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip load_visual_inputs?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (load_visual_inputs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (load_visual_inputs)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Did load_visual_inputs Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Did load_visual_inputs Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did load_visual_inputs Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: load_visual_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Skip visual_budget_preflight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: load_visual_inputs": {
+      "main": [
+        [
+          {
+            "node": "Skip visual_budget_preflight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip visual_budget_preflight?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (visual_budget_preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (visual_budget_preflight)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Did visual_budget_preflight Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Did visual_budget_preflight Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did visual_budget_preflight Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: visual_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Skip get_or_create_visual_shot_list?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: visual_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Skip get_or_create_visual_shot_list?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip get_or_create_visual_shot_list?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (get_or_create_visual_shot_list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (get_or_create_visual_shot_list)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Did get_or_create_visual_shot_list Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Did get_or_create_visual_shot_list Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did get_or_create_visual_shot_list Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: get_or_create_visual_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_shot_list?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: get_or_create_visual_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_shot_list?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip generate_shot_list?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (generate_shot_list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (generate_shot_list)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Did generate_shot_list Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Did generate_shot_list Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did generate_shot_list Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: generate_shot_list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_all_visual_shots?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: generate_shot_list": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_all_visual_shots?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip generate_all_visual_shots?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (generate_all_visual_shots)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (generate_all_visual_shots)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Did generate_all_visual_shots Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Did generate_all_visual_shots Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did generate_all_visual_shots Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: generate_all_visual_shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Skip finalize_asset_assignments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: generate_all_visual_shots": {
+      "main": [
+        [
+          {
+            "node": "Skip finalize_asset_assignments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip finalize_asset_assignments?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (finalize_asset_assignments)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (finalize_asset_assignments)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Did finalize_asset_assignments Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Did finalize_asset_assignments Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did finalize_asset_assignments Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: finalize_asset_assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Skip visual_quality_control?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: finalize_asset_assignments": {
+      "main": [
+        [
+          {
+            "node": "Skip visual_quality_control?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip visual_quality_control?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (visual_quality_control)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (visual_quality_control)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did visual_quality_control Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did visual_quality_control Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did visual_quality_control Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: visual_quality_control",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did Visual QC Hard-Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: visual_quality_control": {
+      "main": [
+        [
+          {
+            "node": "Did Visual QC Hard-Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Visual QC Hard-Fail?": {
+      "main": [
+        [
+          {
+            "node": "Build QC Hard-Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip create_visual_approval?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip create_visual_approval?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (create_visual_approval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (create_visual_approval)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Did create_visual_approval Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Did create_visual_approval Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did create_visual_approval Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: create_visual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: create_visual_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

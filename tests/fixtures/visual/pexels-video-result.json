@@ -1,0 +1,14 @@
+{
+  "provider": "pexels",
+  "provider_asset_id": "pexels-video-853815",
+  "type": "video",
+  "source_page_url": "https://www.pexels.com/video/example-853815/",
+  "download_url": "https://videos.pexels.com/video-files/example/853815-hd.mp4",
+  "width": 1920,
+  "height": 1080,
+  "duration_seconds": 12.4,
+  "creator": "Example Creator",
+  "license": "Pexels License",
+  "attribution_required": false,
+  "commercial_use_allowed": true
+}

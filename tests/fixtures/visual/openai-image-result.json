@@ -1,0 +1,11 @@
+{
+  "provider": "openai",
+  "model": "gpt-image-1",
+  "request_id": "req_example_img_00123",
+  "width": 1536,
+  "height": 1024,
+  "prompt": "Illustrative diagram of ancient irrigation channels cut through stone, warm muted documentary color palette, no readable text",
+  "revised_prompt": "A wide illustrative diagram depicting ancient stone-cut irrigation channels, warm muted tones, documentary style, no on-screen text",
+  "cost_usd": 0.04,
+  "metadata": { "size": "1536x1024", "quality": "medium" }
+}

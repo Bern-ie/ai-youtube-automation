@@ -1,0 +1,14 @@
+{
+  "provider": "wikimedia",
+  "provider_asset_id": "wikimedia-commons-example-42",
+  "type": "image",
+  "source_page_url": "https://commons.wikimedia.org/wiki/File:Example_42.jpg",
+  "download_url": "https://upload.wikimedia.org/wikipedia/commons/example/42.jpg",
+  "width": 2400,
+  "height": 1600,
+  "duration_seconds": null,
+  "creator": "Example Museum Archive",
+  "license": "CC BY 4.0",
+  "attribution_required": true,
+  "commercial_use_allowed": true
+}

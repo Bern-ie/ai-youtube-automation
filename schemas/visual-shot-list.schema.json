@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/visual-shot-list.schema.json",
+  "title": "Visual Shot List",
+  "description": "The visual-planning LLM's output: an ordered array of generated_shot entries covering the full narration timeline. Validated against schemas/visual-shot.schema.json#/$defs/generated_shot before being handed to persist_generated_shots() -- start_ms/end_ms/duration_ms are deliberately NOT part of this shape, since those are always derived server-side from the voiceover's own timing package, never trusted from the LLM. See docs/architecture/visual-asset-pipeline.md#shot-list.",
+  "type": "array",
+  "minItems": 1,
+  "items": { "$ref": "https://schemas.ai-youtube-automation.internal/visual-shot.schema.json#/$defs/generated_shot" }
+}
