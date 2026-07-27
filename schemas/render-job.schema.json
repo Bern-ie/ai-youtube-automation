@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/render-job.schema.json",
+  "title": "Render Job",
+  "description": "Two related shapes: $defs/submit_request (POST /render/jobs body, submitted by the `Submit Render Job` workflow) and $defs/status (GET /render/jobs/:id response, polled by `Poll Render Job`). See docs/architecture/video-render-pipeline.md#render-jobs.",
+  "$defs": {
+    "submit_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["render_job_id", "channel_id", "content_project_id", "manifest", "render_type"],
+      "properties": {
+        "render_job_id": { "type": "string", "format": "uuid" },
+        "channel_id": { "type": "string", "format": "uuid" },
+        "content_project_id": { "type": "string", "format": "uuid" },
+        "manifest": { "$ref": "https://schemas.ai-youtube-automation.internal/scene-manifest.schema.json" },
+        "render_type": { "type": "string", "enum": ["preview", "final"] }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["render_job_id", "status", "phase", "progress_pct"],
+      "properties": {
+        "render_job_id": { "type": "string" },
+        "status": { "type": "string", "enum": ["running", "succeeded", "failed"] },
+        "phase": { "type": "string" },
+        "progress_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "result": {
+          "type": ["object", "null"],
+          "properties": {
+            "output_path": { "type": "string" },
+            "output_checksum": { "type": "string" },
+            "duration_seconds": { "type": "number" },
+            "width_px": { "type": "integer" },
+            "height_px": { "type": "integer" },
+            "fps": { "type": "number" },
+            "codec_details": { "type": "object" },
+            "file_size_bytes": { "type": "integer" },
+            "media_analysis": { "$ref": "https://schemas.ai-youtube-automation.internal/render-validation-result.schema.json" }
+          }
+        },
+        "error": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "type": "object"
+}

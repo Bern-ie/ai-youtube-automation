@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/final-video-approval-package.schema.json",
+  "title": "Final Video Approval Package",
+  "description": "The full human-facing review payload returned by get_final_video_approval_package() for the `final_video` approval stage. One approval covers the whole rendered video. See docs/architecture/video-render-pipeline.md#human-final-video-approval.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["approval_request_id", "status", "content_project_id", "scene_manifest", "render_job"],
+  "properties": {
+    "approval_request_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "topic": { "type": ["string", "null"] },
+    "title_concept": { "type": ["string", "null"] },
+    "scene_manifest": {
+      "type": "object",
+      "properties": {
+        "scene_manifest_id": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer" },
+        "checksum": { "type": ["string", "null"] },
+        "validation_status": { "type": "string" },
+        "attribution_summary": { "type": "array" }
+      }
+    },
+    "render_job": {
+      "type": "object",
+      "properties": {
+        "render_job_id": { "type": "string", "format": "uuid" },
+        "render_type": { "type": "string" },
+        "status": { "type": "string" },
+        "output_path": { "type": ["string", "null"] },
+        "duration_seconds": { "type": ["number", "null"] },
+        "file_size_bytes": { "type": ["integer", "null"] },
+        "width_px": { "type": ["integer", "null"] },
+        "height_px": { "type": ["integer", "null"] },
+        "qc_score": { "type": ["number", "null"] },
+        "qc_status": { "type": ["string", "null"] },
+        "qc_details": { "type": "object" }
+      }
+    },
+    "total_cost_usd": { "type": ["number", "null"] },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}

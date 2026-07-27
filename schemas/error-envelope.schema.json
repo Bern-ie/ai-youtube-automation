@@ -76,7 +76,21 @@
             "VISUAL_LICENSE_INVALID",
             "VISUAL_ASSET_QC_FAILED",
             "VISUAL_TIMELINE_COVERAGE_FAILED",
-            "VISUAL_APPROVAL_REJECTED"
+            "VISUAL_APPROVAL_REJECTED",
+            "RENDER_PROJECT_NOT_FOUND",
+            "RENDER_INVALID_PROJECT_STATE",
+            "RENDER_VISUALS_NOT_APPROVED",
+            "RENDER_VOICEOVER_NOT_APPROVED",
+            "RENDER_BUDGET_EXCEEDED",
+            "SCENE_MANIFEST_INVALID",
+            "RENDER_JOB_FAILED",
+            "RENDER_TIMEOUT",
+            "RENDER_DISK_SPACE_LOW",
+            "RENDER_OUTPUT_INVALID",
+            "RENDER_TIMELINE_MISMATCH",
+            "RENDER_AUDIO_INVALID",
+            "RENDER_ATTRIBUTION_MISSING",
+            "FINAL_VIDEO_APPROVAL_REJECTED"
           ]
         },
         "message": { "type": "string" },

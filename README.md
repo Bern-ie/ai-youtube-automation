@@ -4,7 +4,7 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 9 — visual asset planning, shot lists, media acquisition, licensing, asset QC, and human approval (complete)
+## Status: Step 10 — deterministic scene manifest, final video rendering, audio mix, captions, QC, and human approval (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
@@ -16,28 +16,35 @@ script generation (Step 7 — **`Script Project`**), TTS voiceover
 generation (Step 8 — **`Voiceover Project`**: sentence-bounded chunking,
 per-chunk audio validation, full-track assembly/loudness normalization,
 SRT/WebVTT subtitle generation, deterministic full-track QC, and human
-approval with targeted per-chunk revision), and now the fourth workflow
-allowed to spend money — the first to call a stock-media search API and
-an image-generation API: **`Visual Asset Project`**. Given a
-`content_project_id` whose voiceover has already been approved, it has
-an LLM decide visual TREATMENT (never new factual content) for every
-narration unit, derives exact shot timing server-side from the
-voiceover's own timing package, resolves each shot to a licensed asset
-(existing reusable asset → free stock search (Pexels) → generated image
-(OpenAI Images) → a documented spec-only fallback for
-chart/map/text/brand treatments) with deterministic license validation
-and real FFprobe-based asset QC in the `renderer` service, runs
-deterministic timeline-coverage and visual-diversity QC, and pauses for
-a human approval — including a per-shot *targeted* revision path — that
-survives an n8n/Docker restart the same DB-backed way every earlier
-stage's approval does. No final rendering/thumbnails/publishing workflow
-or Oracle deployment exist yet — this step ends with an approved visual
-asset package (shot list, a QC'd/licensed asset for every shot, timing/
-motion/transition metadata) ready for final scene rendering. See
-[docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md)
+approval with targeted per-chunk revision), visual asset planning (Step
+9 — **`Visual Asset Project`**: LLM-decided visual treatment per
+narration unit, server-derived shot timing, licensed asset resolution
+via stock search/image generation/spec-only fallback, deterministic QC,
+and human approval with per-shot targeted revision), and now the first
+workflow that makes **zero** external paid-API calls — rendering is
+100% local FFmpeg: **`Video Render Project`**. Given a
+`content_project_id` whose visual assets and voiceover have both already
+been approved, it deterministically constructs a versioned, checksummed
+scene manifest from that already-approved data (never an LLM call),
+renders a 720p preview and a 1920x1080 H.264/AAC final video through the
+`renderer` service (scale/crop, still-image motion via `zoompan`,
+cut/crossfade transitions, background-music ducking, loudness
+normalization, optional caption burn-in, brand-colored text cards for
+Step 9's spec-only chart/map/text asset types), runs fully deterministic
+render QC (codec/resolution/timeline/attribution hard-fail checks plus a
+weighted score), and pauses for a human final-video approval — including
+a targeted revision path — that survives an n8n/Docker restart the same
+DB-backed way every earlier stage's approval does. No thumbnail
+generation, YouTube metadata, upload, or analytics workflow exists
+yet — this step ends with an approved final video (rendered, QC'd,
+human-approved MP4 with sidecar captions and full provenance) ready for
+publishing. See
+[docs/architecture/video-render-pipeline.md](docs/architecture/video-render-pipeline.md)
 for the full contract,
+[docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md)
+and
 [docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md)
-for the Step 8 foundation it consumes,
+for the Step 9/8 foundations it consumes,
 [docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md)
 and
 [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
@@ -156,6 +163,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Script pipeline architecture](docs/architecture/script-pipeline.md)
 - [Voiceover pipeline architecture](docs/architecture/voiceover-pipeline.md)
 - [Visual asset pipeline architecture](docs/architecture/visual-asset-pipeline.md)
+- [Video render pipeline architecture](docs/architecture/video-render-pipeline.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -248,7 +256,7 @@ Full index: [docs/README.md](docs/README.md)
   API credentials (fixture/synthetic-audio suite fully passes without
   them). See
   [docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md).
-- **Step 9 (this step) — visual asset planning, shot lists, media
+- **Step 9 — visual asset planning, shot lists, media
   acquisition, licensing, asset QC, and human approval.** The `Visual
   Asset Project` reusable workflow (29 new SQL-backed/composite n8n
   workflows, an orchestrator mirroring Step 8's resumable-step pattern,
@@ -280,10 +288,47 @@ Full index: [docs/README.md](docs/README.md)
   live-provider validation pending real API credentials (fixture/
   synthetic-media suite fully passes without them). See
   [docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md).
-- **Later steps:** final scene rendering, thumbnails, YouTube metadata/
-  upload, analytics; Oracle Ampere A1 provisioning and deployment
-  (Level 2 native ARM64 validation happens here); first channel
-  configuration and end-to-end single-channel test.
+- **Step 10 (this step) — deterministic scene manifest, final video
+  rendering, audio mix, captions, QC, and human approval.** The `Video
+  Render Project` reusable workflow (26 new SQL-backed/composite n8n
+  workflows, an orchestrator mirroring Steps 8/9's resumable-step
+  pattern, a submit/poll composite for the renderer's async render
+  jobs), 2 migrations (`scene_manifests`/`render_jobs` extensions —
+  versioning, checksums, input-checksum-based idempotency, QC columns —
+  an `awaiting_final_video_approval`/`final_video_approved` project
+  status chain, a `final_video` approval stage distinct from the
+  pre-existing `final_publication` stage), 7 new JSON Schemas, zero new
+  external API integrations — this is the first workflow in the
+  pipeline with no paid-API surface area at all, rendering is 100%
+  local FFmpeg. Scene composition (`apps/renderer/src/render.js`) covers
+  scale/crop/still-image motion (`zoompan`), cut/crossfade transitions
+  (`concat`/`xfade`), background-music ducking (`sidechaincompress`) and
+  loudness normalization, optional caption burn-in, and brand-colored
+  text cards for Step 9's spec-only chart/map/text asset types. Fully
+  deterministic render QC with hard gates (missing/corrupt output,
+  wrong resolution/codec on final renders, timeline deviation >5%,
+  missing required attribution) plus a weighted score, a human
+  final-video approval with a targeted revision path, a 44-check
+  automated test suite (synthetic scenes rendered at runtime via real
+  FFmpeg, zero committed binary fixtures) proving render idempotency,
+  resume, DB-backed approval waiting, and **n8n/Docker restart
+  survival** through real n8n and renderer execution. One genuine defect
+  found and fixed along the way: a `concat` output feeding into a later
+  `xfade` in the same `filter_complex` failed with a timebase mismatch
+  until every scene input was normalized via `fps`+`settb=AVTB` first —
+  see [docs/architecture/video-render-pipeline.md#transitions-and-timeline-integrity](docs/architecture/video-render-pipeline.md#transitions-and-timeline-integrity).
+  Also found (during n8n-workflow delegation) and fixed: the
+  `scripts/n8n-import-workflows.mjs` importer fetched n8n's
+  `/workflows`/`/credentials` endpoints without pagination, silently
+  missing entries past n8n's 100-item page size once the instance
+  crossed 121 workflows and creating duplicate workflow definitions —
+  fixed with a paginating fetch helper, and the 7 duplicates this had
+  already created were cleaned up. Complete. See
+  [docs/architecture/video-render-pipeline.md](docs/architecture/video-render-pipeline.md).
+- **Later steps:** thumbnails, YouTube metadata/upload, analytics;
+  Oracle Ampere A1 provisioning and deployment (Level 2 native ARM64
+  validation happens here); first channel configuration and end-to-end
+  single-channel test.
 
 ## Engineering rules
 

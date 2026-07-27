@@ -204,6 +204,75 @@ function main() {
     requireStreams(xfadeOut, { video: { codec: 'h264' } });
   });
 
+  // --- Still-image motion (Step 10: zoompan, used by render.js's
+  // motionFilter for slow_zoom_in/zoom_in/zoom_out/pan_* on stock images) ---
+  const zoompanOut = join(WORKDIR, 'zoompan.mp4');
+  record('still-image motion (zoompan filter)', true, () => {
+    ffmpeg([
+      '-f', 'lavfi', '-i', 'color=c=blue:s=320x240:d=2:r=25',
+      '-vf', 'zoompan=z=\'min(zoom+0.0015,1.5)\':d=50:s=320x240:fps=25',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+      '-t', '2',
+      zoompanOut,
+    ]);
+    requireStreams(zoompanOut, { video: { codec: 'h264' } });
+  });
+
+  // --- Text overlays / spec-only text cards (Step 10: drawtext, used by
+  // render.js's overlay_text handling and prepareSceneClip's chart/map/
+  // text-card fallback rendering) ---
+  const drawtextOut = join(WORKDIR, 'drawtext.mp4');
+  record('text overlay (drawtext filter, DejaVu Sans Bold)', true, () => {
+    ffmpeg([
+      '-f', 'lavfi', '-i', 'color=c=black:s=320x240:d=1:r=25',
+      '-vf', "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='ARM64 test':fontcolor=white:fontsize=24:x=10:y=10",
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+      '-t', '1',
+      drawtextOut,
+    ]);
+    requireStreams(drawtextOut, { video: { codec: 'h264' } });
+  });
+
+  // --- Background music ducking (Step 10: sidechaincompress, used by
+  // render.js's prepareFinalAudio to duck music under narration) ---
+  const duckOut = join(WORKDIR, 'duck.m4a');
+  record('audio ducking (sidechaincompress filter)', true, () => {
+    ffmpeg([
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2',
+      '-f', 'lavfi', '-i', 'sine=frequency=110:duration=2',
+      '-filter_complex', '[1:a][0:a]sidechaincompress=threshold=0.05:ratio=8[ducked]',
+      '-map', '[ducked]',
+      '-c:a', 'aac',
+      duckOut,
+    ]);
+    requireStreams(duckOut, { audio: { codec: 'aac' } });
+  });
+
+  // --- Multi-clip concat+xfade chain with timebase normalization (Step 10:
+  // this is the exact scenario that surfaced a real bug in render.js's
+  // combineScenesWithTransitions — a `cut` transition's concat output fed
+  // into a later `xfade` failed with a timebase mismatch until every input
+  // was normalized via fps=+settb=AVTB first. This check reproduces that
+  // three-clip cut-then-dissolve chain to catch a regression of the same
+  // class on either platform.) ---
+  const chainOut = join(WORKDIR, 'chain.mp4');
+  record('multi-clip concat+xfade chain with settb=AVTB normalization', true, () => {
+    ffmpeg([
+      '-f', 'lavfi', '-i', 'color=c=red:s=160x120:d=1:r=25',
+      '-f', 'lavfi', '-i', 'color=c=green:s=160x120:d=1:r=25',
+      '-f', 'lavfi', '-i', 'color=c=blue:s=160x120:d=1:r=25',
+      '-filter_complex',
+      '[0:v]fps=25,settb=AVTB[n0];[1:v]fps=25,settb=AVTB[n1];[2:v]fps=25,settb=AVTB[n2];' +
+      '[n0][n1]concat=n=2:v=1:a=0[cut01];' +
+      '[cut01]settb=AVTB[cut01tb];' +
+      '[cut01tb][n2]xfade=transition=dissolve:duration=0.5:offset=1.5[v]',
+      '-map', '[v]',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+      chainOut,
+    ]);
+    requireStreams(chainOut, { video: { codec: 'h264' } });
+  });
+
   rmSync(WORKDIR, { recursive: true, force: true });
 
   const requiredResults = results.filter((r) => r.required);

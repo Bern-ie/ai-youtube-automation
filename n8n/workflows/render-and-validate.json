@@ -1,0 +1,600 @@
+{
+  "name": "Render And Validate",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $input.first().json;\nreturn [{ json: {\n  channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id,\n  scene_manifest_id: c.scene_manifest_id, render_type: c.render_type, renderer_version: c.renderer_version, _ctx: c\n} }];"
+      },
+      "id": "code-2",
+      "name": "Prepare Submit Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:submit-render-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Call: Submit Render Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Did Submit Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-6",
+      "name": "Build Submit Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const submit = $input.first().json;\nconst { _ctx: c } = $('Prepare Submit Input').first().json;\nreturn [{ json: {\n  channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id,\n  render_job_id: submit.data.render_job_id, render_type: c.render_type, _iteration: 0, _max_iterations: 400\n} }];"
+      },
+      "id": "code-7",
+      "name": "Prepare Poll Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:poll-render-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-8",
+      "name": "Call: Poll Render Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-9",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-10",
+      "name": "Did Poll Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-11",
+      "name": "Build Poll Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const { _ctx: c } = $('Prepare Submit Input').first().json;\nreturn [{ json: { channel_id: c.channel_id, content_project_id: c.content_project_id } }];"
+      },
+      "id": "code-12",
+      "name": "Prepare Manifest Fetch Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-current-scene-manifest.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-13",
+      "name": "Call: Get Current Scene Manifest",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const manifestRow = $input.first().json;\nconst poll = $('Call: Poll Render Job').first().json;\nconst { _ctx: c } = $('Prepare Submit Input').first().json;\nconst scenes = ((manifestRow || {}).manifest || {}).scenes || [];\nconst timelineEndMs = scenes.reduce((max, s) => Math.max(max, (s.start_ms || 0) + (s.duration_ms || 0)), 0);\nconst targetDurationSeconds = timelineEndMs > 0 ? timelineEndMs / 1000 : (poll.data.duration_seconds || 0);\nconst isPreview = c.render_type === 'preview';\nreturn [{ json: {\n  storage_path: poll.data.output_path, expected_width: isPreview ? 1280 : 1920, expected_height: isPreview ? 720 : 1080,\n  _ctx: c, _poll: poll.data, _target_duration_seconds: targetDurationSeconds\n} }];"
+      },
+      "id": "code-14",
+      "name": "Prepare Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:3000/render/validate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ storage_path: $json.storage_path, expected_width: $json.expected_width, expected_height: $json.expected_height }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-15",
+      "name": "Call Renderer: Validate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const mediaAnalysis = $input.first().json;\nconst { _ctx: c, _poll: poll, _target_duration_seconds: targetDurationSeconds } = $('Prepare Validate Input').first().json;\nreturn [{ json: {\n  channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id,\n  render_job_id: poll.render_job_id, target_duration_seconds: targetDurationSeconds, media_analysis: mediaAnalysis,\n  _ctx: c, _poll: poll\n} }];"
+      },
+      "id": "code-16",
+      "name": "Prepare QC Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:render-quality-control-sql.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-17",
+      "name": "Call: Render Quality Control SQL",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-18",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-19",
+      "name": "Did QC Call Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-20",
+      "name": "Build QC Call Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-21",
+              "leftValue": "={{ $json.data.hard_fail === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-22",
+      "name": "Did Render QC Hard-Fail?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const qc = $input.first().json;\nconst { _ctx: c } = $('Prepare QC Input').first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RENDER_OUTPUT_INVALID', message: 'render quality control failed a hard gate: ' + (qc.data.hard_fail_reasons || []).join(', '), retryable: false, error_id: null, details: qc.data },\n  runtime: { channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-23",
+      "name": "Build Render QC Hard-Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const qc = $input.first().json;\nconst { _ctx: c, _poll: poll } = $('Prepare QC Input').first().json;\nreturn [{ json: {\n  success: true,\n  data: {\n    render_job_id: poll.render_job_id, output_path: poll.output_path, output_checksum: poll.output_checksum,\n    duration_seconds: poll.duration_seconds, width_px: poll.width_px, height_px: poll.height_px, fps: poll.fps,\n    codec_details: poll.codec_details || {}, file_size_bytes: poll.file_size_bytes,\n    qc_score: qc.data.qc_score, qc_status: qc.data.qc_status, qc_details: qc.data\n  },\n  error: null,\n  runtime: { channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-24",
+      "name": "Build Render-And-Validate Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Submit Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Submit Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Submit Render Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Submit Render Job": {
+      "main": [
+        [
+          {
+            "node": "Did Submit Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Submit Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Poll Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Submit Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Poll Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Poll Render Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Poll Render Job": {
+      "main": [
+        [
+          {
+            "node": "Did Poll Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Poll Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Manifest Fetch Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Poll Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Manifest Fetch Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Get Current Scene Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Get Current Scene Manifest": {
+      "main": [
+        [
+          {
+            "node": "Prepare Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Validate": {
+      "main": [
+        [
+          {
+            "node": "Prepare QC Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare QC Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Render Quality Control SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Render Quality Control SQL": {
+      "main": [
+        [
+          {
+            "node": "Did QC Call Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did QC Call Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Did Render QC Hard-Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build QC Call Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Render QC Hard-Fail?": {
+      "main": [
+        [
+          {
+            "node": "Build Render QC Hard-Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Render-And-Validate Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

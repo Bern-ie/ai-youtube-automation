@@ -205,15 +205,72 @@ const IMPORT_ORDER = [
   'dev-list-pending-visual-approvals.json',
   'dev-get-visual-approval-package.json',
   'dev-decide-visual-approval.json',
+  // Step 10 — video render pipeline. Leaf SQL wrappers first, then the
+  // composite HTTP-calling sub-workflows (render-and-validate.json calls
+  // submit-render-job.json and poll-render-job.json; poll-render-job.json
+  // calls itself -- see the self-reference handling in main() -- so it
+  // only needs its own prerequisites imported first, not itself), then
+  // the orchestrator and everything that references it. Rendering makes
+  // zero external API calls (local FFmpeg only), so there is no new
+  // provider/credential config to wire up here.
+  'load-render-inputs.json',
+  'render-budget-preflight.json',
+  'build-scene-manifest.json',
+  'validate-scene-manifest.json',
+  'get-current-scene-manifest.json',
+  'get-or-create-render-job.json',
+  'update-render-job-progress.json',
+  'persist-render-job-success.json',
+  'mark-render-job-failed.json',
+  'render-quality-control-sql.json',
+  'create-final-video-approval.json',
+  'resolve-final-video-approval.json',
+  'get-final-video-approval-package.json',
+  'list-pending-final-video-approvals.json',
+  'get-current-final-video.json',
+  'create-render-revision.json',
+  'invalidate-stale-render.json',
+  'submit-render-job.json',
+  'poll-render-job.json',
+  'render-and-validate.json',
+  'video-render-project.json',
+  'resolve-final-video-approval-workflow.json',
+  'step10-render-project-test.json',
+  'dev-list-pending-final-video-approvals.json',
+  'dev-get-final-video-approval-package.json',
+  'dev-decide-final-video-approval.json',
 ];
+
+// n8n paginates list endpoints (a cursor-based `nextCursor` field, default
+// page size 100) -- fetching only the first page silently truncates the
+// result once the instance has more than ~100 workflows. That truncation
+// previously caused workflowIdByName lookups to miss already-existing
+// workflows past the first page, which made the importer treat them as
+// new and POST-create name-duplicate workflows instead of PUT-updating
+// the real one (surfaced as a 409 webhook-path conflict once a duplicate
+// with an active webhook-triggered name collided with the original on
+// activation -- see the Step 10 completion notes). Every list call must
+// page through to exhaustion.
+async function apiPaginated(path) {
+  let all = [];
+  let cursor;
+  for (;;) {
+    const qs = cursor ? `${path.includes('?') ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : '';
+    const page = await api(`${path}${qs}`);
+    all = all.concat(page.data);
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+  return all;
+}
 
 async function main() {
   console.log(`Importing into ${N8N_URL}...`);
 
-  const credentials = (await api('/credentials')).data;
+  const credentials = await apiPaginated('/credentials');
   const credentialIdByName = Object.fromEntries(credentials.map((c) => [c.name, c.id]));
 
-  const existingWorkflows = (await api('/workflows')).data;
+  const existingWorkflows = await apiPaginated('/workflows');
   const workflowIdByName = Object.fromEntries(existingWorkflows.map((w) => [w.name, w.id]));
 
   const workflowsDir = join(REPO_ROOT, 'n8n', 'workflows');
@@ -598,6 +655,67 @@ const EXECUTE_WORKFLOW_TARGETS = {
   'Create Visual Revision': 'create-visual-revision.json',
   'Resume: Visual Project': 'visual-project.json',
   'Resolve Visual Approval': 'resolve-visual-approval-workflow.json',
+  // Step 10 — video render pipeline. "Mark Step Running/Failed/Succeeded:
+  // load_channel_configuration", "Call: load_channel_configuration", and
+  // "Fail Workflow Run: load_channel_configuration" reuse the Step 6
+  // entries above (same node names, same target files).
+  'Mark Step Running: load_render_inputs': 'mark-workflow-step.json',
+  'Call: load_render_inputs': 'load-render-inputs.json',
+  'Mark Step Failed: load_render_inputs': 'mark-workflow-step.json',
+  'Fail Workflow Run: load_render_inputs': 'fail-workflow-run.json',
+  'Mark Step Succeeded: load_render_inputs': 'mark-workflow-step.json',
+  'Mark Step Running: render_budget_preflight': 'mark-workflow-step.json',
+  'Call: render_budget_preflight': 'render-budget-preflight.json',
+  'Mark Step Failed: render_budget_preflight': 'mark-workflow-step.json',
+  'Fail Workflow Run: render_budget_preflight': 'fail-workflow-run.json',
+  'Mark Step Succeeded: render_budget_preflight': 'mark-workflow-step.json',
+  'Mark Step Running: build_scene_manifest': 'mark-workflow-step.json',
+  'Call: build_scene_manifest': 'build-scene-manifest.json',
+  'Mark Step Failed: build_scene_manifest': 'mark-workflow-step.json',
+  'Fail Workflow Run: build_scene_manifest': 'fail-workflow-run.json',
+  'Mark Step Succeeded: build_scene_manifest': 'mark-workflow-step.json',
+  'Mark Step Running: validate_scene_manifest': 'mark-workflow-step.json',
+  'Call: validate_scene_manifest': 'validate-scene-manifest.json',
+  'Mark Step Failed: validate_scene_manifest': 'mark-workflow-step.json',
+  'Fail Workflow Run: validate_scene_manifest': 'fail-workflow-run.json',
+  'Mark Step Succeeded: validate_scene_manifest': 'mark-workflow-step.json',
+  'Mark Step Running: render_preview': 'mark-workflow-step.json',
+  'Call: render_preview': 'render-and-validate.json',
+  'Mark Step Failed: render_preview': 'mark-workflow-step.json',
+  'Fail Workflow Run: render_preview': 'fail-workflow-run.json',
+  'Mark Step Succeeded: render_preview': 'mark-workflow-step.json',
+  'Mark Step Running: render_final': 'mark-workflow-step.json',
+  'Call: render_final': 'render-and-validate.json',
+  'Mark Step Failed: render_final': 'mark-workflow-step.json',
+  'Fail Workflow Run: render_final': 'fail-workflow-run.json',
+  'Mark Step Succeeded: render_final': 'mark-workflow-step.json',
+  'Mark Step Running: create_final_video_approval': 'mark-workflow-step.json',
+  'Call: create_final_video_approval': 'create-final-video-approval.json',
+  'Mark Step Failed: create_final_video_approval': 'mark-workflow-step.json',
+  'Fail Workflow Run: create_final_video_approval': 'fail-workflow-run.json',
+  'Mark Step Succeeded: create_final_video_approval': 'mark-workflow-step.json',
+  // "Submit Render Job" composite.
+  'Call: Get Or Create Render Job': 'get-or-create-render-job.json',
+  'Call: Get Current Scene Manifest': 'get-current-scene-manifest.json',
+  // "Poll Render Job" composite -- the last entry is a genuine
+  // self-reference, resolved by the two-pass patch in main().
+  'Call: Mark Render Job Failed (Timeout)': 'mark-render-job-failed.json',
+  'Call: Update Render Job Progress': 'update-render-job-progress.json',
+  'Call: Persist Render Job Success': 'persist-render-job-success.json',
+  'Call: Mark Render Job Failed (Job Failure)': 'mark-render-job-failed.json',
+  'Poll Render Job (Recurse)': 'poll-render-job.json',
+  // "Render And Validate" composite (shared by both "Call: render_preview"
+  // and "Call: render_final" above).
+  'Call: Submit Render Job': 'submit-render-job.json',
+  'Call: Poll Render Job': 'poll-render-job.json',
+  'Call: Render Quality Control SQL': 'render-quality-control-sql.json',
+  // "Video Render Project" orchestrator.
+  'Video Render Project': 'video-render-project.json',
+  // "Resolve Final Video Approval" orchestrator + dev webhooks.
+  'Resolve Final Video Approval SQL': 'resolve-final-video-approval.json',
+  'Create Render Revision': 'create-render-revision.json',
+  'Resume: Video Render Project': 'video-render-project.json',
+  'Resolve Final Video Approval': 'resolve-final-video-approval-workflow.json',
 };
 const FILE_TO_WORKFLOW_NAME = {
   'initialize-workflow-run.json': 'Initialize Workflow Run',
@@ -700,6 +818,29 @@ const FILE_TO_WORKFLOW_NAME = {
   'generate-all-visual-shots.json': 'Generate All Visual Shots',
   'visual-project.json': 'Visual Project',
   'resolve-visual-approval-workflow.json': 'Resolve Visual Approval',
+  // Step 10 — video render pipeline.
+  'load-render-inputs.json': 'Load Render Inputs',
+  'render-budget-preflight.json': 'Render Budget Preflight',
+  'build-scene-manifest.json': 'Build Scene Manifest',
+  'validate-scene-manifest.json': 'Validate Scene Manifest',
+  'get-current-scene-manifest.json': 'Get Current Scene Manifest',
+  'get-or-create-render-job.json': 'Get Or Create Render Job',
+  'update-render-job-progress.json': 'Update Render Job Progress',
+  'persist-render-job-success.json': 'Persist Render Job Success',
+  'mark-render-job-failed.json': 'Mark Render Job Failed',
+  'render-quality-control-sql.json': 'Render Quality Control SQL',
+  'create-final-video-approval.json': 'Create Final Video Approval',
+  'resolve-final-video-approval.json': 'Resolve Final Video Approval SQL',
+  'get-final-video-approval-package.json': 'Get Final Video Approval Package',
+  'list-pending-final-video-approvals.json': 'List Pending Final Video Approvals',
+  'get-current-final-video.json': 'Get Current Final Video',
+  'create-render-revision.json': 'Create Render Revision',
+  'invalidate-stale-render.json': 'Invalidate Stale Render',
+  'submit-render-job.json': 'Submit Render Job',
+  'poll-render-job.json': 'Poll Render Job',
+  'render-and-validate.json': 'Render And Validate',
+  'video-render-project.json': 'Video Render Project',
+  'resolve-final-video-approval-workflow.json': 'Resolve Final Video Approval',
 };
 
 main().catch((err) => {

@@ -9,11 +9,12 @@
 - [architecture/script-pipeline.md](architecture/script-pipeline.md) — the `Script Project` workflow: source-grounding rule, structured script contract, runtime estimation, deterministic + LLM QC, revision loop, versioning, human approval lifecycle, DB-backed wait/resume, cost tracking, error codes.
 - [architecture/voiceover-pipeline.md](architecture/voiceover-pipeline.md) — the `Voiceover Project` workflow: TTS provider architecture, chunking strategy, chunk identity/reuse, pronunciation handling, budget preflight, retry policy, audio format/loudness normalization, silence/truncation detection, timing/subtitle generation, deterministic full-track QC, human approval lifecycle (including targeted per-chunk revision), DB-backed wait/resume, error codes.
 - [architecture/visual-asset-pipeline.md](architecture/visual-asset-pipeline.md) — the `Visual Asset Project` workflow: shot-list planning, deterministic shot timing derivation, stock/generated-image provider architecture, asset resolution policy/fallback, licensing validation, asset QC, timeline coverage/visual diversity QC, human approval lifecycle (including targeted per-shot revision), DB-backed wait/resume, error codes.
+- [architecture/video-render-pipeline.md](architecture/video-render-pipeline.md) — the `Video Render Project` workflow: deterministic scene manifest construction/versioning/idempotency, preview/final rendering, still-image motion and transitions, audio mixing/ducking/loudness, captions, spec-only chart/map/text-card rendering, deterministic render QC, human final-video approval lifecycle (including targeted revision), DB-backed wait/resume, error codes.
 - [architecture/arm64-compatibility.md](architecture/arm64-compatibility.md) — AMD64/ARM64 support matrix for every service; build approach.
 - [deployment/oracle-deployment-assumptions.md](deployment/oracle-deployment-assumptions.md) — Oracle Always Free topology assumptions, cost controls, security posture.
 - [operations/development-commands.md](operations/development-commands.md) — commands for local dev, database ops, n8n workflow setup, and multi-arch builds.
 
-All of the above are living documents for a project currently at **Step 9
-(visual asset planning, shot lists, media acquisition, licensing, asset
-QC, and human approval)**. See the root [README.md](../README.md) for
-overall project status.
+All of the above are living documents for a project currently at **Step 10
+(deterministic scene manifest, final video rendering, audio mix,
+captions, QC, and human approval)**. See the root [README.md](../README.md)
+for overall project status.

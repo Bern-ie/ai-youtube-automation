@@ -1,15 +1,19 @@
 # Database Architecture
 
-Status: **implemented (Step 3), extended through Step 8.** PostgreSQL
+Status: **implemented (Step 3), extended through Step 10.** PostgreSQL
 domain schema, real migrations, role separation, and channel isolation
 are live and tested. Step 4 added the workflow-runtime SQL layer, Step 5
 added topic intake, Step 6 added versioned research plans/packages, Step
-7 added script grounding/QC/versioning, and Step 8 added voiceover
-versioning/chunk-identity/QC — see
+7 added script grounding/QC/versioning, Step 8 added voiceover
+versioning/chunk-identity/QC, Step 9 added visual shot-list/asset
+versioning and licensing, and Step 10 added scene-manifest versioning/
+idempotency and render-job QC — see
 [research-pipeline.md](research-pipeline.md),
-[script-pipeline.md](script-pipeline.md), and
-[voiceover-pipeline.md](voiceover-pipeline.md) for the workflows that
-consume the additions described below.
+[script-pipeline.md](script-pipeline.md),
+[voiceover-pipeline.md](voiceover-pipeline.md),
+[visual-asset-pipeline.md](visual-asset-pipeline.md), and
+[video-render-pipeline.md](video-render-pipeline.md) for the workflows
+that consume the additions described below.
 
 ## Migration system
 
@@ -391,6 +395,62 @@ extensions to two Step 3 tables that existed with only a minimal shape:
   exposed the new Step 9 provider rows (Pexels, OpenAI Images) with zero
   code change; only one field (`style.visual_policy`) was added to that
   function's output.
+
+### Step 10 additions: `scene_manifests`/`render_jobs` extensions, `final_video` approval stage, `render_policy`
+
+`scene_manifests` and `render_jobs` both already existed from Step 3
+(as minimal, single-attempt shapes — the same starting point Step 8/9
+found `voiceovers`/`assets` in) — Step 10 extends both rather than
+replacing them:
+
+- `scene_manifests` gains `script_version_id`/`voiceover_id`/
+  `shot_list_id` (composite-FK'd to their respective tables for the
+  same channel-isolation guarantee every other cross-reference in this
+  schema has), `is_current` (with the same partial-unique-index pattern
+  as `voiceovers`/`visual_shot_lists` — at most one current manifest per
+  project), `renderer_version`, `input_checksums` (JSONB — the
+  idempotent-reuse key), `attribution_summary` (JSONB array),
+  `revision_trigger`/`revision_reason` (mirroring
+  `visual_shots`/`voiceover_chunks`), `validation_status`/
+  `validation_details`, `approved_at`. A new
+  `check_scene_manifest_status_transition()` trigger enforces
+  `draft→used→superseded`. See
+  [video-render-pipeline.md#manifest-versioning-and-idempotency](video-render-pipeline.md#manifest-versioning-and-idempotency).
+- `render_jobs` gains `width_px`/`height_px`/`fps`/`codec_details`/
+  `file_size_bytes` (output facts), `progress_pct`/`current_phase`
+  (poll-loop state), `qc_score`/`qc_status`/`qc_details`,
+  `timeout_at`, `error_id` (FK to `errors`). Its pre-existing
+  `check_render_job_status_transition()` trigger and
+  `idx_scene_manifests_project` index (both already present from the
+  Step 3 scaffold) needed no change — a duplicate definition was
+  drafted during development and then removed once the pre-existing
+  ones were confirmed already correct/compatible, rather than shipping
+  a second, conflicting copy. A new `idx_render_jobs_identity
+  (scene_manifest_id, render_type, status)` index supports
+  `get_or_create_render_job()`'s reuse lookup. See
+  [video-render-pipeline.md#render-jobs-and-render-idempotency](video-render-pipeline.md#render-jobs-and-render-idempotency).
+- `content_projects.status` gains `awaiting_final_video_approval`/
+  `final_video_approved`, inserted between the pre-existing `rendering`
+  and `awaiting_final_approval` (a later-step stage left untouched).
+- `approval_requests.stage` gains `final_video` (distinct from the
+  pre-existing `final_publication` stage a later step will use);
+  `approval_requests.target_scene_ids` (JSONB) supports targeted
+  revision, mirroring `target_shot_ids`/`target_chunk_ids`.
+- `channel_branding.render_policy` (JSONB, secret-guarded like every
+  other flexible settings column in this schema) — the per-channel
+  render policy (aspect handling, fps, loudness target, background
+  music, caption burn-in/style, intro/outro flags, preview/final
+  CRF+preset). See
+  [video-render-pipeline.md#audio-pipeline](video-render-pipeline.md#audio-pipeline).
+  Exposed via `load_channel_configuration()`'s `style.render_policy`
+  field — the same one-field-addition pattern Step 9 used for
+  `visual_policy`.
+- No new `channel_budget_limits.limit_type` — local FFmpeg rendering
+  has no paid API cost, so `render_budget_preflight()` defensively
+  re-checks the existing per-video/monthly ceilings only, rather than
+  inventing a `render_stage` budget type nothing actually charges
+  against. See
+  [video-render-pipeline.md#render-budgetresource-guard](video-render-pipeline.md#render-budgetresource-guard).
 
 ## Channel isolation
 

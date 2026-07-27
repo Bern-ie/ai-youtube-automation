@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/render-qc.schema.json",
+  "title": "Render Quality Control Result",
+  "description": "The deterministic output of render_quality_control() -- never an LLM judgment of render quality. Hard-fail reasons here always force qc_status='failed' regardless of the numeric score. See docs/architecture/video-render-pipeline.md#render-qc.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["qc_score", "qc_status", "hard_fail", "hard_fail_reasons", "sub_scores"],
+  "properties": {
+    "qc_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "qc_status": { "type": "string", "enum": ["pending", "passed", "revision_needed", "failed"] },
+    "hard_fail": { "type": "boolean" },
+    "hard_fail_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "missing_render_output", "missing_video_stream", "missing_audio_stream", "corrupt_output",
+          "wrong_resolution", "wrong_video_codec", "wrong_audio_codec", "timeline_mismatch", "attribution_missing"
+        ]
+      }
+    },
+    "target_deviation_pct": { "type": ["number", "null"] },
+    "sub_scores": {
+      "type": "object",
+      "required": ["completeness", "codec_compliance", "timing_alignment", "audio_validity", "attribution_compliance", "integrity"],
+      "properties": {
+        "completeness": { "type": "number" },
+        "codec_compliance": { "type": "number" },
+        "timing_alignment": { "type": "number" },
+        "audio_validity": { "type": "number" },
+        "attribution_compliance": { "type": "number" },
+        "integrity": { "type": "number" }
+      }
+    }
+  }
+}

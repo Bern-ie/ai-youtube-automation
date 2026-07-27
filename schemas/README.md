@@ -1,6 +1,6 @@
 # schemas
 
-Status: **implemented (Steps 4–9).** JSON Schema, Draft 2020-12
+Status: **implemented (Steps 4–10).** JSON Schema, Draft 2020-12
 (`"$schema": "https://json-schema.org/draft/2020-12/schema"` on every
 file) — chosen since nothing in this project had standardized an earlier
 draft yet.
@@ -76,11 +76,23 @@ approval decisions — the request shape is identical for both stages.
 | `visual-approval-package.schema.json` | The human-facing payload served by the development visual-approval endpoint. |
 | `targeted-visual-revision-request.schema.json` | Request body for a `revision_requested` decision scoped to specific `target_shot_ids`. |
 
-All thirty-eight compile together via `ajv` with cross-file `$ref`
+## Step 10 — deterministic scene manifest and final video rendering
+
+| File | Validates |
+|---|---|
+| `render-request.schema.json` | Input to `Video Render Project` — base fields plus `target_scene_ids`/`revision_trigger`/`revision_reason` for targeted revision. |
+| `scene-manifest.schema.json` | The deterministically-constructed manifest body (`$defs/scene` for one scene) — `build_scene_manifest()`'s output, the single source of truth the renderer composes from. |
+| `render-job.schema.json` | Two related shapes (`$defs/submit_request`, `$defs/status`) for the renderer's `POST /render/jobs`/`GET /render/jobs/:id` contract. |
+| `render-validation-result.schema.json` | The renderer's `POST /render/validate` response — ffprobe/decode/loudness/black-frame facts `render_quality_control()` consumes. |
+| `render-qc.schema.json` | The deterministic `render_quality_control()` result — hard-fail reasons, weighted sub-scores. |
+| `final-video-approval-package.schema.json` | The human-facing payload served by the development final-video-approval endpoint. |
+| `targeted-render-revision-request.schema.json` | Request body for a `revision_requested` decision scoped to specific `target_scene_ids`. |
+
+All forty-five compile together via `ajv` with cross-file `$ref`
 resolution (`$id` + `addSchema`, see `n8n/tests/run.js` through
-`run-step9.js`) and are validated against **real captured output**, not
+`run-step10.js`) and are validated against **real captured output**, not
 just checked for internal consistency — every JSON response the test
-suites get back from the live webhooks (or, for Steps 8–9, from direct
+suites get back from the live webhooks (or, for Steps 8–10, from direct
 SQL/renderer calls where a live paid provider credential isn't
 available) is asserted against these schemas on every run.
 
@@ -90,6 +102,7 @@ See
 [docs/architecture/research-pipeline.md](../docs/architecture/research-pipeline.md),
 [docs/architecture/script-pipeline.md](../docs/architecture/script-pipeline.md),
 [docs/architecture/voiceover-pipeline.md](../docs/architecture/voiceover-pipeline.md),
+[docs/architecture/visual-asset-pipeline.md](../docs/architecture/visual-asset-pipeline.md),
 and
-[docs/architecture/visual-asset-pipeline.md](../docs/architecture/visual-asset-pipeline.md)
+[docs/architecture/video-render-pipeline.md](../docs/architecture/video-render-pipeline.md)
 for the full contracts these schemas encode.

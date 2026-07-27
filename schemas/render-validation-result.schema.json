@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/render-validation-result.schema.json",
+  "title": "Render Validation Result",
+  "description": "The deterministic ffprobe/decode/loudness/blackdetect analysis produced by the renderer's POST /render/validate (and internally by every render job) — the sole input render_quality_control() consumes. See docs/architecture/video-render-pipeline.md#render-validation.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["has_video_stream", "has_audio_stream", "decode_ok"],
+  "properties": {
+    "has_video_stream": { "type": "boolean" },
+    "has_audio_stream": { "type": "boolean" },
+    "video_codec": { "type": ["string", "null"] },
+    "audio_codec": { "type": ["string", "null"] },
+    "width": { "type": ["integer", "null"] },
+    "height": { "type": ["integer", "null"] },
+    "fps": { "type": ["number", "null"] },
+    "audio_sample_rate": { "type": ["integer", "null"] },
+    "duration_seconds": { "type": ["number", "null"] },
+    "decode_ok": { "type": "boolean" },
+    "integrated_lufs": { "type": ["number", "null"] },
+    "excessive_black_events": { "type": "integer", "minimum": 0 },
+    "file_size_bytes": { "type": ["integer", "null"] },
+    "resolution_matches": { "type": ["boolean", "null"] }
+  }
+}

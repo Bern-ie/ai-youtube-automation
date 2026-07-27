@@ -555,4 +555,30 @@ INSERT INTO channel_prompt_assignments (channel_id, prompt_id, prompt_version_id
 VALUES ('11111111-1111-1111-1111-111111111111', 'dddddddd-0000-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000011')
 ON CONFLICT (channel_id, prompt_id) DO NOTHING;
 
+-- ------------------------------------------------------------------
+-- Step 10 (video render pipeline) additions to Channel 1.
+-- ------------------------------------------------------------------
+
+-- Only sets render_policy if it is still the column default -- never
+-- clobbers a value someone has since configured by hand. See
+-- docs/architecture/video-render-pipeline.md#channel-render-configuration.
+-- No background_music_asset_path yet -- Channel 1 has no licensed music
+-- asset configured, so the render pipeline correctly renders
+-- narration-only (see docs/architecture/video-render-pipeline.md#background-music).
+UPDATE channel_branding SET render_policy = '{
+  "aspect_handling": "cover",
+  "fps": 30,
+  "loudness_target_lufs": -14,
+  "background_music_asset_path": null,
+  "burn_in_captions": false,
+  "caption_style": {"font": "DejaVu Sans", "size": 42, "color": "white", "background": "black@0.35", "position": "bottom_safe"},
+  "intro_enabled": false,
+  "outro_enabled": false,
+  "crf_preview": 28,
+  "crf_final": 20,
+  "preset_preview": "veryfast",
+  "preset_final": "medium"
+}'::jsonb
+WHERE channel_id = '11111111-1111-1111-1111-111111111111' AND render_policy = '{}'::jsonb;
+
 COMMIT;

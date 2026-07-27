@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/render-request.schema.json",
+  "title": "Video Render Project Request",
+  "description": "Input to the `Video Render Project` reusable workflow (and its dev test webhook). Mirrors the Step 6-9 orchestrator request shape. See docs/architecture/video-render-pipeline.md#input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "content_project_id", "idempotency_key"],
+  "properties": {
+    "channel_id": { "type": "string", "format": "uuid" },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "target_scene_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Scene IDs to target for a revision (targeted human revision). Empty/omitted means a fresh full rebuild."
+    },
+    "revision_trigger": {
+      "type": "string",
+      "enum": ["initial_generation", "targeted_revision", "human_revision_request", "stale_input_rebuild"]
+    },
+    "revision_reason": { "type": ["string", "null"] },
+    "_dev_fail_after_step": { "type": ["string", "null"], "description": "Dev-only failure-injection escape hatch — never part of the public contract." }
+  }
+}

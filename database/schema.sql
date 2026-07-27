@@ -142,6 +142,148 @@ $$;
 
 
 --
+-- Name: build_scene_manifest(uuid, uuid, uuid, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.build_scene_manifest(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid, p_renderer_version text, p_revision_trigger text DEFAULT 'initial_generation'::text, p_revision_reason text DEFAULT NULL::text, p_force_new boolean DEFAULT false) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_shot_list JSONB;
+  v_voiceover JSONB;
+  v_render_policy JSONB;
+  v_existing scene_manifests%ROWTYPE;
+  v_shot JSONB;
+  v_scenes JSONB := '[]'::jsonb;
+  v_attribution JSONB := '[]'::jsonb;
+  v_license_row RECORD;
+  v_version INTEGER;
+  v_manifest_id UUID;
+  v_checksum TEXT;
+  v_input_checksums JSONB;
+  v_manifest_body JSONB;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  v_shot_list := get_current_visual_shot_list(p_channel_id, p_content_project_id);
+  v_voiceover := get_current_voiceover(p_channel_id, p_content_project_id);
+  IF v_shot_list IS NULL OR v_voiceover IS NULL THEN
+    RETURN _runtime_error('RENDER_VISUALS_NOT_APPROVED', 'no current shot list or voiceover to build a manifest from', false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  SELECT COALESCE(render_policy, '{}'::jsonb) INTO v_render_policy FROM channel_branding WHERE channel_id = p_channel_id;
+
+  v_input_checksums := jsonb_build_object(
+    'script_version_id', v_shot_list->'script_version_id', 'voiceover_id', v_voiceover->'voiceover_id',
+    'shot_list_id', v_shot_list->'shot_list_id', 'voiceover_checksum', v_voiceover->'checksum'
+  );
+
+  -- Idempotent reuse: an existing non-superseded manifest built from the
+  -- exact same inputs needs no new version -- this is a RESUME
+  -- optimization (a retried workflow run must not mint a pointless new
+  -- version every time). p_force_new bypasses it: an explicit human/
+  -- targeted revision (see create_render_revision()) must always create
+  -- a new version even when nothing upstream actually changed, so the
+  -- new version's revision_trigger/revision_reason is itself the record
+  -- of what happened, and so a fresh render always follows it.
+  -- v_existing.id (never PL/pgSQL's FOUND) gates the branch below, since
+  -- FOUND would otherwise retain a stale true/false from an earlier
+  -- statement when this SELECT is skipped entirely.
+  v_existing := NULL;
+  IF NOT p_force_new THEN
+    SELECT * INTO v_existing FROM scene_manifests
+      WHERE content_project_id = p_content_project_id AND status != 'superseded' AND input_checksums = v_input_checksums
+      ORDER BY version DESC LIMIT 1;
+  END IF;
+  IF v_existing.id IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'data', jsonb_build_object('scene_manifest_id', v_existing.id, 'version', v_existing.version, 'checksum', v_existing.checksum, 'created', false, 'scene_count', jsonb_array_length(v_existing.manifest->'scenes')),
+      'error', null,
+      'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id, 'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id)
+    );
+  END IF;
+
+  FOR v_shot IN SELECT * FROM jsonb_array_elements(v_shot_list->'shots') LOOP
+    IF (v_shot->'asset'->>'asset_id') IS NOT NULL THEN
+      SELECT al.attribution_required, al.attribution_text INTO v_license_row
+        FROM asset_licenses al WHERE al.asset_id = (v_shot->'asset'->>'asset_id')::uuid LIMIT 1;
+    ELSE
+      v_license_row := NULL;
+    END IF;
+
+    v_scenes := v_scenes || jsonb_build_object(
+      'scene_id', gen_random_uuid(), 'shot_id', v_shot->'shot_id', 'sequence', v_shot->'sequence',
+      'start_ms', v_shot->'start_ms', 'end_ms', v_shot->'end_ms', 'duration_ms', v_shot->'duration_ms',
+      'asset_id', v_shot->'asset'->'asset_id', 'asset_path', v_shot->'asset'->'storage_path', 'asset_checksum', v_shot->'asset'->'checksum',
+      'asset_type', v_shot->'asset'->'asset_type', 'source_width', v_shot->'asset'->'width_px', 'source_height', v_shot->'asset'->'height_px',
+      'source_duration_ms', CASE WHEN v_shot->'asset'->'duration_seconds' IS NOT NULL THEN to_jsonb(round((v_shot->'asset'->>'duration_seconds')::numeric * 1000)) ELSE 'null'::jsonb END,
+      'crop_mode', COALESCE(v_render_policy->>'aspect_handling', 'cover'),
+      'motion_plan', COALESCE(v_shot->'motion_plan', '{}'::jsonb),
+      'overlay_text', v_shot->'overlay_text',
+      'overlay_style', COALESCE(v_render_policy->'caption_style', '{}'::jsonb),
+      'transition_in', v_shot->'transition_in', 'transition_out', v_shot->'transition_out',
+      'attribution', CASE WHEN COALESCE(v_license_row.attribution_required, false)
+        THEN jsonb_build_object('required', true, 'text', v_license_row.attribution_text)
+        ELSE jsonb_build_object('required', false, 'text', null) END,
+      'source_ids', COALESCE(v_shot->'source_ids', '[]'::jsonb), 'claim_ids', COALESCE(v_shot->'claim_ids', '[]'::jsonb)
+    );
+
+    IF COALESCE(v_license_row.attribution_required, false) THEN
+      v_attribution := v_attribution || jsonb_build_object('asset_id', v_shot->'asset'->'asset_id', 'shot_id', v_shot->'shot_id', 'attribution_text', v_license_row.attribution_text);
+    END IF;
+  END LOOP;
+
+  v_manifest_body := jsonb_build_object(
+    'manifest_version', 1, 'channel_id', p_channel_id, 'content_project_id', p_content_project_id,
+    'script_version_id', v_shot_list->'script_version_id', 'voiceover_id', v_voiceover->'voiceover_id', 'shot_list_id', v_shot_list->'shot_list_id',
+    'output', jsonb_build_object('container', 'mp4', 'video_codec', 'h264', 'audio_codec', 'aac', 'width', 1920, 'height', 1080, 'fps', COALESCE((v_render_policy->>'fps')::int, 30), 'pixel_format', 'yuv420p'),
+    'audio', jsonb_build_object(
+      'narration_path', v_voiceover->'storage_path', 'background_music_path', v_render_policy->'background_music_asset_path',
+      'loudness_target_lufs', COALESCE((v_render_policy->>'loudness_target_lufs')::numeric, -14)
+    ),
+    'branding', jsonb_build_object(
+      'intro_enabled', COALESCE((v_render_policy->>'intro_enabled')::boolean, false), 'outro_enabled', COALESCE((v_render_policy->>'outro_enabled')::boolean, false)
+    ),
+    'captions', jsonb_build_object(
+      'srt_path', v_voiceover->'subtitle_srt_path', 'vtt_path', v_voiceover->'subtitle_vtt_path',
+      'burn_in', COALESCE((v_render_policy->>'burn_in_captions')::boolean, false)
+    ),
+    'scenes', v_scenes
+  );
+  v_checksum := encode(sha256(convert_to(v_manifest_body::text, 'UTF8')), 'hex');
+
+  SELECT COALESCE(MAX(version), 0) + 1 INTO v_version FROM scene_manifests WHERE content_project_id = p_content_project_id;
+  UPDATE scene_manifests SET is_current = false WHERE content_project_id = p_content_project_id AND is_current;
+
+  INSERT INTO scene_manifests (
+    channel_id, content_project_id, version, manifest, checksum, generated_from_script_version_id,
+    script_version_id, voiceover_id, shot_list_id, renderer_version, is_current, input_checksums,
+    attribution_summary, revision_trigger, revision_reason, status
+  ) VALUES (
+    p_channel_id, p_content_project_id, v_version, v_manifest_body, v_checksum, (v_shot_list->>'script_version_id')::uuid,
+    (v_shot_list->>'script_version_id')::uuid, (v_voiceover->>'voiceover_id')::uuid, (v_shot_list->>'shot_list_id')::uuid,
+    p_renderer_version, true, v_input_checksums, v_attribution, p_revision_trigger, p_revision_reason, 'draft'
+  ) RETURNING id INTO v_manifest_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object('scene_manifest_id', v_manifest_id, 'version', v_version, 'checksum', v_checksum, 'created', true, 'scene_count', jsonb_array_length(v_scenes)),
+    'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id, 'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id)
+  );
+END;
+$$;
+
+
+--
 -- Name: channel_month_budget_remaining_usd(uuid, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -269,21 +411,23 @@ CREATE FUNCTION public.check_content_project_status_transition() RETURNS trigger
     AS $$
 BEGIN
   PERFORM assert_valid_transition(OLD.status, NEW.status, '{
-    "created":                       ["researching", "cancelled"],
-    "researching":                   ["awaiting_research_approval", "failed", "cancelled"],
-    "awaiting_research_approval":    ["scripting", "researching", "cancelled"],
-    "scripting":                     ["awaiting_script_approval", "failed", "cancelled"],
-    "awaiting_script_approval":      ["voiceover", "scripting", "cancelled"],
-    "voiceover":                     ["awaiting_voiceover_approval", "failed", "cancelled"],
-    "awaiting_voiceover_approval":   ["asset_planning", "voiceover", "cancelled"],
-    "asset_planning":                ["awaiting_visual_approval", "failed", "cancelled"],
-    "awaiting_visual_approval":      ["rendering", "asset_planning", "cancelled"],
-    "rendering":                     ["awaiting_final_approval", "failed", "cancelled"],
-    "awaiting_final_approval":       ["uploading", "rendering", "cancelled"],
-    "uploading":                     ["published", "failed", "cancelled"],
-    "failed":                        ["researching", "scripting", "voiceover", "asset_planning", "rendering", "uploading", "cancelled"],
-    "published":                     [],
-    "cancelled":                     []
+    "created":                        ["researching", "cancelled"],
+    "researching":                    ["awaiting_research_approval", "failed", "cancelled"],
+    "awaiting_research_approval":     ["scripting", "researching", "cancelled"],
+    "scripting":                      ["awaiting_script_approval", "failed", "cancelled"],
+    "awaiting_script_approval":       ["voiceover", "scripting", "cancelled"],
+    "voiceover":                      ["awaiting_voiceover_approval", "failed", "cancelled"],
+    "awaiting_voiceover_approval":    ["asset_planning", "voiceover", "cancelled"],
+    "asset_planning":                 ["awaiting_visual_approval", "failed", "cancelled"],
+    "awaiting_visual_approval":       ["rendering", "asset_planning", "cancelled"],
+    "rendering":                      ["awaiting_final_video_approval", "failed", "cancelled"],
+    "awaiting_final_video_approval":  ["final_video_approved", "rendering", "cancelled"],
+    "final_video_approved":           ["cancelled"],
+    "awaiting_final_approval":        ["uploading", "rendering", "cancelled"],
+    "uploading":                      ["published", "failed", "cancelled"],
+    "failed":                         ["researching", "scripting", "voiceover", "asset_planning", "rendering", "uploading", "cancelled"],
+    "published":                      [],
+    "cancelled":                      []
   }'::jsonb);
   RETURN NEW;
 END;
@@ -553,6 +697,24 @@ $$;
 
 
 --
+-- Name: check_scene_manifest_status_transition(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.check_scene_manifest_status_transition() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM assert_valid_transition(OLD.status, NEW.status, '{
+    "draft":       ["used", "superseded"],
+    "used":        ["superseded"],
+    "superseded":  []
+  }'::jsonb);
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: check_visual_shot_list_status_transition(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -796,8 +958,22 @@ CREATE TABLE public.render_jobs (
     cost_usd numeric(12,6),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     claimed_by text,
+    width_px integer,
+    height_px integer,
+    fps numeric(6,3),
+    codec_details jsonb DEFAULT '{}'::jsonb NOT NULL,
+    file_size_bytes bigint,
+    progress_pct numeric(5,2) DEFAULT 0 NOT NULL,
+    current_phase text,
+    qc_score numeric(5,2),
+    qc_status text DEFAULT 'pending'::text NOT NULL,
+    qc_details jsonb DEFAULT '{}'::jsonb NOT NULL,
+    timeout_at timestamp with time zone,
     CONSTRAINT render_jobs_architecture_check CHECK (((architecture IS NULL) OR (architecture = ANY (ARRAY['amd64'::text, 'arm64'::text])))),
     CONSTRAINT render_jobs_attempt_check CHECK ((attempt > 0)),
+    CONSTRAINT render_jobs_progress_pct_check CHECK (((progress_pct >= (0)::numeric) AND (progress_pct <= (100)::numeric))),
+    CONSTRAINT render_jobs_qc_score_check CHECK (((qc_score IS NULL) OR ((qc_score >= (0)::numeric) AND (qc_score <= (100)::numeric)))),
+    CONSTRAINT render_jobs_qc_status_check CHECK ((qc_status = ANY (ARRAY['pending'::text, 'passed'::text, 'revision_needed'::text, 'failed'::text]))),
     CONSTRAINT render_jobs_render_type_check CHECK ((render_type = ANY (ARRAY['preview'::text, 'final'::text]))),
     CONSTRAINT render_jobs_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'claimed'::text, 'running'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text])))
 );
@@ -1079,6 +1255,39 @@ $$;
 
 
 --
+-- Name: create_final_video_approval(uuid, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_final_video_approval(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid, p_render_job_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_approval_id UUID;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  INSERT INTO approval_requests (channel_id, content_project_id, stage, subject_type, subject_id, correlation_id)
+  VALUES (p_channel_id, p_content_project_id, 'final_video', 'render_job', p_render_job_id, v_run.correlation_id)
+  RETURNING id INTO v_approval_id;
+
+  UPDATE content_projects SET status = 'awaiting_final_video_approval' WHERE id = p_content_project_id;
+  UPDATE workflow_runs SET status = 'waiting' WHERE id = p_workflow_run_id AND status = 'running';
+
+  RETURN jsonb_build_object(
+    'success', true, 'data', jsonb_build_object('approval_request_id', v_approval_id, 'status', 'pending'), 'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id, 'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id)
+  );
+END;
+$$;
+
+
+--
 -- Name: create_manual_topic_project(uuid, uuid, text, text, text, text, integer, timestamp with time zone, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1192,6 +1401,24 @@ BEGIN
       'content_project_id', v_project_id, 'correlation_id', v_run.correlation_id
     )
   );
+END;
+$$;
+
+
+--
+-- Name: create_render_revision(uuid, uuid, uuid, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_render_revision(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid, p_renderer_version text, p_target_scene_ids jsonb DEFAULT '[]'::jsonb, p_revision_reason text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  v_result := build_scene_manifest(p_channel_id, p_workflow_run_id, p_content_project_id, p_renderer_version, 'targeted_revision',
+    format('%s (target_scene_ids=%s)', COALESCE(p_revision_reason, 'human revision request'), p_target_scene_ids::text),
+    true);
+  RETURN v_result;
 END;
 $$;
 
@@ -1824,6 +2051,26 @@ $$;
 
 
 --
+-- Name: get_current_final_video(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_current_final_video(p_channel_id uuid, p_content_project_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT jsonb_build_object(
+    'scene_manifest_id', sm.id, 'version', sm.version, 'approved_at', sm.approved_at, 'attribution_summary', sm.attribution_summary,
+    'render_job_id', rj.id, 'output_path', rj.output_path, 'output_checksum', rj.output_checksum, 'duration_seconds', rj.duration_seconds,
+    'width_px', rj.width_px, 'height_px', rj.height_px, 'file_size_bytes', rj.file_size_bytes, 'codec_details', rj.codec_details,
+    'qc_score', rj.qc_score, 'qc_status', rj.qc_status
+  )
+  FROM scene_manifests sm
+  JOIN render_jobs rj ON rj.scene_manifest_id = sm.id AND rj.render_type = 'final' AND rj.status = 'succeeded'
+  WHERE sm.channel_id = p_channel_id AND sm.content_project_id = p_content_project_id AND sm.is_current AND sm.approved_at IS NOT NULL
+  ORDER BY rj.completed_at DESC LIMIT 1;
+$$;
+
+
+--
 -- Name: get_current_research_package(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1861,6 +2108,22 @@ CREATE FUNCTION public.get_current_research_package(p_channel_id uuid, p_content
   )
   FROM research_packages rp
   WHERE rp.content_project_id = p_content_project_id AND rp.is_current;
+$$;
+
+
+--
+-- Name: get_current_scene_manifest(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_current_scene_manifest(p_channel_id uuid, p_content_project_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT jsonb_build_object(
+    'scene_manifest_id', id, 'version', version, 'checksum', checksum, 'manifest', manifest, 'status', status,
+    'validation_status', validation_status, 'renderer_version', renderer_version, 'attribution_summary', attribution_summary,
+    'approved_at', approved_at
+  )
+  FROM scene_manifests WHERE channel_id = p_channel_id AND content_project_id = p_content_project_id AND is_current;
 $$;
 
 
@@ -1929,6 +2192,36 @@ $$;
 
 
 --
+-- Name: get_final_video_approval_package(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_final_video_approval_package(p_channel_id uuid, p_approval_request_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT jsonb_build_object(
+    'approval_request_id', ar.id, 'status', ar.status, 'content_project_id', ar.content_project_id,
+    'topic', cp.topic, 'title_concept', sv.content->>'title_concept',
+    'scene_manifest', jsonb_build_object(
+      'scene_manifest_id', sm.id, 'version', sm.version, 'checksum', sm.checksum, 'validation_status', sm.validation_status, 'attribution_summary', sm.attribution_summary
+    ),
+    'render_job', jsonb_build_object(
+      'render_job_id', rj.id, 'render_type', rj.render_type, 'status', rj.status, 'output_path', rj.output_path,
+      'duration_seconds', rj.duration_seconds, 'file_size_bytes', rj.file_size_bytes, 'width_px', rj.width_px, 'height_px', rj.height_px,
+      'qc_score', rj.qc_score, 'qc_status', rj.qc_status, 'qc_details', rj.qc_details
+    ),
+    'total_cost_usd', project_spend_usd(ar.content_project_id),
+    'requested_at', ar.requested_at
+  )
+  FROM approval_requests ar
+  JOIN content_projects cp ON cp.id = ar.content_project_id
+  LEFT JOIN render_jobs rj ON rj.id = ar.subject_id AND ar.subject_type = 'render_job'
+  LEFT JOIN scene_manifests sm ON sm.id = rj.scene_manifest_id
+  LEFT JOIN script_versions sv ON sv.id = sm.script_version_id
+  WHERE ar.id = p_approval_request_id AND ar.channel_id = p_channel_id;
+$$;
+
+
+--
 -- Name: get_flattened_script_narration(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1972,6 +2265,59 @@ CREATE FUNCTION public.get_flattened_script_narration(p_channel_id uuid, p_conte
     'pronunciation_notes', COALESCE(pronunciation_notes, '[]'::jsonb), 'estimated_duration_seconds', estimated_duration_seconds
   ) ORDER BY ord), '[]'::jsonb)
   FROM units WHERE COALESCE(trim(narration), '') != '';
+$$;
+
+
+--
+-- Name: get_or_create_render_job(uuid, uuid, uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_or_create_render_job(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid, p_scene_manifest_id uuid, p_render_type text, p_renderer_version text) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_existing render_jobs%ROWTYPE;
+  v_job_id UUID;
+  v_created BOOLEAN := false;
+  v_reused_output BOOLEAN := false;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  SELECT * INTO v_existing FROM render_jobs
+    WHERE scene_manifest_id = p_scene_manifest_id AND render_type = p_render_type AND renderer_version = p_renderer_version
+      AND status = 'succeeded'
+    ORDER BY completed_at DESC LIMIT 1;
+  IF FOUND THEN
+    v_job_id := v_existing.id;
+    v_reused_output := true;
+  ELSE
+    SELECT * INTO v_existing FROM render_jobs
+      WHERE scene_manifest_id = p_scene_manifest_id AND render_type = p_render_type
+        AND status IN ('queued', 'claimed', 'running')
+      ORDER BY created_at DESC LIMIT 1;
+    IF FOUND THEN
+      v_job_id := v_existing.id;
+    ELSE
+      INSERT INTO render_jobs (channel_id, content_project_id, scene_manifest_id, render_type, renderer_version, status, timeout_at)
+      VALUES (p_channel_id, p_content_project_id, p_scene_manifest_id, p_render_type, p_renderer_version, 'queued', now() + interval '30 minutes')
+      RETURNING id INTO v_job_id;
+      v_created := true;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object('render_job_id', v_job_id, 'created', v_created, 'reused_output', v_reused_output, 'status', COALESCE(v_existing.status, 'queued')),
+    'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id, 'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id)
+  );
+END;
 $$;
 
 
@@ -2432,6 +2778,45 @@ $$;
 
 
 --
+-- Name: invalidate_stale_render(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.invalidate_stale_render(p_channel_id uuid, p_content_project_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_manifest scene_manifests%ROWTYPE;
+  v_voiceover JSONB;
+  v_shot_list JSONB;
+  v_live JSONB;
+  v_stale BOOLEAN := false;
+BEGIN
+  SELECT * INTO v_manifest FROM scene_manifests WHERE channel_id = p_channel_id AND content_project_id = p_content_project_id AND is_current;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', true, 'data', jsonb_build_object('stale', false, 'reason', 'no_current_manifest'), 'error', null, 'runtime', jsonb_build_object('channel_id', p_channel_id));
+  END IF;
+
+  v_voiceover := get_current_voiceover(p_channel_id, p_content_project_id);
+  v_shot_list := get_current_visual_shot_list(p_channel_id, p_content_project_id);
+  v_live := jsonb_build_object(
+    'script_version_id', v_shot_list->'script_version_id', 'voiceover_id', v_voiceover->'voiceover_id',
+    'shot_list_id', v_shot_list->'shot_list_id', 'voiceover_checksum', v_voiceover->'checksum'
+  );
+
+  v_stale := v_live IS DISTINCT FROM v_manifest.input_checksums;
+  IF v_stale THEN
+    UPDATE scene_manifests SET is_current = false, status = 'superseded' WHERE id = v_manifest.id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true, 'data', jsonb_build_object('stale', v_stale, 'scene_manifest_id', v_manifest.id), 'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'content_project_id', p_content_project_id)
+  );
+END;
+$$;
+
+
+--
 -- Name: last_successful_workflow_step(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2441,6 +2826,19 @@ CREATE FUNCTION public.last_successful_workflow_step(p_workflow_run_id uuid) RET
   SELECT * FROM workflow_steps
   WHERE workflow_run_id = p_workflow_run_id AND status = 'succeeded'
   ORDER BY sequence DESC LIMIT 1;
+$$;
+
+
+--
+-- Name: list_pending_final_video_approvals(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_pending_final_video_approvals(p_channel_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('approval_request_id', ar.id, 'content_project_id', ar.content_project_id, 'topic', cp.topic, 'requested_at', ar.requested_at) ORDER BY ar.requested_at), '[]'::jsonb)
+  FROM approval_requests ar JOIN content_projects cp ON cp.id = ar.content_project_id
+  WHERE ar.channel_id = p_channel_id AND ar.stage = 'final_video' AND ar.status = 'pending';
 $$;
 
 
@@ -2732,7 +3130,8 @@ BEGIN
       'script_tone', cs.script_tone, 'hook_style', cs.hook_style, 'cta_style', cs.cta_style, 'cta_type', cs.cta_type,
       'video_format', cs.video_format,
       'visual_style', cb.visual_style, 'thumbnail_rules', COALESCE(cb.thumbnail_rules, '{}'::jsonb),
-      'visual_policy', COALESCE(cb.visual_policy, '{}'::jsonb)
+      'visual_policy', COALESCE(cb.visual_policy, '{}'::jsonb),
+      'render_policy', COALESCE(cb.render_policy, '{}'::jsonb)
     ),
     'branding', jsonb_build_object(
       'brand_colors', COALESCE(cb.brand_colors, '{}'::jsonb),
@@ -2867,6 +3266,103 @@ $$;
 
 
 --
+-- Name: load_render_inputs(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.load_render_inputs(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_project content_projects%ROWTYPE;
+  v_script JSONB;
+  v_voiceover JSONB;
+  v_shot_list JSONB;
+  v_bad_shots JSONB;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  SELECT * INTO v_project FROM content_projects WHERE id = p_content_project_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('content_project %s does not exist', p_content_project_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+  IF v_project.channel_id != p_channel_id THEN
+    RETURN _runtime_error('PROJECT_CHANNEL_MISMATCH',
+      format('content_project %s belongs to channel %s, not %s', p_content_project_id, v_project.channel_id, p_channel_id),
+      false, p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  IF v_project.status NOT IN ('rendering', 'awaiting_final_video_approval') THEN
+    RETURN _runtime_error('RENDER_INVALID_PROJECT_STATE',
+      format('content_project %s is in status %s, which cannot begin or resume rendering', p_content_project_id, v_project.status),
+      false, p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM approval_requests WHERE content_project_id = p_content_project_id AND stage = 'visual' AND status = 'approved') THEN
+    RETURN _runtime_error('RENDER_VISUALS_NOT_APPROVED',
+      format('content_project %s has no approved visual approval_request', p_content_project_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM approval_requests WHERE content_project_id = p_content_project_id AND stage = 'voiceover' AND status = 'approved') THEN
+    RETURN _runtime_error('RENDER_VOICEOVER_NOT_APPROVED',
+      format('content_project %s has no approved voiceover approval_request', p_content_project_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  v_script := get_current_script_version(p_channel_id, p_content_project_id);
+  v_voiceover := get_current_voiceover(p_channel_id, p_content_project_id);
+  IF v_voiceover IS NULL OR v_voiceover->>'storage_path' IS NULL THEN
+    RETURN _runtime_error('RENDER_VOICEOVER_NOT_APPROVED',
+      format('content_project %s has no completed current voiceover', p_content_project_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  v_shot_list := get_current_visual_shot_list(p_channel_id, p_content_project_id);
+  IF v_shot_list IS NULL OR v_shot_list->'shots' IS NULL OR jsonb_array_length(v_shot_list->'shots') = 0 THEN
+    RETURN _runtime_error('RENDER_VISUALS_NOT_APPROVED',
+      format('content_project %s has no resolved current shot list', p_content_project_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  SELECT jsonb_agg(jsonb_build_object('shot_id', s->>'shot_id', 'license_status', s->'asset'->>'license_status'))
+    INTO v_bad_shots
+    FROM jsonb_array_elements(v_shot_list->'shots') s
+    WHERE s->'asset'->>'storage_path' IS NULL AND NOT ((s->>'visual_type') IN ('chart', 'map'))
+       OR (s->'asset'->>'license_status') IN ('unknown', 'incompatible', 'rejected');
+  IF v_bad_shots IS NOT NULL AND jsonb_array_length(v_bad_shots) > 0 THEN
+    RETURN jsonb_set(
+      _runtime_error('RENDER_VISUALS_NOT_APPROVED',
+        format('content_project %s has %s shot(s) with a missing asset or invalid license', p_content_project_id, jsonb_array_length(v_bad_shots)),
+        false, p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('bad_shots', v_bad_shots)
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object(
+      'content_project_id', v_project.id, 'topic', v_project.topic, 'target_duration_seconds', v_project.target_duration_seconds,
+      'status', v_project.status, 'script_version_id', v_script->'script_version_id', 'script_content', v_script->'content',
+      'voiceover_id', v_shot_list->'voiceover_id', 'voiceover', v_voiceover, 'shot_list_id', v_shot_list->'shot_list_id',
+      'shot_list', v_shot_list
+    ),
+    'error', null,
+    'runtime', jsonb_build_object(
+      'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+      'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id
+    )
+  );
+END;
+$$;
+
+
+--
 -- Name: load_visual_inputs(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2940,6 +3436,36 @@ BEGIN
       'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
       'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id
     )
+  );
+END;
+$$;
+
+
+--
+-- Name: mark_render_job_failed(uuid, uuid, uuid, text, text, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_render_job_failed(p_channel_id uuid, p_render_job_id uuid, p_workflow_run_id uuid, p_error_code text, p_message text, p_sanitized_details jsonb DEFAULT '{}'::jsonb, p_retryable boolean DEFAULT true) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_job render_jobs%ROWTYPE;
+  v_error_id UUID;
+BEGIN
+  SELECT * INTO v_job FROM render_jobs WHERE id = p_render_job_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('render_job %s not found for channel %s', p_render_job_id, p_channel_id), false, p_channel_id, NULL, NULL, NULL);
+  END IF;
+
+  INSERT INTO errors (channel_id, content_project_id, workflow_run_id, service, error_code, message, sanitized_details, retryable)
+  VALUES (p_channel_id, v_job.content_project_id, p_workflow_run_id, 'n8n-video-render-pipeline', p_error_code, p_message, p_sanitized_details, p_retryable)
+  RETURNING id INTO v_error_id;
+
+  UPDATE render_jobs SET status = 'failed', failed_at = now(), error_id = v_error_id, current_phase = 'failed' WHERE id = p_render_job_id;
+
+  RETURN jsonb_build_object(
+    'success', true, 'data', jsonb_build_object('render_job_id', p_render_job_id, 'error_id', v_error_id), 'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'content_project_id', v_job.content_project_id, 'workflow_run_id', p_workflow_run_id)
   );
 END;
 $$;
@@ -3187,6 +3713,40 @@ BEGIN
       'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
       'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id
     )
+  );
+END;
+$$;
+
+
+--
+-- Name: persist_render_job_success(uuid, uuid, text, text, numeric, integer, integer, numeric, jsonb, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.persist_render_job_success(p_channel_id uuid, p_render_job_id uuid, p_output_path text, p_output_checksum text, p_duration_seconds numeric, p_width_px integer, p_height_px integer, p_fps numeric, p_codec_details jsonb, p_file_size_bytes bigint) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_job render_jobs%ROWTYPE;
+BEGIN
+  UPDATE render_jobs SET
+    status = 'succeeded', completed_at = now(), output_path = p_output_path, output_checksum = p_output_checksum,
+    duration_seconds = p_duration_seconds, width_px = p_width_px, height_px = p_height_px, fps = p_fps,
+    codec_details = COALESCE(p_codec_details, '{}'::jsonb), file_size_bytes = p_file_size_bytes, progress_pct = 100, current_phase = 'completed'
+    WHERE id = p_render_job_id AND channel_id = p_channel_id
+    RETURNING * INTO v_job;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('render_job %s not found for channel %s', p_render_job_id, p_channel_id), false, p_channel_id, NULL, NULL, NULL);
+  END IF;
+
+  IF v_job.render_type = 'final' THEN
+    UPDATE scene_manifests SET status = 'used' WHERE id = v_job.scene_manifest_id AND status = 'draft';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object('render_job_id', v_job.id, 'status', v_job.status, 'output_path', v_job.output_path, 'duration_seconds', v_job.duration_seconds),
+    'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'content_project_id', v_job.content_project_id)
   );
 END;
 $$;
@@ -3582,6 +4142,155 @@ $$;
 
 
 --
+-- Name: render_budget_preflight(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.render_budget_preflight(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_per_video_remaining NUMERIC;
+  v_monthly_remaining NUMERIC;
+  v_warnings TEXT[] := ARRAY[]::TEXT[];
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  v_per_video_remaining := project_budget_remaining_usd(p_content_project_id);
+  IF v_per_video_remaining IS NOT NULL AND v_per_video_remaining <= 0 THEN
+    RETURN jsonb_set(
+      _runtime_error('RENDER_BUDGET_EXCEEDED' /* alias of the generic per-video exhaustion the other stages already use */,
+        format('project %s per-video budget exhausted (remaining $%s)', p_content_project_id, round(v_per_video_remaining, 2)),
+        true, p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('reason', 'per_video_exhausted', 'remaining_usd', round(v_per_video_remaining, 2))
+    );
+  END IF;
+
+  v_monthly_remaining := channel_month_budget_remaining_usd(p_channel_id);
+  IF v_monthly_remaining IS NOT NULL AND v_monthly_remaining <= 0 THEN
+    RETURN jsonb_set(
+      _runtime_error('RENDER_BUDGET_EXCEEDED',
+        format('channel %s monthly budget exhausted (remaining $%s)', p_channel_id, round(v_monthly_remaining, 2)),
+        true, p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('reason', 'monthly_channel_exhausted', 'remaining_usd', round(v_monthly_remaining, 2))
+    );
+  END IF;
+
+  IF v_monthly_remaining IS NOT NULL AND v_monthly_remaining <= 5 THEN
+    v_warnings := array_append(v_warnings, format('channel monthly budget nearly exhausted (remaining $%s)', round(v_monthly_remaining, 2)));
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object('per_video_remaining_usd', v_per_video_remaining, 'monthly_channel_remaining_usd', v_monthly_remaining, 'warnings', to_jsonb(v_warnings)),
+    'error', null,
+    'runtime', jsonb_build_object(
+      'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
+      'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id
+    )
+  );
+END;
+$_$;
+
+
+--
+-- Name: render_quality_control(uuid, uuid, uuid, uuid, numeric, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.render_quality_control(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid, p_render_job_id uuid, p_target_duration_seconds numeric, p_media_analysis jsonb) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_job render_jobs%ROWTYPE;
+  v_manifest scene_manifests%ROWTYPE;
+  v_deviation_pct NUMERIC;
+  v_hard_fail_reasons TEXT[] := ARRAY[]::TEXT[];
+  v_completeness_score NUMERIC;
+  v_codec_score NUMERIC;
+  v_timing_score NUMERIC;
+  v_audio_score NUMERIC;
+  v_attribution_score NUMERIC;
+  v_integrity_score NUMERIC;
+  v_final_score NUMERIC;
+  v_status TEXT;
+  v_hard_fail BOOLEAN;
+  v_details JSONB;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  SELECT * INTO v_job FROM render_jobs WHERE id = p_render_job_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('render_job %s not found for channel %s', p_render_job_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+  SELECT * INTO v_manifest FROM scene_manifests WHERE id = v_job.scene_manifest_id;
+
+  IF v_job.status != 'succeeded' THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'missing_render_output'); END IF;
+  IF NOT COALESCE((p_media_analysis->>'has_video_stream')::boolean, false) THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'missing_video_stream'); END IF;
+  IF NOT COALESCE((p_media_analysis->>'has_audio_stream')::boolean, false) THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'missing_audio_stream'); END IF;
+  IF COALESCE((p_media_analysis->>'decode_ok')::boolean, true) IS FALSE THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'corrupt_output'); END IF;
+  IF v_job.render_type = 'final' THEN
+    IF (p_media_analysis->>'width')::int IS DISTINCT FROM 1920 OR (p_media_analysis->>'height')::int IS DISTINCT FROM 1080 THEN
+      v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'wrong_resolution');
+    END IF;
+    IF (p_media_analysis->>'video_codec') IS DISTINCT FROM 'h264' THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'wrong_video_codec'); END IF;
+    IF (p_media_analysis->>'audio_codec') IS DISTINCT FROM 'aac' THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'wrong_audio_codec'); END IF;
+  END IF;
+
+  v_deviation_pct := CASE WHEN p_target_duration_seconds IS NULL OR p_target_duration_seconds = 0 OR p_media_analysis->>'duration_seconds' IS NULL THEN NULL
+    ELSE round(abs((p_media_analysis->>'duration_seconds')::numeric - p_target_duration_seconds) / p_target_duration_seconds * 100, 2) END;
+  IF v_deviation_pct IS NOT NULL AND v_deviation_pct > 5 THEN v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'timeline_mismatch'); END IF;
+
+  IF v_manifest.attribution_summary IS NOT NULL AND jsonb_array_length(v_manifest.attribution_summary) > 0
+    AND NOT COALESCE((p_media_analysis->>'attribution_rendered')::boolean, false) THEN
+    v_hard_fail_reasons := array_append(v_hard_fail_reasons, 'attribution_missing');
+  END IF;
+
+  v_completeness_score := CASE WHEN v_job.status = 'succeeded' THEN 25 ELSE 0 END;
+  v_codec_score := CASE WHEN 'wrong_resolution' = ANY(v_hard_fail_reasons) OR 'wrong_video_codec' = ANY(v_hard_fail_reasons) OR 'wrong_audio_codec' = ANY(v_hard_fail_reasons) THEN 0 ELSE 20 END;
+  v_timing_score := CASE WHEN v_deviation_pct IS NULL THEN 15 ELSE GREATEST(0, 20 - v_deviation_pct * 4) END;
+  v_audio_score := CASE WHEN COALESCE((p_media_analysis->>'integrated_lufs')::numeric, -14) BETWEEN -20 AND -10 THEN 15 ELSE 8 END;
+  v_attribution_score := CASE WHEN 'attribution_missing' = ANY(v_hard_fail_reasons) THEN 0 ELSE 10 END;
+  v_integrity_score := CASE WHEN COALESCE((p_media_analysis->>'excessive_black_events')::int, 0) = 0 THEN 10 ELSE 5 END;
+
+  v_final_score := round(v_completeness_score + v_codec_score + v_timing_score + v_audio_score + v_attribution_score + v_integrity_score, 2);
+  v_final_score := LEAST(100, GREATEST(0, v_final_score));
+  v_hard_fail := array_length(v_hard_fail_reasons, 1) IS NOT NULL AND array_length(v_hard_fail_reasons, 1) > 0;
+
+  IF v_hard_fail THEN v_status := 'failed';
+  ELSIF v_final_score >= 85 THEN v_status := 'passed';
+  ELSIF v_final_score >= 70 THEN v_status := 'revision_needed';
+  ELSE v_status := 'failed';
+  END IF;
+
+  v_details := jsonb_build_object(
+    'target_deviation_pct', v_deviation_pct, 'media_analysis', p_media_analysis,
+    'sub_scores', jsonb_build_object('completeness', v_completeness_score, 'codec_compliance', v_codec_score, 'timing_alignment', v_timing_score, 'audio_validity', v_audio_score, 'attribution_compliance', v_attribution_score, 'integrity', v_integrity_score),
+    'hard_fail', v_hard_fail, 'hard_fail_reasons', to_jsonb(v_hard_fail_reasons)
+  );
+
+  UPDATE render_jobs SET qc_score = v_final_score, qc_status = v_status, qc_details = v_details WHERE id = p_render_job_id;
+
+  RETURN jsonb_build_object(
+    'success', true, 'data', jsonb_build_object('qc_score', v_final_score, 'qc_status', v_status) || v_details, 'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id, 'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id)
+  );
+END;
+$$;
+
+
+--
 -- Name: research_budget_preflight(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3763,6 +4472,80 @@ BEGIN
       'channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id,
       'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id
     )
+  );
+END;
+$$;
+
+
+--
+-- Name: resolve_final_video_approval(uuid, uuid, text, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.resolve_final_video_approval(p_channel_id uuid, p_approval_request_id uuid, p_decision text, p_reviewer_reference text DEFAULT NULL::text, p_revision_instructions text DEFAULT NULL::text, p_target_scene_ids jsonb DEFAULT '[]'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_approval approval_requests%ROWTYPE;
+  v_new_project_status TEXT;
+  v_workflow_run_id UUID;
+  v_manifest_id UUID;
+BEGIN
+  IF p_decision NOT IN ('approved', 'rejected', 'revision_requested') THEN
+    RETURN _runtime_error('INVALID_EXECUTION_CONTEXT', format('decision must be approved/rejected/revision_requested, got %s', p_decision), false,
+      p_channel_id, NULL, NULL, NULL);
+  END IF;
+
+  SELECT * INTO v_approval FROM approval_requests WHERE id = p_approval_request_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('approval_request %s not found for channel %s', p_approval_request_id, p_channel_id), false,
+      p_channel_id, NULL, NULL, NULL);
+  END IF;
+  IF v_approval.stage != 'final_video' THEN
+    RETURN _runtime_error('INVALID_EXECUTION_CONTEXT', format('approval_request %s is stage %s, not final_video', p_approval_request_id, v_approval.stage), false,
+      p_channel_id, NULL, v_approval.content_project_id, v_approval.correlation_id);
+  END IF;
+  IF v_approval.status != 'pending' THEN
+    RETURN _runtime_error('RENDER_INVALID_PROJECT_STATE', format('approval_request %s is already %s, not pending', p_approval_request_id, v_approval.status), false,
+      p_channel_id, NULL, v_approval.content_project_id, v_approval.correlation_id);
+  END IF;
+
+  v_new_project_status := CASE p_decision
+    WHEN 'approved' THEN 'final_video_approved'
+    WHEN 'rejected' THEN 'cancelled'
+    WHEN 'revision_requested' THEN 'rendering'
+  END;
+
+  IF p_decision = 'revision_requested' AND (p_revision_instructions IS NULL OR trim(p_revision_instructions) = '') THEN
+    RETURN _runtime_error('INVALID_EXECUTION_CONTEXT', 'revision_instructions is required when requesting a revision', false,
+      p_channel_id, NULL, v_approval.content_project_id, v_approval.correlation_id);
+  END IF;
+
+  UPDATE approval_requests SET
+    status = p_decision, decision = p_decision, decided_at = now(),
+    reviewer_reference = p_reviewer_reference, revision_instructions = p_revision_instructions,
+    target_scene_ids = COALESCE(p_target_scene_ids, '[]'::jsonb)
+    WHERE id = p_approval_request_id;
+
+  UPDATE content_projects SET status = v_new_project_status WHERE id = v_approval.content_project_id;
+
+  IF p_decision = 'approved' AND v_approval.subject_type = 'render_job' THEN
+    SELECT scene_manifest_id INTO v_manifest_id FROM render_jobs WHERE id = v_approval.subject_id;
+    UPDATE scene_manifests SET approved_at = now() WHERE id = v_manifest_id;
+  END IF;
+
+  SELECT id INTO v_workflow_run_id FROM workflow_runs
+    WHERE content_project_id = v_approval.content_project_id AND correlation_id = v_approval.correlation_id AND status = 'waiting'
+    ORDER BY created_at DESC LIMIT 1;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'data', jsonb_build_object(
+      'approval_request_id', p_approval_request_id, 'decision', p_decision, 'content_project_id', v_approval.content_project_id,
+      'workflow_run_id', v_workflow_run_id, 'revision_instructions', p_revision_instructions,
+      'target_scene_ids', COALESCE(p_target_scene_ids, '[]'::jsonb), 'render_job_id', v_approval.subject_id
+    ),
+    'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', v_workflow_run_id, 'content_project_id', v_approval.content_project_id, 'correlation_id', v_approval.correlation_id)
   );
 END;
 $$;
@@ -4563,6 +5346,29 @@ $$;
 
 
 --
+-- Name: update_render_job_progress(uuid, uuid, numeric, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_render_job_progress(p_channel_id uuid, p_render_job_id uuid, p_progress_pct numeric, p_current_phase text) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_job render_jobs%ROWTYPE;
+BEGIN
+  UPDATE render_jobs SET progress_pct = LEAST(100, GREATEST(0, p_progress_pct)), current_phase = p_current_phase,
+    status = CASE WHEN status = 'claimed' THEN 'running' ELSE status END,
+    started_at = COALESCE(started_at, now())
+    WHERE id = p_render_job_id AND channel_id = p_channel_id
+    RETURNING * INTO v_job;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('render_job %s not found for channel %s', p_render_job_id, p_channel_id), false, p_channel_id, NULL, NULL, NULL);
+  END IF;
+  RETURN jsonb_build_object('success', true, 'data', jsonb_build_object('render_job_id', v_job.id, 'progress_pct', v_job.progress_pct, 'current_phase', v_job.current_phase), 'error', null, 'runtime', jsonb_build_object('channel_id', p_channel_id));
+END;
+$$;
+
+
+--
 -- Name: upsert_research_plan(uuid, uuid, uuid, text, jsonb, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4717,6 +5523,89 @@ BEGIN
     RETURN v_unknown_count = 0;
   END IF;
   RETURN true;
+END;
+$$;
+
+
+--
+-- Name: validate_scene_manifest(uuid, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.validate_scene_manifest(p_channel_id uuid, p_workflow_run_id uuid, p_content_project_id uuid, p_scene_manifest_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_run workflow_runs%ROWTYPE;
+  v_manifest scene_manifests%ROWTYPE;
+  v_scene JSONB;
+  v_i INTEGER;
+  v_prev_end NUMERIC;
+  v_cur_start NUMERIC;
+  v_issues TEXT[] := ARRAY[]::TEXT[];
+  v_asset assets%ROWTYPE;
+BEGIN
+  SELECT * INTO v_run FROM workflow_runs WHERE id = p_workflow_run_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('WORKFLOW_RUN_NOT_FOUND',
+      format('workflow_run %s not found for channel %s', p_workflow_run_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, NULL);
+  END IF;
+
+  SELECT * INTO v_manifest FROM scene_manifests WHERE id = p_scene_manifest_id AND channel_id = p_channel_id;
+  IF NOT FOUND THEN
+    RETURN _runtime_error('RENDER_PROJECT_NOT_FOUND', format('scene_manifest %s not found for channel %s', p_scene_manifest_id, p_channel_id), false,
+      p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id);
+  END IF;
+
+  IF jsonb_array_length(COALESCE(v_manifest.manifest->'scenes', '[]'::jsonb)) = 0 THEN
+    v_issues := array_append(v_issues, 'no_scenes');
+  END IF;
+
+  v_prev_end := NULL;
+  FOR v_i IN 0 .. COALESCE(jsonb_array_length(v_manifest.manifest->'scenes'), 1) - 1 LOOP
+    v_scene := v_manifest.manifest->'scenes'->v_i;
+    v_cur_start := (v_scene->>'start_ms')::numeric;
+
+    IF (v_scene->>'duration_ms')::numeric <= 0 THEN v_issues := array_append(v_issues, format('negative_or_zero_duration:%s', v_scene->>'scene_id')); END IF;
+    IF v_prev_end IS NOT NULL AND v_cur_start < v_prev_end THEN v_issues := array_append(v_issues, format('overlap:%s', v_scene->>'scene_id')); END IF;
+    IF v_prev_end IS NOT NULL AND v_cur_start - v_prev_end > 500 THEN v_issues := array_append(v_issues, format('timeline_gap:%s', v_scene->>'scene_id')); END IF;
+
+    IF v_scene->>'asset_path' IS NOT NULL THEN
+      SELECT * INTO v_asset FROM assets WHERE id = (v_scene->>'asset_id')::uuid AND channel_id = p_channel_id;
+      IF NOT FOUND THEN
+        v_issues := array_append(v_issues, format('asset_missing:%s', v_scene->>'scene_id'));
+      ELSE
+        IF v_asset.checksum IS DISTINCT FROM (v_scene->>'asset_checksum') THEN v_issues := array_append(v_issues, format('checksum_mismatch:%s', v_scene->>'scene_id')); END IF;
+        IF v_asset.license_status IN ('unknown', 'incompatible', 'rejected') THEN v_issues := array_append(v_issues, format('license_invalid:%s', v_scene->>'scene_id')); END IF;
+      END IF;
+    ELSIF NOT ((v_scene->>'asset_type') IN ('chart', 'map')) THEN
+      v_issues := array_append(v_issues, format('missing_asset_reference:%s', v_scene->>'scene_id'));
+    END IF;
+
+    v_prev_end := (v_scene->>'start_ms')::numeric + (v_scene->>'duration_ms')::numeric;
+  END LOOP;
+
+  IF v_manifest.manifest->'audio'->>'narration_path' IS NULL THEN
+    v_issues := array_append(v_issues, 'missing_narration_path');
+  END IF;
+
+  UPDATE scene_manifests SET
+    validation_status = CASE WHEN array_length(v_issues, 1) IS NULL THEN 'valid' ELSE 'invalid' END,
+    validation_details = jsonb_build_object('issues', to_jsonb(v_issues))
+    WHERE id = p_scene_manifest_id;
+
+  IF array_length(v_issues, 1) IS NOT NULL THEN
+    RETURN jsonb_set(
+      _runtime_error('SCENE_MANIFEST_INVALID', format('scene_manifest %s failed validation: %s', p_scene_manifest_id, array_to_string(v_issues, ', ')), false,
+        p_channel_id, p_workflow_run_id, p_content_project_id, v_run.correlation_id),
+      '{error,details}', jsonb_build_object('issues', to_jsonb(v_issues))
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true, 'data', jsonb_build_object('scene_manifest_id', p_scene_manifest_id, 'valid', true), 'error', null,
+    'runtime', jsonb_build_object('channel_id', p_channel_id, 'workflow_run_id', p_workflow_run_id, 'content_project_id', p_content_project_id, 'correlation_id', v_run.correlation_id)
+  );
 END;
 $$;
 
@@ -5300,7 +6189,8 @@ CREATE TABLE public.approval_requests (
     correlation_id uuid,
     target_chunk_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
     target_shot_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
-    CONSTRAINT approval_requests_stage_check CHECK ((stage = ANY (ARRAY['research'::text, 'script'::text, 'voiceover'::text, 'visual'::text, 'final_publication'::text]))),
+    target_scene_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT approval_requests_stage_check CHECK ((stage = ANY (ARRAY['research'::text, 'script'::text, 'voiceover'::text, 'visual'::text, 'final_video'::text, 'final_publication'::text]))),
     CONSTRAINT approval_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'revision_requested'::text, 'expired'::text, 'cancelled'::text])))
 );
 
@@ -5423,6 +6313,8 @@ CREATE TABLE public.channel_branding (
     thumbnail_rules jsonb DEFAULT '{}'::jsonb NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     visual_policy jsonb DEFAULT '{}'::jsonb NOT NULL,
+    render_policy jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT channel_branding_render_policy_check CHECK (public.jsonb_has_no_secret_keys(render_policy)),
     CONSTRAINT channel_branding_visual_policy_check CHECK (public.jsonb_has_no_secret_keys(visual_policy))
 );
 
@@ -5653,7 +6545,7 @@ CREATE TABLE public.content_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     completed_at timestamp with time zone,
     failed_at timestamp with time zone,
-    CONSTRAINT content_projects_status_check CHECK ((status = ANY (ARRAY['created'::text, 'researching'::text, 'awaiting_research_approval'::text, 'scripting'::text, 'awaiting_script_approval'::text, 'voiceover'::text, 'awaiting_voiceover_approval'::text, 'asset_planning'::text, 'awaiting_visual_approval'::text, 'rendering'::text, 'awaiting_final_approval'::text, 'uploading'::text, 'published'::text, 'failed'::text, 'cancelled'::text]))),
+    CONSTRAINT content_projects_status_check CHECK ((status = ANY (ARRAY['created'::text, 'researching'::text, 'awaiting_research_approval'::text, 'scripting'::text, 'awaiting_script_approval'::text, 'voiceover'::text, 'awaiting_voiceover_approval'::text, 'asset_planning'::text, 'awaiting_visual_approval'::text, 'rendering'::text, 'awaiting_final_video_approval'::text, 'final_video_approved'::text, 'awaiting_final_approval'::text, 'uploading'::text, 'published'::text, 'failed'::text, 'cancelled'::text]))),
     CONSTRAINT content_projects_target_duration_seconds_check CHECK (((target_duration_seconds IS NULL) OR (target_duration_seconds > 0)))
 );
 
@@ -5949,7 +6841,21 @@ CREATE TABLE public.scene_manifests (
     generated_from_script_version_id uuid,
     status text DEFAULT 'draft'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    script_version_id uuid,
+    voiceover_id uuid,
+    shot_list_id uuid,
+    is_current boolean DEFAULT false NOT NULL,
+    renderer_version text,
+    input_checksums jsonb DEFAULT '{}'::jsonb NOT NULL,
+    attribution_summary jsonb DEFAULT '[]'::jsonb NOT NULL,
+    revision_trigger text DEFAULT 'initial_generation'::text NOT NULL,
+    revision_reason text,
+    validation_status text DEFAULT 'pending'::text NOT NULL,
+    validation_details jsonb DEFAULT '{}'::jsonb NOT NULL,
+    approved_at timestamp with time zone,
+    CONSTRAINT scene_manifests_revision_trigger_check CHECK ((revision_trigger = ANY (ARRAY['initial_generation'::text, 'targeted_revision'::text, 'human_revision_request'::text, 'stale_input_rebuild'::text]))),
     CONSTRAINT scene_manifests_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'used'::text, 'superseded'::text]))),
+    CONSTRAINT scene_manifests_validation_status_check CHECK ((validation_status = ANY (ARRAY['pending'::text, 'valid'::text, 'invalid'::text]))),
     CONSTRAINT scene_manifests_version_check CHECK ((version > 0))
 );
 
@@ -7354,6 +8260,13 @@ CREATE INDEX idx_rejected_topics_channel_cooldown ON public.rejected_topics USIN
 
 
 --
+-- Name: idx_render_jobs_identity; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_render_jobs_identity ON public.render_jobs USING btree (scene_manifest_id, render_type, status);
+
+
+--
 -- Name: idx_render_jobs_project; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7407,6 +8320,13 @@ CREATE INDEX idx_research_packages_project ON public.research_packages USING btr
 --
 
 CREATE INDEX idx_research_plans_project ON public.research_plans USING btree (content_project_id, revision DESC);
+
+
+--
+-- Name: idx_scene_manifests_one_current_per_project; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_scene_manifests_one_current_per_project ON public.scene_manifests USING btree (content_project_id) WHERE is_current;
 
 
 --
@@ -7736,6 +8656,13 @@ CREATE TRIGGER trg_research_claims_updated_at BEFORE UPDATE ON public.research_c
 --
 
 CREATE TRIGGER trg_scene_manifests_prevent_mutation BEFORE UPDATE ON public.scene_manifests FOR EACH ROW EXECUTE FUNCTION public.prevent_used_scene_manifest_mutation();
+
+
+--
+-- Name: scene_manifests trg_scene_manifests_status_transition; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_scene_manifests_status_transition BEFORE UPDATE OF status ON public.scene_manifests FOR EACH ROW EXECUTE FUNCTION public.check_scene_manifest_status_transition();
 
 
 --
@@ -8205,6 +9132,14 @@ ALTER TABLE ONLY public.render_jobs
 
 
 --
+-- Name: render_jobs render_jobs_error_id_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.render_jobs
+    ADD CONSTRAINT render_jobs_error_id_channel_id_fkey FOREIGN KEY (error_id, channel_id) REFERENCES public.errors(id, channel_id);
+
+
+--
 -- Name: render_jobs render_jobs_scene_manifest_id_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8330,6 +9265,30 @@ ALTER TABLE ONLY public.scene_manifests
 
 ALTER TABLE ONLY public.scene_manifests
     ADD CONSTRAINT scene_manifests_generated_from_script_version_id_channel_i_fkey FOREIGN KEY (generated_from_script_version_id, channel_id) REFERENCES public.script_versions(id, channel_id);
+
+
+--
+-- Name: scene_manifests scene_manifests_script_version_id_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scene_manifests
+    ADD CONSTRAINT scene_manifests_script_version_id_channel_id_fkey FOREIGN KEY (script_version_id, channel_id) REFERENCES public.script_versions(id, channel_id);
+
+
+--
+-- Name: scene_manifests scene_manifests_shot_list_id_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scene_manifests
+    ADD CONSTRAINT scene_manifests_shot_list_id_channel_id_fkey FOREIGN KEY (shot_list_id, channel_id) REFERENCES public.visual_shot_lists(id, channel_id);
+
+
+--
+-- Name: scene_manifests scene_manifests_voiceover_id_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scene_manifests
+    ADD CONSTRAINT scene_manifests_voiceover_id_channel_id_fkey FOREIGN KEY (voiceover_id, channel_id) REFERENCES public.voiceovers(id, channel_id);
 
 
 --
@@ -8703,4 +9662,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260722240000'),
     ('20260722240001'),
     ('20260722250000'),
-    ('20260722250001');
+    ('20260722250001'),
+    ('20260722260000'),
+    ('20260722260001');

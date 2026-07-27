@@ -1,0 +1,422 @@
+{
+  "name": "Submit Render Job",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $input.first().json;\nreturn [{ json: {\n  channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id,\n  scene_manifest_id: c.scene_manifest_id, render_type: c.render_type, renderer_version: c.renderer_version, _ctx: c\n} }];"
+      },
+      "id": "code-2",
+      "name": "Prepare Get-Or-Create Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-or-create-render-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Call: Get Or Create Render Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Did Get-Or-Create Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-6",
+      "name": "Build Get-Or-Create Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-7",
+              "leftValue": "={{ $json.data.reused_output === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-8",
+      "name": "Is Output Reused?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst ctx = $('Prepare Get-Or-Create Input').first().json._ctx;\nreturn [{ json: {\n  success: true, data: { render_job_id: r.data.render_job_id, submitted: false, reused_output: true, status: r.data.status }, error: null,\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-9",
+      "name": "Build Submit Skipped Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Get-Or-Create Input').first().json._ctx;\nconst goc = $('Call: Get Or Create Render Job').first().json;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, _ctx: ctx, _render_job_id: goc.data.render_job_id } }];"
+      },
+      "id": "code-10",
+      "name": "Prepare Manifest Fetch Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-current-scene-manifest.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Call: Get Current Scene Manifest",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const manifestRow = $input.first().json;\nconst { _ctx: ctx, _render_job_id: renderJobId } = $('Prepare Manifest Fetch Input').first().json;\nreturn [{ json: {\n  render_job_id: renderJobId, channel_id: ctx.channel_id, content_project_id: ctx.content_project_id,\n  manifest: manifestRow.manifest, render_type: ctx.render_type, _ctx: ctx, _render_job_id: renderJobId\n} }];"
+      },
+      "id": "code-12",
+      "name": "Prepare Renderer Submit Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:3000/render/jobs",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ render_job_id: $json.render_job_id, channel_id: $json.channel_id, content_project_id: $json.content_project_id, manifest: $json.manifest, render_type: $json.render_type }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-13",
+      "name": "Call Renderer: Submit Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-14",
+              "leftValue": "={{ $json.accepted === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Did Renderer Accept Job?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $input.first().json;\nconst { _ctx: ctx } = $('Prepare Renderer Submit Body').first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'RENDER_JOB_FAILED', message: 'renderer did not accept the render job submission: ' + JSON.stringify(renderer), retryable: true, error_id: null },\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-16",
+      "name": "Build Renderer Submit Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const { _ctx: ctx, _render_job_id: renderJobId } = $('Prepare Renderer Submit Body').first().json;\nreturn [{ json: {\n  success: true, data: { render_job_id: renderJobId, submitted: true, reused_output: false, status: 'queued' }, error: null,\n  runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null }\n} }];"
+      },
+      "id": "code-17",
+      "name": "Build Submit Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Or-Create Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Or-Create Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Get Or Create Render Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Get Or Create Render Job": {
+      "main": [
+        [
+          {
+            "node": "Did Get-Or-Create Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get-Or-Create Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Is Output Reused?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Get-Or-Create Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Output Reused?": {
+      "main": [
+        [
+          {
+            "node": "Build Submit Skipped Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Manifest Fetch Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Manifest Fetch Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Get Current Scene Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Get Current Scene Manifest": {
+      "main": [
+        [
+          {
+            "node": "Prepare Renderer Submit Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Renderer Submit Body": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Submit Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Submit Job": {
+      "main": [
+        [
+          {
+            "node": "Did Renderer Accept Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Renderer Accept Job?": {
+      "main": [
+        [
+          {
+            "node": "Build Submit Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Renderer Submit Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

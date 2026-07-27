@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/targeted-render-revision-request.schema.json",
+  "title": "Targeted Render Revision Request",
+  "description": "The decision payload for resolve_final_video_approval() when decision=revision_requested. target_scene_ids empty/omitted means the whole video needs rework; a non-empty list identifies the scenes the reviewer flagged. See docs/architecture/video-render-pipeline.md#revision-handling.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "revision_instructions"],
+  "properties": {
+    "decision": { "const": "revision_requested" },
+    "revision_instructions": { "type": "string", "minLength": 1 },
+    "reviewer_reference": { "type": ["string", "null"] },
+    "target_scene_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Empty/omitted = revise the whole video. Non-empty = the reviewer-identified scenes needing rework (visual shot, overlay text, caption style, audio mix, transition, branding, or attribution category — see docs/architecture/video-render-pipeline.md#revision-handling)."
+    }
+  }
+}
