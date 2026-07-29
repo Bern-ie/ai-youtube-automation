@@ -1,0 +1,6080 @@
+{
+  "name": "Publication Package Project",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nconst errors = [];\nconst isUuid = (s) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);\nconst allowedKeys = new Set(['channel_id','content_project_id','idempotency_key','correlation_id','_dev_fail_after_step','target_publication_sections','revision_trigger','revision_reason']);\nfor (const k of Object.keys(b)) { if (!allowedKeys.has(k)) errors.push(`unknown field: ${k}`); }\nif (!isUuid(b.channel_id)) errors.push('channel_id must be a UUID');\nif (!isUuid(b.content_project_id)) errors.push('content_project_id must be a UUID');\nif (typeof b.idempotency_key !== 'string' || b.idempotency_key.length === 0 || b.idempotency_key.length > 500) errors.push('idempotency_key must be a non-empty string up to 500 characters');\nif (b.correlation_id != null && !isUuid(b.correlation_id)) errors.push('correlation_id must be a UUID');\nif (b.target_publication_sections != null && !Array.isArray(b.target_publication_sections)) errors.push('target_publication_sections must be an array');\nreturn [{ json: {\n  valid: errors.length === 0, errors,\n  channel_id: b.channel_id, content_project_id: b.content_project_id,\n  idempotency_key: b.idempotency_key ?? null, correlation_id: b.correlation_id ?? null,\n  target_publication_sections: b.target_publication_sections ?? [],\n  revision_trigger: b.revision_trigger ?? 'initial_generation', revision_reason: b.revision_reason ?? null,\n  _dev_fail_after_step: b._dev_fail_after_step ?? null\n} }];"
+      },
+      "id": "code-1",
+      "name": "Validate Request Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-2",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-3",
+      "name": "Is Request Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const v = $input.first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'INVALID_EXECUTION_CONTEXT', message: 'request failed validation: ' + v.errors.join('; '), retryable: false, error_id: null },\n  runtime: { channel_id: null, workflow_run_id: null, content_project_id: null, correlation_id: v.correlation_id ?? null }\n} }];"
+      },
+      "id": "code-4",
+      "name": "Build Validation Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const v = $('Validate Request Shape').first().json;\nreturn [{ json: {\n  channel_id: v.channel_id, workflow_name: 'publication-package-project', idempotency_key: v.idempotency_key,\n  content_project_id: v.content_project_id, correlation_id: v.correlation_id,\n  input: {}, max_retries: 3\n} }];"
+      },
+      "id": "code-5",
+      "name": "Prepare Init Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:initialize-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-6",
+      "name": "Initialize Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-7",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-8",
+      "name": "Did Initialize Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-9",
+      "name": "Build Init Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id } }];"
+      },
+      "id": "code-10",
+      "name": "Prepare Get-Steps Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-workflow-run-steps.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Get Workflow Run Steps",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stepsArr = $input.first().json.steps || [];\nconst byName = {};\nfor (const s of stepsArr) byName[s.step_name] = s;\nconst flag = (n) => byName[n]?.status === 'succeeded';\nconst out = (n) => byName[n]?.output ?? null;\nreturn [{ json: {\n  load_channel_configuration_done: flag('load_channel_configuration'), load_channel_configuration_output: out('load_channel_configuration'),\n  load_publication_inputs_done: flag('load_publication_inputs'), load_publication_inputs_output: out('load_publication_inputs'),\n  publication_budget_preflight_done: flag('publication_budget_preflight'), publication_budget_preflight_output: out('publication_budget_preflight'),\n  get_or_create_publication_package_done: flag('get_or_create_publication_package'), get_or_create_publication_package_output: out('get_or_create_publication_package'),\n  generate_thumbnail_concepts_done: flag('generate_thumbnail_concepts'), generate_thumbnail_concepts_output: out('generate_thumbnail_concepts'),\n  render_thumbnail_variants_done: flag('render_thumbnail_variants'), render_thumbnail_variants_output: out('render_thumbnail_variants'),\n  generate_metadata_done: flag('generate_metadata'), generate_metadata_output: out('generate_metadata'),\n  score_title_thumbnail_pairs_done: flag('score_title_thumbnail_pairs'), score_title_thumbnail_pairs_output: out('score_title_thumbnail_pairs'),\n  validate_publication_package_done: flag('validate_publication_package'), validate_publication_package_output: out('validate_publication_package'),\n  create_publication_approval_done: flag('create_publication_approval'), create_publication_approval_output: out('create_publication_approval'),\n} }];"
+      },
+      "id": "code-12",
+      "name": "Compute Resume Flags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-13",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.load_channel_configuration_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-14",
+      "name": "Skip load_channel_configuration?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.load_channel_configuration_output || {};\nreturn [{ json: { channel: d.channel, content: d.content, style: d.style, branding: d.branding, providers: d.providers, budgets: d.budgets, publishing: d.publishing, prompts: d.prompts, credentials: d.credentials } }];"
+      },
+      "id": "code-15",
+      "name": "Use Stored Output: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-16",
+      "name": "Prepare Mark-Running Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-17",
+      "name": "Mark Step Running: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id } }];"
+      },
+      "id": "code-18",
+      "name": "Prepare Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-19",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "load_channel_configuration",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-20",
+      "name": "Inject Failure Here? (load_channel_configuration)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step load_channel_configuration', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-21",
+      "name": "Synthesize Injected Failure: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:load-channel-configuration.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-22",
+      "name": "Call: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-23",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-24",
+      "name": "Did load_channel_configuration Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0, error: r.error } }];"
+      },
+      "id": "code-25",
+      "name": "Tag Failure: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-26",
+      "name": "Prepare Mark-Failed Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-27",
+      "name": "Mark Step Failed: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4840,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: load_channel_configuration').first().json._passthrough }];"
+      },
+      "id": "code-28",
+      "name": "Recover Failure Tag: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-29",
+      "name": "Prepare Fail-Run Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-30",
+      "name": "Fail Workflow Run: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5500,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-31",
+      "name": "Build Failure Response: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_channel_configuration', sequence: 0,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-32",
+      "name": "Prepare Mark-Succeeded Input: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-33",
+      "name": "Mark Step Succeeded: load_channel_configuration",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: load_channel_configuration').first().json._fresh_data;\nreturn [{ json: { channel: d.channel, content: d.content, style: d.style, branding: d.branding, providers: d.providers, budgets: d.budgets, publishing: d.publishing, prompts: d.prompts, credentials: d.credentials } }];"
+      },
+      "id": "code-34",
+      "name": "Extract Fresh Output: load_channel_configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-35",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.load_publication_inputs_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-36",
+      "name": "Skip load_publication_inputs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.load_publication_inputs_output || {};\nreturn [{ json: { content_project_id: d.content_project_id, topic: d.topic, target_duration_seconds: d.target_duration_seconds, status: d.status, final_video: d.final_video, script_version_id: d.script_version_id, script_content: d.script_content, voiceover_timing: d.voiceover_timing, attribution_summary: d.attribution_summary, thumbnail_rules: d.thumbnail_rules, brand_colors: d.brand_colors, visual_style: d.visual_style, font_primary: d.font_primary, font_secondary: d.font_secondary, logo_asset_path: d.logo_asset_path, publication_policy: d.publication_policy } }];"
+      },
+      "id": "code-37",
+      "name": "Use Stored Output: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_publication_inputs', sequence: 1,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-38",
+      "name": "Prepare Mark-Running Input: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-39",
+      "name": "Mark Step Running: load_publication_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        7260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id } }];"
+      },
+      "id": "code-40",
+      "name": "Prepare Input: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-41",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "load_publication_inputs",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-42",
+      "name": "Inject Failure Here? (load_publication_inputs)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step load_publication_inputs', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-43",
+      "name": "Synthesize Injected Failure: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:load-publication-inputs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-44",
+      "name": "Call: load_publication_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-45",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-46",
+      "name": "Did load_publication_inputs Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_publication_inputs', sequence: 1, error: r.error } }];"
+      },
+      "id": "code-47",
+      "name": "Tag Failure: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8580,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-48",
+      "name": "Prepare Mark-Failed Input: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-49",
+      "name": "Mark Step Failed: load_publication_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9020,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: load_publication_inputs').first().json._passthrough }];"
+      },
+      "id": "code-50",
+      "name": "Recover Failure Tag: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9240,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-51",
+      "name": "Prepare Fail-Run Input: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9460,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-52",
+      "name": "Fail Workflow Run: load_publication_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        9680,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-53",
+      "name": "Build Failure Response: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9900,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'load_publication_inputs', sequence: 1,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-54",
+      "name": "Prepare Mark-Succeeded Input: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-55",
+      "name": "Mark Step Succeeded: load_publication_inputs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        10340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: load_publication_inputs').first().json._fresh_data;\nreturn [{ json: { content_project_id: d.content_project_id, topic: d.topic, target_duration_seconds: d.target_duration_seconds, status: d.status, final_video: d.final_video, script_version_id: d.script_version_id, script_content: d.script_content, voiceover_timing: d.voiceover_timing, attribution_summary: d.attribution_summary, thumbnail_rules: d.thumbnail_rules, brand_colors: d.brand_colors, visual_style: d.visual_style, font_primary: d.font_primary, font_secondary: d.font_secondary, logo_asset_path: d.logo_asset_path, publication_policy: d.publication_policy } }];"
+      },
+      "id": "code-56",
+      "name": "Extract Fresh Output: load_publication_inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-57",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.publication_budget_preflight_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-58",
+      "name": "Skip publication_budget_preflight?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        10780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.publication_budget_preflight_output || {};\nreturn [{ json: { per_video_remaining_usd: d.per_video_remaining_usd, monthly_channel_remaining_usd: d.monthly_channel_remaining_usd, warnings: d.warnings } }];"
+      },
+      "id": "code-59",
+      "name": "Use Stored Output: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'publication_budget_preflight', sequence: 2,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-60",
+      "name": "Prepare Mark-Running Input: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-61",
+      "name": "Mark Step Running: publication_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        11440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id, estimated_cost_usd: 0.10 } }];"
+      },
+      "id": "code-62",
+      "name": "Prepare Input: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-63",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "publication_budget_preflight",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-64",
+      "name": "Inject Failure Here? (publication_budget_preflight)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step publication_budget_preflight', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-65",
+      "name": "Synthesize Injected Failure: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:publication-budget-preflight.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-66",
+      "name": "Call: publication_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        12320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-67",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-68",
+      "name": "Did publication_budget_preflight Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        12540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'publication_budget_preflight', sequence: 2, error: r.error } }];"
+      },
+      "id": "code-69",
+      "name": "Tag Failure: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12760,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-70",
+      "name": "Prepare Mark-Failed Input: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12980,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-71",
+      "name": "Mark Step Failed: publication_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: publication_budget_preflight').first().json._passthrough }];"
+      },
+      "id": "code-72",
+      "name": "Recover Failure Tag: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13420,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-73",
+      "name": "Prepare Fail-Run Input: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13640,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-74",
+      "name": "Fail Workflow Run: publication_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        13860,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-75",
+      "name": "Build Failure Response: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14080,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'publication_budget_preflight', sequence: 2,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-76",
+      "name": "Prepare Mark-Succeeded Input: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-77",
+      "name": "Mark Step Succeeded: publication_budget_preflight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        14520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: publication_budget_preflight').first().json._fresh_data;\nreturn [{ json: { per_video_remaining_usd: d.per_video_remaining_usd, monthly_channel_remaining_usd: d.monthly_channel_remaining_usd, warnings: d.warnings } }];"
+      },
+      "id": "code-78",
+      "name": "Extract Fresh Output: publication_budget_preflight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-79",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.get_or_create_publication_package_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-80",
+      "name": "Skip get_or_create_publication_package?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        14960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.get_or_create_publication_package_output || {};\nreturn [{ json: { publication_package_id: d.publication_package_id, version: d.version, created: d.created } }];"
+      },
+      "id": "code-81",
+      "name": "Use Stored Output: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'get_or_create_publication_package', sequence: 3,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-82",
+      "name": "Prepare Mark-Running Input: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-83",
+      "name": "Mark Step Running: get_or_create_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        15620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nconst v = $('Validate Request Shape').first().json;\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id, revision_trigger: v.revision_trigger, revision_reason: v.revision_reason, force_new: false } }];"
+      },
+      "id": "code-84",
+      "name": "Prepare Input: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-85",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "get_or_create_publication_package",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-86",
+      "name": "Inject Failure Here? (get_or_create_publication_package)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        16060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step get_or_create_publication_package', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-87",
+      "name": "Synthesize Injected Failure: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-or-create-publication-package.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-88",
+      "name": "Call: get_or_create_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        16500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-89",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-90",
+      "name": "Did get_or_create_publication_package Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        16720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'get_or_create_publication_package', sequence: 3, error: r.error } }];"
+      },
+      "id": "code-91",
+      "name": "Tag Failure: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16940,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-92",
+      "name": "Prepare Mark-Failed Input: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17160,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-93",
+      "name": "Mark Step Failed: get_or_create_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        17380,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: get_or_create_publication_package').first().json._passthrough }];"
+      },
+      "id": "code-94",
+      "name": "Recover Failure Tag: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-95",
+      "name": "Prepare Fail-Run Input: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17820,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-96",
+      "name": "Fail Workflow Run: get_or_create_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        18040,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-97",
+      "name": "Build Failure Response: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18260,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'get_or_create_publication_package', sequence: 3,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-98",
+      "name": "Prepare Mark-Succeeded Input: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-99",
+      "name": "Mark Step Succeeded: get_or_create_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        18700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: get_or_create_publication_package').first().json._fresh_data;\nreturn [{ json: { publication_package_id: d.publication_package_id, version: d.version, created: d.created } }];"
+      },
+      "id": "code-100",
+      "name": "Extract Fresh Output: get_or_create_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-101",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.generate_thumbnail_concepts_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-102",
+      "name": "Skip generate_thumbnail_concepts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        19140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.generate_thumbnail_concepts_output || {};\nreturn [{ json: { concepts: d.concepts, concept_count: d.concept_count } }];"
+      },
+      "id": "code-103",
+      "name": "Use Stored Output: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_thumbnail_concepts', sequence: 4,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-104",
+      "name": "Prepare Mark-Running Input: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-105",
+      "name": "Mark Step Running: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        19800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __LPI; try { __LPI = $('Extract Fresh Output: load_publication_inputs').first().json; } catch (e) { __LPI = $('Use Stored Output: load_publication_inputs').first().json; }\nlet __PKG; try { __PKG = $('Extract Fresh Output: get_or_create_publication_package').first().json; } catch (e) { __PKG = $('Use Stored Output: get_or_create_publication_package').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  publication_package_id: __PKG.publication_package_id, topic: __LPI.topic, script_content: __LPI.script_content, final_video: __LPI.final_video,\n  thumbnail_rules: __LPI.thumbnail_rules, brand_colors: __LPI.brand_colors, visual_style: __LPI.visual_style,\n  font_primary: __LPI.font_primary, font_secondary: __LPI.font_secondary, logo_asset_path: __LPI.logo_asset_path, publication_policy: __LPI.publication_policy\n} }];"
+      },
+      "id": "code-106",
+      "name": "Prepare Input: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20020,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-107",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "generate_thumbnail_concepts",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-108",
+      "name": "Inject Failure Here? (generate_thumbnail_concepts)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        20240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step generate_thumbnail_concepts', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-109",
+      "name": "Synthesize Injected Failure: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-thumbnail-concepts.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-110",
+      "name": "Call: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        20680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-111",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-112",
+      "name": "Did generate_thumbnail_concepts Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        20900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_thumbnail_concepts', sequence: 4, error: r.error } }];"
+      },
+      "id": "code-113",
+      "name": "Tag Failure: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21120,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-114",
+      "name": "Prepare Mark-Failed Input: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21340,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-115",
+      "name": "Mark Step Failed: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        21560,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: generate_thumbnail_concepts').first().json._passthrough }];"
+      },
+      "id": "code-116",
+      "name": "Recover Failure Tag: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21780,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-117",
+      "name": "Prepare Fail-Run Input: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-118",
+      "name": "Fail Workflow Run: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        22220,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-119",
+      "name": "Build Failure Response: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22440,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_thumbnail_concepts', sequence: 4,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-120",
+      "name": "Prepare Mark-Succeeded Input: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-121",
+      "name": "Mark Step Succeeded: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        22880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: generate_thumbnail_concepts').first().json._fresh_data;\nreturn [{ json: { concepts: d.concepts, concept_count: d.concept_count } }];"
+      },
+      "id": "code-122",
+      "name": "Extract Fresh Output: generate_thumbnail_concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-123",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.render_thumbnail_variants_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-124",
+      "name": "Skip render_thumbnail_variants?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        23320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.render_thumbnail_variants_output || {};\nreturn [{ json: { publication_package_id: d.publication_package_id, total_concepts: d.total_concepts, rendered: d.rendered, failed: d.failed, all_settled: d.all_settled } }];"
+      },
+      "id": "code-125",
+      "name": "Use Stored Output: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'render_thumbnail_variants', sequence: 5,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-126",
+      "name": "Prepare Mark-Running Input: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-127",
+      "name": "Mark Step Running: render_thumbnail_variants",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        23980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __PKG; try { __PKG = $('Extract Fresh Output: get_or_create_publication_package').first().json; } catch (e) { __PKG = $('Use Stored Output: get_or_create_publication_package').first().json; }\nlet __CFG; try { __CFG = $('Extract Fresh Output: load_channel_configuration').first().json; } catch (e) { __CFG = $('Use Stored Output: load_channel_configuration').first().json; }\nlet __LPI; try { __LPI = $('Extract Fresh Output: load_publication_inputs').first().json; } catch (e) { __LPI = $('Use Stored Output: load_publication_inputs').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  publication_package_id: __PKG.publication_package_id, providers: (__CFG.providers && __CFG.providers.image_gen) || [],\n  renderer_version: 'n8n-renderer-1.0.0', brand_colors: __LPI.brand_colors, logo_asset_path: __LPI.logo_asset_path\n} }];"
+      },
+      "id": "code-128",
+      "name": "Prepare Input: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-129",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "render_thumbnail_variants",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-130",
+      "name": "Inject Failure Here? (render_thumbnail_variants)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        24420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step render_thumbnail_variants', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-131",
+      "name": "Synthesize Injected Failure: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:render-thumbnail-variants.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-132",
+      "name": "Call: render_thumbnail_variants",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        24860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-133",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-134",
+      "name": "Did render_thumbnail_variants Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        25080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'render_thumbnail_variants', sequence: 5, error: r.error } }];"
+      },
+      "id": "code-135",
+      "name": "Tag Failure: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25300,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-136",
+      "name": "Prepare Mark-Failed Input: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25520,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-137",
+      "name": "Mark Step Failed: render_thumbnail_variants",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        25740,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: render_thumbnail_variants').first().json._passthrough }];"
+      },
+      "id": "code-138",
+      "name": "Recover Failure Tag: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25960,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-139",
+      "name": "Prepare Fail-Run Input: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26180,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-140",
+      "name": "Fail Workflow Run: render_thumbnail_variants",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        26400,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-141",
+      "name": "Build Failure Response: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26620,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'render_thumbnail_variants', sequence: 5,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-142",
+      "name": "Prepare Mark-Succeeded Input: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-143",
+      "name": "Mark Step Succeeded: render_thumbnail_variants",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        27060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: render_thumbnail_variants').first().json._fresh_data;\nreturn [{ json: { publication_package_id: d.publication_package_id, total_concepts: d.total_concepts, rendered: d.rendered, failed: d.failed, all_settled: d.all_settled } }];"
+      },
+      "id": "code-144",
+      "name": "Extract Fresh Output: render_thumbnail_variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-145",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.generate_metadata_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-146",
+      "name": "Skip generate_metadata?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        27500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.generate_metadata_output || {};\nreturn [{ json: { variants: d.variants, created: d.created, chapters: d.chapters, attribution_block: d.attribution_block, description: d.description, groundings: d.groundings } }];"
+      },
+      "id": "code-147",
+      "name": "Use Stored Output: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_metadata', sequence: 6,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-148",
+      "name": "Prepare Mark-Running Input: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-149",
+      "name": "Mark Step Running: generate_metadata",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        28160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nconst v = $('Validate Request Shape').first().json;\nlet __PKG; try { __PKG = $('Extract Fresh Output: get_or_create_publication_package').first().json; } catch (e) { __PKG = $('Use Stored Output: get_or_create_publication_package').first().json; }\nlet __LPI; try { __LPI = $('Extract Fresh Output: load_publication_inputs').first().json; } catch (e) { __LPI = $('Use Stored Output: load_publication_inputs').first().json; }\nlet __CFG; try { __CFG = $('Extract Fresh Output: load_channel_configuration').first().json; } catch (e) { __CFG = $('Use Stored Output: load_channel_configuration').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  publication_package_id: __PKG.publication_package_id, topic: __LPI.topic, script_content: __LPI.script_content, final_video: __LPI.final_video,\n  style: __CFG.style, publication_policy: __LPI.publication_policy, channel: __CFG.channel,\n  revision_trigger: v.revision_trigger, revision_reason: v.revision_reason\n} }];"
+      },
+      "id": "code-150",
+      "name": "Prepare Input: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-151",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "generate_metadata",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-152",
+      "name": "Inject Failure Here? (generate_metadata)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        28600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step generate_metadata', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-153",
+      "name": "Synthesize Injected Failure: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-metadata.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-154",
+      "name": "Call: generate_metadata",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        29040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-155",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-156",
+      "name": "Did generate_metadata Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        29260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_metadata', sequence: 6, error: r.error } }];"
+      },
+      "id": "code-157",
+      "name": "Tag Failure: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29480,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-158",
+      "name": "Prepare Mark-Failed Input: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        29700,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-159",
+      "name": "Mark Step Failed: generate_metadata",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        29920,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: generate_metadata').first().json._passthrough }];"
+      },
+      "id": "code-160",
+      "name": "Recover Failure Tag: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30140,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-161",
+      "name": "Prepare Fail-Run Input: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30360,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-162",
+      "name": "Fail Workflow Run: generate_metadata",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        30580,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-163",
+      "name": "Build Failure Response: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30800,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'generate_metadata', sequence: 6,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-164",
+      "name": "Prepare Mark-Succeeded Input: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31020,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-165",
+      "name": "Mark Step Succeeded: generate_metadata",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        31240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: generate_metadata').first().json._fresh_data;\nreturn [{ json: { variants: d.variants, created: d.created, chapters: d.chapters, attribution_block: d.attribution_block, description: d.description, groundings: d.groundings } }];"
+      },
+      "id": "code-166",
+      "name": "Extract Fresh Output: generate_metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-167",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.score_title_thumbnail_pairs_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-168",
+      "name": "Skip score_title_thumbnail_pairs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        31680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.score_title_thumbnail_pairs_output || {};\nreturn [{ json: { pairs: d } }];"
+      },
+      "id": "code-169",
+      "name": "Use Stored Output: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        31900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'score_title_thumbnail_pairs', sequence: 7,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-170",
+      "name": "Prepare Mark-Running Input: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-171",
+      "name": "Mark Step Running: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        32340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __PKG; try { __PKG = $('Extract Fresh Output: get_or_create_publication_package').first().json; } catch (e) { __PKG = $('Use Stored Output: get_or_create_publication_package').first().json; }\nlet __LPI; try { __LPI = $('Extract Fresh Output: load_publication_inputs').first().json; } catch (e) { __LPI = $('Use Stored Output: load_publication_inputs').first().json; }\nlet __CFG; try { __CFG = $('Extract Fresh Output: load_channel_configuration').first().json; } catch (e) { __CFG = $('Use Stored Output: load_channel_configuration').first().json; }\nreturn [{ json: {\n  channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id,\n  publication_package_id: __PKG.publication_package_id, topic: __LPI.topic, style: __CFG.style, channel: __CFG.channel\n} }];"
+      },
+      "id": "code-172",
+      "name": "Prepare Input: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-173",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "score_title_thumbnail_pairs",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-174",
+      "name": "Inject Failure Here? (score_title_thumbnail_pairs)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step score_title_thumbnail_pairs', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-175",
+      "name": "Synthesize Injected Failure: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:score-title-thumbnail-pairs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-176",
+      "name": "Call: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        33220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-177",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-178",
+      "name": "Did score_title_thumbnail_pairs Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        33440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'score_title_thumbnail_pairs', sequence: 7, error: r.error } }];"
+      },
+      "id": "code-179",
+      "name": "Tag Failure: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33660,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-180",
+      "name": "Prepare Mark-Failed Input: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        33880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-181",
+      "name": "Mark Step Failed: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        34100,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: score_title_thumbnail_pairs').first().json._passthrough }];"
+      },
+      "id": "code-182",
+      "name": "Recover Failure Tag: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34320,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-183",
+      "name": "Prepare Fail-Run Input: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34540,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-184",
+      "name": "Fail Workflow Run: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        34760,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-185",
+      "name": "Build Failure Response: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34980,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'score_title_thumbnail_pairs', sequence: 7,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-186",
+      "name": "Prepare Mark-Succeeded Input: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        35200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-187",
+      "name": "Mark Step Succeeded: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        35420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: score_title_thumbnail_pairs').first().json._fresh_data;\nreturn [{ json: { pairs: d } }];"
+      },
+      "id": "code-188",
+      "name": "Extract Fresh Output: score_title_thumbnail_pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        35640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-189",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.validate_publication_package_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-190",
+      "name": "Skip validate_publication_package?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        35860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.validate_publication_package_output || {};\nreturn [{ json: { publication_package_id: d.publication_package_id, qc_score: d.qc_score, qc_status: d.qc_status } }];"
+      },
+      "id": "code-191",
+      "name": "Use Stored Output: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        36080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'validate_publication_package', sequence: 8,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-192",
+      "name": "Prepare Mark-Running Input: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        36300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-193",
+      "name": "Mark Step Running: validate_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        36520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __PKG; try { __PKG = $('Extract Fresh Output: get_or_create_publication_package').first().json; } catch (e) { __PKG = $('Use Stored Output: get_or_create_publication_package').first().json; }\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id, publication_package_id: __PKG.publication_package_id } }];"
+      },
+      "id": "code-194",
+      "name": "Prepare Input: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        36740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-195",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "validate_publication_package",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-196",
+      "name": "Inject Failure Here? (validate_publication_package)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        36960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step validate_publication_package', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-197",
+      "name": "Synthesize Injected Failure: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        37180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:validate-publication-package.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-198",
+      "name": "Call: validate_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        37400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-199",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-200",
+      "name": "Did validate_publication_package Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        37620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'validate_publication_package', sequence: 8, error: r.error } }];"
+      },
+      "id": "code-201",
+      "name": "Tag Failure: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        37840,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-202",
+      "name": "Prepare Mark-Failed Input: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        38060,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-203",
+      "name": "Mark Step Failed: validate_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        38280,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: validate_publication_package').first().json._passthrough }];"
+      },
+      "id": "code-204",
+      "name": "Recover Failure Tag: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        38500,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-205",
+      "name": "Prepare Fail-Run Input: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        38720,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-206",
+      "name": "Fail Workflow Run: validate_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        38940,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-207",
+      "name": "Build Failure Response: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        39160,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'validate_publication_package', sequence: 8,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-208",
+      "name": "Prepare Mark-Succeeded Input: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        39380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-209",
+      "name": "Mark Step Succeeded: validate_publication_package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        39600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: validate_publication_package').first().json._fresh_data;\nreturn [{ json: { publication_package_id: d.publication_package_id, qc_score: d.qc_score, qc_status: d.qc_status } }];"
+      },
+      "id": "code-210",
+      "name": "Extract Fresh Output: validate_publication_package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        39820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-211",
+              "leftValue": "={{ $('Compute Resume Flags').first().json.create_publication_approval_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-212",
+      "name": "Skip create_publication_approval?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        40040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $('Compute Resume Flags').first().json;\nconst d = flags.create_publication_approval_output || {};\nreturn [{ json: { approval_request_id: d.approval_request_id, status: d.status } }];"
+      },
+      "id": "code-213",
+      "name": "Use Stored Output: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_publication_approval', sequence: 9,\n  status: 'running', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null, output: {}, error_id: null\n} }];"
+      },
+      "id": "code-214",
+      "name": "Prepare Mark-Running Input: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-215",
+      "name": "Mark Step Running: create_publication_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        40700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __PKG; try { __PKG = $('Extract Fresh Output: get_or_create_publication_package').first().json; } catch (e) { __PKG = $('Use Stored Output: get_or_create_publication_package').first().json; }\nreturn [{ json: { channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: init.data.content_project_id, publication_package_id: __PKG.publication_package_id } }];"
+      },
+      "id": "code-216",
+      "name": "Prepare Input: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-217",
+              "leftValue": "={{ $('Validate Request Shape').first().json._dev_fail_after_step }}",
+              "rightValue": "create_publication_approval",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-218",
+      "name": "Inject Failure Here? (create_publication_approval)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        41140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null,\n  error: { code: 'DEV_INJECTED_FAILURE', message: 'dev-injected failure after step create_publication_approval', retryable: true, error_id: null },\n  runtime: {} } }];"
+      },
+      "id": "code-219",
+      "name": "Synthesize Injected Failure: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        41360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-publication-approval.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-220",
+      "name": "Call: create_publication_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        41580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-221",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-222",
+      "name": "Did create_publication_approval Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        41800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: { workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_publication_approval', sequence: 9, error: r.error } }];"
+      },
+      "id": "code-223",
+      "name": "Tag Failure: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        42020,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id, step_name: t.step_name, sequence: t.sequence,\n  status: 'failed', content_project_id: null, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: {}, error_id: null, _passthrough: t\n} }];"
+      },
+      "id": "code-224",
+      "name": "Prepare Mark-Failed Input: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        42240,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-225",
+      "name": "Mark Step Failed: create_publication_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        42460,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Prepare Mark-Failed Input: create_publication_approval').first().json._passthrough }];"
+      },
+      "id": "code-226",
+      "name": "Recover Failure Tag: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        42680,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nreturn [{ json: {\n  workflow_run_id: t.workflow_run_id, channel_id: t.channel_id,\n  error_code: t.error.code, message: t.error.message, workflow_step_id: null, error_type: null,\n  sanitized_details: t.error.details || {}, retryable: t.error.retryable, provider: null, provider_request_id: null\n} }];"
+      },
+      "id": "code-227",
+      "name": "Prepare Fail-Run Input: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        42900,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-228",
+      "name": "Fail Workflow Run: create_publication_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        43120,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-229",
+      "name": "Build Failure Response: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        43340,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nconst init = $('Initialize Workflow Run').first().json;\nreturn [{ json: {\n  workflow_run_id: init.data.workflow_run_id, channel_id: init.data.channel_id, step_name: 'create_publication_approval', sequence: 9,\n  status: 'succeeded', content_project_id: init.data.content_project_id, attempt: 1, idempotency_key: null, input_checksum: null,\n  output: r.data, error_id: null,\n  _fresh_data: r.data\n} }];"
+      },
+      "id": "code-230",
+      "name": "Prepare Mark-Succeeded Input: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        43560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-workflow-step.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-231",
+      "name": "Mark Step Succeeded: create_publication_approval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        43780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Prepare Mark-Succeeded Input: create_publication_approval').first().json._fresh_data;\nreturn [{ json: { approval_request_id: d.approval_request_id, status: d.status } }];"
+      },
+      "id": "code-232",
+      "name": "Extract Fresh Output: create_publication_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        44000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $('Initialize Workflow Run').first().json;\nlet __CAP; try { __CAP = $('Extract Fresh Output: create_publication_approval').first().json; } catch (e) { __CAP = $('Use Stored Output: create_publication_approval').first().json; }\nreturn [{ json: {\n  success: true, data: { approval_request_id: __CAP.approval_request_id, status: 'awaiting_final_approval' }, error: null,\n  runtime: {\n    channel_id: init.data.channel_id, workflow_run_id: init.data.workflow_run_id,\n    content_project_id: init.data.content_project_id, correlation_id: init.data.correlation_id\n  }\n} }];"
+      },
+      "id": "code-233",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        44220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Request Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Request Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Init Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request Shape": {
+      "main": [
+        [
+          {
+            "node": "Is Request Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Init Input": {
+      "main": [
+        [
+          {
+            "node": "Initialize Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Did Initialize Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Initialize Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Steps Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Init Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Steps Input": {
+      "main": [
+        [
+          {
+            "node": "Get Workflow Run Steps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Workflow Run Steps": {
+      "main": [
+        [
+          {
+            "node": "Compute Resume Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip load_channel_configuration?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (load_channel_configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (load_channel_configuration)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Did load_channel_configuration Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Did load_channel_configuration Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did load_channel_configuration Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: load_channel_configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Resume Flags": {
+      "main": [
+        [
+          {
+            "node": "Skip load_channel_configuration?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip load_publication_inputs?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (load_publication_inputs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (load_publication_inputs)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Did load_publication_inputs Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Did load_publication_inputs Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did load_publication_inputs Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: load_publication_inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Skip load_publication_inputs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: load_channel_configuration": {
+      "main": [
+        [
+          {
+            "node": "Skip load_publication_inputs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip publication_budget_preflight?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (publication_budget_preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (publication_budget_preflight)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Did publication_budget_preflight Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Did publication_budget_preflight Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did publication_budget_preflight Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: publication_budget_preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Skip publication_budget_preflight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: load_publication_inputs": {
+      "main": [
+        [
+          {
+            "node": "Skip publication_budget_preflight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip get_or_create_publication_package?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (get_or_create_publication_package)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (get_or_create_publication_package)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Did get_or_create_publication_package Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Did get_or_create_publication_package Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did get_or_create_publication_package Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: get_or_create_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Skip get_or_create_publication_package?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: publication_budget_preflight": {
+      "main": [
+        [
+          {
+            "node": "Skip get_or_create_publication_package?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip generate_thumbnail_concepts?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (generate_thumbnail_concepts)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (generate_thumbnail_concepts)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Did generate_thumbnail_concepts Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Did generate_thumbnail_concepts Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did generate_thumbnail_concepts Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: generate_thumbnail_concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_thumbnail_concepts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: get_or_create_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_thumbnail_concepts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip render_thumbnail_variants?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (render_thumbnail_variants)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (render_thumbnail_variants)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Did render_thumbnail_variants Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Did render_thumbnail_variants Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did render_thumbnail_variants Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: render_thumbnail_variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Skip render_thumbnail_variants?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: generate_thumbnail_concepts": {
+      "main": [
+        [
+          {
+            "node": "Skip render_thumbnail_variants?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip generate_metadata?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (generate_metadata)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (generate_metadata)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Did generate_metadata Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Did generate_metadata Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did generate_metadata Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: generate_metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_metadata?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: render_thumbnail_variants": {
+      "main": [
+        [
+          {
+            "node": "Skip generate_metadata?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip score_title_thumbnail_pairs?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (score_title_thumbnail_pairs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (score_title_thumbnail_pairs)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Did score_title_thumbnail_pairs Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Did score_title_thumbnail_pairs Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did score_title_thumbnail_pairs Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: score_title_thumbnail_pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Skip score_title_thumbnail_pairs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: generate_metadata": {
+      "main": [
+        [
+          {
+            "node": "Skip score_title_thumbnail_pairs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip validate_publication_package?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (validate_publication_package)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (validate_publication_package)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Did validate_publication_package Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Did validate_publication_package Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did validate_publication_package Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: validate_publication_package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Skip validate_publication_package?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: score_title_thumbnail_pairs": {
+      "main": [
+        [
+          {
+            "node": "Skip validate_publication_package?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip create_publication_approval?": {
+      "main": [
+        [
+          {
+            "node": "Use Stored Output: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Running Input: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Running Input: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Running: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Running: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Inject Failure Here? (create_publication_approval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Failure Here? (create_publication_approval)": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Injected Failure: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesize Injected Failure: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Did create_publication_approval Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Did create_publication_approval Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did create_publication_approval Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Succeeded Input: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Failure: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Failure: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Failed Input: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Failed: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Failed: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Recover Failure Tag: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recover Failure Tag: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fail-Run Input: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fail-Run Input: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Fail Workflow Run: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Workflow Run: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Failure Response: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Succeeded Input: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Mark Step Succeeded: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Step Succeeded: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Extract Fresh Output: create_publication_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Skip create_publication_approval?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: validate_publication_package": {
+      "main": [
+        [
+          {
+            "node": "Skip create_publication_approval?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Stored Output: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fresh Output: create_publication_approval": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

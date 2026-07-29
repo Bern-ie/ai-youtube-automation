@@ -1,0 +1,80 @@
+{
+  "name": "Persist Thumbnail Success",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT persist_thumbnail_success($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.thumbnail_id, $json.storage_path, $json.checksum, $json.width_px, $json.height_px, $json.format, $json.provider || null, $json.request_id || null, $json.cost_usd || 0, JSON.stringify($json.metadata || {})] }}"
+        }
+      },
+      "id": "pg-2",
+      "name": "Call Persist Thumbnail Success",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "PLACEHOLDER_PG",
+          "name": "postgres-app-runtime"
+        }
+      },
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-3",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Persist Thumbnail Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Persist Thumbnail Success": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

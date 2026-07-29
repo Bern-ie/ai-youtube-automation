@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/thumbnail-concept.schema.json",
+  "title": "Thumbnail Concepts",
+  "description": "Structured output of the thumbnail-concepts LLM call, before persist_thumbnail_concepts(). Persisted BEFORE any rendering/generation call — see docs/architecture/publication-package-pipeline.md#thumbnail-concepts. Top-level array must contain at least 3 entries.",
+  "type": "array",
+  "minItems": 3,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["visual_idea", "source_asset_strategy"],
+    "properties": {
+      "visual_idea": { "type": "string", "minLength": 1 },
+      "source_asset_strategy": {
+        "type": "string",
+        "enum": ["generated_image", "existing_asset", "video_frame", "composite", "brand_template"]
+      },
+      "source_asset_id": {
+        "type": ["string", "null"],
+        "format": "uuid",
+        "description": "Required when source_asset_strategy is existing_asset/composite — an asset_id from the already-approved visual shot list, never invented."
+      },
+      "source_frame_timestamp_ms": {
+        "type": ["integer", "null"],
+        "minimum": 0,
+        "description": "Required when source_asset_strategy is video_frame — a timestamp within the final video's actual duration."
+      },
+      "overlay_text": {
+        "type": ["string", "null"],
+        "description": "0-5 words recommended. Never a duplicate of the full title."
+      },
+      "focal_subject": { "type": ["string", "null"] },
+      "composition": { "type": ["string", "null"] },
+      "emotional_angle": { "type": ["string", "null"] },
+      "branding_notes": { "type": ["string", "null"] },
+      "generation_prompt": {
+        "type": ["string", "null"],
+        "description": "Required when source_asset_strategy is generated_image, null otherwise."
+      },
+      "factual_risk_notes": {
+        "type": ["string", "null"],
+        "description": "Null if no factual-accuracy risk. Otherwise describes exactly what a real-person/real-event depiction shows and why it is not deceptive — see docs/architecture/publication-package-pipeline.md#real-people-events."
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/publication-approval-package.schema.json",
+  "title": "Publication Approval Package",
+  "description": "The human-facing payload served by the development publication-approval endpoint, assembled by get_publication_approval_package(). See docs/architecture/publication-package-pipeline.md#human-publication-approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["approval_request_id", "status", "content_project_id", "publication_package", "thumbnails", "metadata_variants", "pair_rankings", "total_cost_usd", "requested_at"],
+  "properties": {
+    "approval_request_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "topic": { "type": ["string", "null"] },
+    "final_video": { "type": ["object", "null"] },
+    "publication_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publication_package_id", "version"],
+      "properties": {
+        "publication_package_id": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "qc_score": { "type": ["number", "null"] },
+        "qc_status": { "type": ["string", "null"], "enum": ["pending", "passed", "revision_needed", "failed", null] },
+        "attribution_block": { "type": "object" }
+      }
+    },
+    "thumbnails": {
+      "type": ["array", "null"],
+      "items": { "$ref": "https://schemas.ai-youtube-automation.internal/thumbnail-variant.schema.json" }
+    },
+    "metadata_variants": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metadata_variant_id", "variant_number", "title"],
+        "properties": {
+          "metadata_variant_id": { "type": "string", "format": "uuid" },
+          "variant_number": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "chapters": { "$ref": "https://schemas.ai-youtube-automation.internal/chapters.schema.json" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "hashtags": { "type": "array", "items": { "type": "string" } },
+          "pinned_comment": { "type": ["string", "null"] },
+          "community_post": { "type": ["string", "null"] },
+          "promotional_copy": { "type": ["string", "null"] },
+          "grounding_status": { "type": ["string", "null"], "enum": ["pending", "valid", "invalid", null] }
+        }
+      }
+    },
+    "pair_rankings": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metadata_variant_id", "thumbnail_id", "score", "hard_fail", "hard_fail_reasons", "rank"],
+        "properties": {
+          "metadata_variant_id": { "type": "string", "format": "uuid" },
+          "thumbnail_id": { "type": "string", "format": "uuid" },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "hard_fail": { "type": "boolean" },
+          "hard_fail_reasons": { "type": "array", "items": { "type": "string" } },
+          "rank": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "total_cost_usd": { "type": "number" },
+    "requested_at": { "type": "string", "format": "date-time" }
+  }
+}

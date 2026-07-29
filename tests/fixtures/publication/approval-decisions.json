@@ -1,0 +1,7 @@
+{
+  "approve": { "decision": "approved", "reviewer_reference": "harness" },
+  "reject": { "decision": "rejected", "reviewer_reference": "harness", "revision_instructions": null },
+  "revision_titles_only": { "decision": "revision_requested", "reviewer_reference": "harness", "revision_instructions": "Titles feel flat, try more curiosity-driven options.", "target_publication_sections": ["titles"] },
+  "revision_one_thumbnail": { "decision": "revision_requested", "reviewer_reference": "harness", "revision_instructions": "Thumbnail 2 is too busy, simplify it.", "target_publication_sections": ["thumbnail:2"] },
+  "revision_description_only": { "decision": "revision_requested", "reviewer_reference": "harness", "revision_instructions": "Description needs a stronger opening line.", "target_publication_sections": ["description"] }
+}

@@ -1,6 +1,6 @@
 # schemas
 
-Status: **implemented (Steps 4–10).** JSON Schema, Draft 2020-12
+Status: **implemented (Steps 4–11).** JSON Schema, Draft 2020-12
 (`"$schema": "https://json-schema.org/draft/2020-12/schema"` on every
 file) — chosen since nothing in this project had standardized an earlier
 draft yet.
@@ -88,11 +88,25 @@ approval decisions — the request shape is identical for both stages.
 | `final-video-approval-package.schema.json` | The human-facing payload served by the development final-video-approval endpoint. |
 | `targeted-render-revision-request.schema.json` | Request body for a `revision_requested` decision scoped to specific `target_scene_ids`. |
 
-All forty-five compile together via `ajv` with cross-file `$ref`
+## Step 11 — thumbnails, YouTube metadata, chapters, attribution, publication package
+
+| File | Validates |
+|---|---|
+| `publication-request.schema.json` | Input to `Publication Package Project` — base fields plus `target_publication_sections`/`revision_trigger`/`revision_reason` for targeted revision. |
+| `thumbnail-concept.schema.json` | The thumbnail-concepts LLM call's structured output, before `persist_thumbnail_concepts()` — at least 3 entries required. |
+| `thumbnail-variant.schema.json` | One rendered/composed thumbnail — the persisted `thumbnails` row shape. |
+| `title-variant.schema.json` | One title option (`text` + `approach`) from the publication-metadata-generation LLM call. |
+| `chapters.schema.json` | The deterministically-constructed chapter array (`$defs/chapter`) — start times always computed server-side from voiceover timing, never from the LLM. |
+| `publication-metadata-response.schema.json` | The publication-metadata-generation LLM call's full structured output — titles, description components, chapter *labels* only, tags, hashtags, pinned comment, community post, promotional copy. |
+| `title-thumbnail-scoring-response.schema.json` | The title-thumbnail-scoring LLM call's per-pair sub-scores and hard-gate signal booleans, before `score_title_thumbnail_pairs()` computes the final weighted score server-side. |
+| `publication-approval-package.schema.json` | The human-facing payload served by the development publication-approval endpoint. |
+| `targeted-publication-revision-request.schema.json` | Request body for a `revision_requested` decision scoped to specific `target_publication_sections`. |
+
+All fifty-four compile together via `ajv` with cross-file `$ref`
 resolution (`$id` + `addSchema`, see `n8n/tests/run.js` through
-`run-step10.js`) and are validated against **real captured output**, not
+`run-step11.js`) and are validated against **real captured output**, not
 just checked for internal consistency — every JSON response the test
-suites get back from the live webhooks (or, for Steps 8–10, from direct
+suites get back from the live webhooks (or, for Steps 8–11, from direct
 SQL/renderer calls where a live paid provider credential isn't
 available) is asserted against these schemas on every run.
 
@@ -103,6 +117,7 @@ See
 [docs/architecture/script-pipeline.md](../docs/architecture/script-pipeline.md),
 [docs/architecture/voiceover-pipeline.md](../docs/architecture/voiceover-pipeline.md),
 [docs/architecture/visual-asset-pipeline.md](../docs/architecture/visual-asset-pipeline.md),
+[docs/architecture/video-render-pipeline.md](../docs/architecture/video-render-pipeline.md),
 and
-[docs/architecture/video-render-pipeline.md](../docs/architecture/video-render-pipeline.md)
+[docs/architecture/publication-package-pipeline.md](../docs/architecture/publication-package-pipeline.md)
 for the full contracts these schemas encode.

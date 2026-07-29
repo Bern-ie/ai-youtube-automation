@@ -1,19 +1,22 @@
 # Database Architecture
 
-Status: **implemented (Step 3), extended through Step 10.** PostgreSQL
+Status: **implemented (Step 3), extended through Step 11.** PostgreSQL
 domain schema, real migrations, role separation, and channel isolation
 are live and tested. Step 4 added the workflow-runtime SQL layer, Step 5
 added topic intake, Step 6 added versioned research plans/packages, Step
 7 added script grounding/QC/versioning, Step 8 added voiceover
 versioning/chunk-identity/QC, Step 9 added visual shot-list/asset
-versioning and licensing, and Step 10 added scene-manifest versioning/
-idempotency and render-job QC — see
+versioning and licensing, Step 10 added scene-manifest versioning/
+idempotency and render-job QC, and Step 11 added the versioned
+publication-package entity, thumbnail concepts, and title/thumbnail
+pair scoring — see
 [research-pipeline.md](research-pipeline.md),
 [script-pipeline.md](script-pipeline.md),
 [voiceover-pipeline.md](voiceover-pipeline.md),
-[visual-asset-pipeline.md](visual-asset-pipeline.md), and
-[video-render-pipeline.md](video-render-pipeline.md) for the workflows
-that consume the additions described below.
+[visual-asset-pipeline.md](visual-asset-pipeline.md),
+[video-render-pipeline.md](video-render-pipeline.md), and
+[publication-package-pipeline.md](publication-package-pipeline.md) for
+the workflows that consume the additions described below.
 
 ## Migration system
 
@@ -451,6 +454,71 @@ replacing them:
   inventing a `render_stage` budget type nothing actually charges
   against. See
   [video-render-pipeline.md#render-budgetresource-guard](video-render-pipeline.md#render-budgetresource-guard).
+
+### Step 11 additions: `publication_packages`, `thumbnail_concepts`, `title_thumbnail_pair_scores`, `thumbnails`/`metadata_variants` extensions, `publication_stage`
+
+Step 3 scaffolded `thumbnails` and `metadata_variants` as minimal
+single-attempt records (the same starting point Step 8/9/10 found
+`voiceovers`/`assets`/`scene_manifests` in) — Step 11 extends both
+rather than replacing them, and adds three new tables for concerns Step
+3 had no table for at all:
+
+- `publication_packages` (new) — the versioned entity tying one
+  generation batch of thumbnails/metadata together with the exact final
+  video and script version it targets. Mirrors `scene_manifests`'
+  pattern exactly: `version`/`is_current` (partial unique index),
+  `status` (`draft`→`used`→`superseded`, trigger-enforced),
+  `input_checksums` (staleness detection), `selected_metadata_variant_id`/
+  `selected_thumbnail_id` (a deliberate circular reference to
+  `metadata_variants`/`thumbnails`, set only after those child rows
+  already exist — standard nullable-FK-after-insert, not a data-integrity
+  risk), `attribution_block`, `qc_score`/`qc_status`/`qc_details`,
+  `revision_trigger`/`revision_reason`, `approved_at`. See
+  [publication-package-pipeline.md#publication-package-versioning](publication-package-pipeline.md#publication-package-versioning).
+- `thumbnail_concepts` (new) — one row per structured pre-render
+  concept, persisted before any rendering/generation call
+  (`persist_thumbnail_concepts()`), with its own `pending→rendering→rendered/failed`
+  transition trigger supporting `claim_next_pending_thumbnail_concept()`'s
+  `FOR UPDATE SKIP LOCKED` claim loop, the same pattern
+  `visual_shots`/`voiceover_chunks` already established.
+- `title_thumbnail_pair_scores` (new) — one row per (metadata_variant,
+  thumbnail) combination scored together, per the brief's "score
+  combinations rather than titles and thumbnails independently."
+- `thumbnails` gains `publication_package_id`/`thumbnail_concept_id`
+  (composite FKs), `width_px`/`height_px`/`format`/`request_id`/
+  `identity_checksum`/`status`/`attempt`/`error_id`/`qc_status`/
+  `qc_details`/`renderer_version`/`generated` — extending it from a
+  minimal single-attempt record into a full claim/retry/QC/provenance
+  entity. Unique constraint moved from `(content_project_id,
+  variant_number)` to `(publication_package_id, variant_number)` so a
+  targeted revision's new package version can have its own
+  variant-numbered rows.
+- `metadata_variants` gains the equivalent extension:
+  `publication_package_id`, `request_id`/`identity_checksum`/`status`/
+  `attempt`/`error_id`/`revision_trigger`/`revision_reason`/`cost_usd`/
+  `grounding_status`/`grounding_details`. Same unique-constraint move to
+  `(publication_package_id, variant_number)`.
+- `content_projects.status` gains `preparing_publication` (in-progress,
+  entered from `final_video_approved`) and `publication_approved`
+  (terminal, entered from `awaiting_final_approval`) —
+  `awaiting_final_approval` and `approval_requests.stage = 'final_publication'`
+  themselves are **reused** from the Step 3 scaffold, not renamed, since
+  Step 10 explicitly left them untouched "for a later step" and this is
+  that step. See
+  [publication-package-pipeline.md#project-lifecycle](publication-package-pipeline.md#project-lifecycle).
+- `approval_requests.target_publication_sections` (JSONB) supports
+  targeted revision, mirroring `target_scene_ids`/`target_shot_ids`/
+  `target_chunk_ids`.
+- `channel_branding.publication_policy` (JSONB, secret-guarded) — the
+  per-channel publication policy (disclaimers, hashtag/tag limits,
+  title/description char limits, CTA link, min chapter count,
+  auto-select-top-pair flag). Exposed via `load_channel_configuration()`'s
+  `style.publication_policy` field — the same one-field-addition
+  pattern Steps 9/10 used for `visual_policy`/`render_policy`.
+- `channel_budget_limits.limit_type` gains `publication_stage` (seeded
+  at $1.00 hard for Channel 1) — unlike Step 10's local-FFmpeg-only
+  rendering, this step has a real (small) paid surface: the occasional
+  generated-image thumbnail plus three LLM calls per run.
 
 ## Channel isolation
 

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/publication-metadata-response.schema.json",
+  "title": "Publication Metadata Response",
+  "description": "Structured output of the publication-metadata-generation LLM call, before persist_metadata_variants(). Chapter start times and the deterministic attribution block are computed server-side, never trusted from this response — chapter_labels here supplies TEXT ONLY (see docs/architecture/publication-package-pipeline.md#chapters). `titles` must contain at least 5 genuinely different options.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["titles", "description_summary", "chapter_labels", "tags", "hashtags", "pinned_comment", "community_post", "promotional_copy"],
+  "properties": {
+    "titles": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "$ref": "https://schemas.ai-youtube-automation.internal/title-variant.schema.json" }
+    },
+    "description_summary": { "type": "string", "minLength": 1 },
+    "value_proposition": { "type": ["string", "null"] },
+    "context": { "type": ["string", "null"] },
+    "cta_text": { "type": ["string", "null"] },
+    "intro_chapter_label": {
+      "type": ["string", "null"],
+      "description": "Label for the always-present 0:00 introduction chapter (covering the hook+intro narration). Defaults to \"Introduction\" if omitted."
+    },
+    "chapter_labels": {
+      "type": "array",
+      "description": "One entry per script section_id. Text only — start times are always computed server-side from the voiceover's own timing package, never from this field.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["section_id", "label"],
+        "properties": {
+          "section_id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "hashtags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^#" }
+    },
+    "pinned_comment": { "type": "string" },
+    "community_post": { "type": "string" },
+    "promotional_copy": { "type": "string" },
+    "disclaimers_text": {
+      "type": ["string", "null"],
+      "description": "Deterministically assembled from the channel's publication_policy.disclaimers by the caller before this is persisted — never authored by the LLM."
+    }
+  }
+}

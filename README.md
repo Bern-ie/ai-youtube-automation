@@ -4,7 +4,7 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 10 — deterministic scene manifest, final video rendering, audio mix, captions, QC, and human approval (complete)
+## Status: Step 11 — thumbnail generation, YouTube metadata, chapters, attribution, and publication package (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
@@ -13,39 +13,43 @@ reusable n8n workflows providing the common workflow-run entry point
 every content workflow builds on (Step 4), manual topic intake (Step 5),
 source-backed research (Step 6 — **`Research Project`**), source-grounded
 script generation (Step 7 — **`Script Project`**), TTS voiceover
-generation (Step 8 — **`Voiceover Project`**: sentence-bounded chunking,
-per-chunk audio validation, full-track assembly/loudness normalization,
-SRT/WebVTT subtitle generation, deterministic full-track QC, and human
-approval with targeted per-chunk revision), visual asset planning (Step
-9 — **`Visual Asset Project`**: LLM-decided visual treatment per
-narration unit, server-derived shot timing, licensed asset resolution
-via stock search/image generation/spec-only fallback, deterministic QC,
-and human approval with per-shot targeted revision), and now the first
-workflow that makes **zero** external paid-API calls — rendering is
-100% local FFmpeg: **`Video Render Project`**. Given a
-`content_project_id` whose visual assets and voiceover have both already
-been approved, it deterministically constructs a versioned, checksummed
-scene manifest from that already-approved data (never an LLM call),
-renders a 720p preview and a 1920x1080 H.264/AAC final video through the
-`renderer` service (scale/crop, still-image motion via `zoompan`,
-cut/crossfade transitions, background-music ducking, loudness
-normalization, optional caption burn-in, brand-colored text cards for
-Step 9's spec-only chart/map/text asset types), runs fully deterministic
-render QC (codec/resolution/timeline/attribution hard-fail checks plus a
-weighted score), and pauses for a human final-video approval — including
-a targeted revision path — that survives an n8n/Docker restart the same
-DB-backed way every earlier stage's approval does. No thumbnail
-generation, YouTube metadata, upload, or analytics workflow exists
-yet — this step ends with an approved final video (rendered, QC'd,
-human-approved MP4 with sidecar captions and full provenance) ready for
-publishing. See
-[docs/architecture/video-render-pipeline.md](docs/architecture/video-render-pipeline.md)
+generation (Step 8 — **`Voiceover Project`**), visual asset planning
+(Step 9 — **`Visual Asset Project`**), deterministic scene manifest
+construction and final video rendering (Step 10 — **`Video Render
+Project`**: zero external paid-API calls, 100% local FFmpeg, produces an
+approved, QC'd, human-approved 1920x1080 H.264/AAC final video), and now
+**`Publication Package Project`**: thumbnail concept generation (at
+least 3 varied strategies — generated image reusing Step 9's OpenAI
+Images adapter, an existing approved visual asset with typography, an
+extracted final-video frame, a composite, or a brand template), real
+FFmpeg-composed 1280x720 thumbnails with deterministic dimension/
+readability/contrast QC, YouTube metadata generation (at least 5
+genuinely different titles, description, tags, hashtags, pinned
+comment, community post, promotional copy), chapters whose LABELS come
+from an LLM but whose START TIMES are always computed server-side from
+the real voiceover/final-video timing (never trusted from the LLM),
+a deterministically-assembled attribution block injected into the
+description (hard-failing if legally required attribution is missing),
+title/thumbnail PAIR scoring (never titles and thumbnails independently)
+with deterministic hard gates for factual accuracy, licensing, thumbnail
+readability, and deceptive/fake-evidence representation, deterministic
+publication QC, and a human publication-package approval — including a
+targeted revision path (one thumbnail, titles only, description only,
+etc.) — that survives an n8n/Docker restart the same DB-backed way every
+earlier stage's approval does. No YouTube authentication, upload,
+scheduling, or analytics workflow exists yet — this step ends with an
+approved publication package (selected title, selected thumbnail,
+complete description with chapters/attribution, tags, hashtags, pinned
+comment, community post, promotional copy) ready for Step 12 to upload
+without regenerating anything. See
+[docs/architecture/publication-package-pipeline.md](docs/architecture/publication-package-pipeline.md)
 for the full contract,
-[docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md)
+[docs/architecture/video-render-pipeline.md](docs/architecture/video-render-pipeline.md)
 and
-[docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md)
-for the Step 9/8 foundations it consumes,
-[docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md)
+[docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md)
+for the Step 10/9 foundations it consumes,
+[docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md),
+[docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md),
 and
 [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
 for the foundations further upstream,
@@ -164,6 +168,7 @@ Full index: [docs/README.md](docs/README.md)
 - [Voiceover pipeline architecture](docs/architecture/voiceover-pipeline.md)
 - [Visual asset pipeline architecture](docs/architecture/visual-asset-pipeline.md)
 - [Video render pipeline architecture](docs/architecture/video-render-pipeline.md)
+- [Publication package pipeline architecture](docs/architecture/publication-package-pipeline.md)
 - [ARM64 compatibility matrix](docs/architecture/arm64-compatibility.md)
 - [Oracle deployment assumptions](docs/deployment/oracle-deployment-assumptions.md)
 - [Development commands](docs/operations/development-commands.md)
@@ -288,7 +293,7 @@ Full index: [docs/README.md](docs/README.md)
   live-provider validation pending real API credentials (fixture/
   synthetic-media suite fully passes without them). See
   [docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md).
-- **Step 10 (this step) — deterministic scene manifest, final video
+- **Step 10 — deterministic scene manifest, final video
   rendering, audio mix, captions, QC, and human approval.** The `Video
   Render Project` reusable workflow (26 new SQL-backed/composite n8n
   workflows, an orchestrator mirroring Steps 8/9's resumable-step
@@ -325,7 +330,58 @@ Full index: [docs/README.md](docs/README.md)
   fixed with a paginating fetch helper, and the 7 duplicates this had
   already created were cleaned up. Complete. See
   [docs/architecture/video-render-pipeline.md](docs/architecture/video-render-pipeline.md).
-- **Later steps:** thumbnails, YouTube metadata/upload, analytics;
+- **Step 11 (this step) — thumbnail generation, YouTube metadata,
+  chapters, attribution, and publication package.** The `Publication
+  Package Project` reusable workflow (30 new SQL-backed/composite n8n
+  workflows, an orchestrator mirroring Steps 9/10's resumable-step
+  pattern, a per-concept claim/render/persist loop for thumbnails), 2
+  migrations (3 new tables — `publication_packages` (a versioned entity
+  mirroring `scene_manifests`, since Step 3 scaffolded no dedicated
+  "one approved publication combination" table), `thumbnail_concepts`,
+  `title_thumbnail_pair_scores` — plus `thumbnails`/`metadata_variants`
+  extended from Step 3's minimal single-attempt shape into full
+  claim/retry/QC/provenance entities, a `preparing_publication`/
+  `publication_approved` project status pair inserted around the
+  Step-3-scaffolded `awaiting_final_approval`/`final_publication` slots
+  Step 10 explicitly left untouched "for a later step", a
+  `publication_stage` budget ceiling, a `target_publication_sections`
+  column for targeted revisions), 9 new JSON Schemas, 3 new LLM prompts
+  (`thumbnail-concepts`, `publication-metadata-generation`,
+  `title-thumbnail-scoring`) — the second workflow with a real (small)
+  paid-API surface since Step 9, reusing Step 9's exact OpenAI Images
+  adapter for generated thumbnails rather than a second integration.
+  Five thumbnail composition strategies (generated image, existing
+  approved asset + typography, extracted final-video frame, composite,
+  brand template) rendered via real FFmpeg
+  (`apps/renderer/src/thumbnail.js`, no new native dependency) with
+  deterministic dimension/contrast/text-length QC. Chapter LABELS come
+  from an LLM but START TIMES are always computed server-side from the
+  real voiceover/final-video timing, never trusted from the LLM;
+  attribution is assembled server-side from Step 10's
+  `attribution_summary` and hard-fails the whole metadata batch if
+  incomplete. Title/thumbnail PAIR scoring (never independent) combines
+  LLM sub-scores (server-computed final score, never an LLM-supplied
+  aggregate) with deterministic hard gates for factual accuracy,
+  licensing, thumbnail readability, and deceptive/fake-evidence
+  representation. Deterministic publication QC, a human approval
+  requiring an explicit title+thumbnail selection, and a targeted
+  revision path (one thumbnail, titles only, description only, etc.,
+  with untouched thumbnails/metadata copied forward at zero cost) that
+  survives an n8n/Docker restart. A 56-check automated test suite (49
+  direct SQL/renderer scenarios with zero paid calls, plus 7
+  workflow-dependent scenarios exercising the real LLM/image-generation
+  calls) proving idempotency, resume, DB-backed approval waiting, and
+  **n8n/Docker restart survival**. Two genuine defects found and fixed
+  along the way: `channel-config.schema.json`'s `style` object was
+  missing the `publication_policy` field (caught by the Step 4
+  regression suite, the same class of gap Step 10 left for
+  `render_policy` before it was fixed) and a workflow-authoring agent's
+  generated error-handling code node (`Generate Thumbnail Concepts` →
+  `Build Parse Failure Response`) was missing a closing brace, a
+  JavaScript syntax error only surfaced by the real n8n-restart/
+  revision-request workflow test. Complete. See
+  [docs/architecture/publication-package-pipeline.md](docs/architecture/publication-package-pipeline.md).
+- **Later steps:** YouTube authentication/upload, scheduling, analytics;
   Oracle Ampere A1 provisioning and deployment (Level 2 native ARM64
   validation happens here); first channel configuration and end-to-end
   single-channel test.

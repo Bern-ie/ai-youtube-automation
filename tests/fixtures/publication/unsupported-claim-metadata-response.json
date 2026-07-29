@@ -1,0 +1,22 @@
+{
+  "titles": [
+    { "text": "How 47,000 Romans Died in One Night at Pompeii", "approach": "invented_statistic_not_in_script" },
+    { "text": "The Eruption That Froze Pompeii in Time", "approach": "direct" },
+    { "text": "What 18 Hours of Ash Did to Pompeii", "approach": "specificity" },
+    { "text": "Why Pompeii's Victims Never Had a Chance", "approach": "outcome" },
+    { "text": "Inside Pompeii: A City Sealed by Disaster", "approach": "explanatory" }
+  ],
+  "description_summary": "In 79 CE, Mount Vesuvius buried the city of Pompeii under volcanic ash.",
+  "value_proposition": "This video walks through what the eruption actually did.",
+  "context": "",
+  "cta_text": "Subscribe for more stories from the ancient world.",
+  "intro_chapter_label": "Introduction",
+  "chapter_labels": [
+    { "section_id": "body-1", "label": "The Eruption" }
+  ],
+  "tags": ["pompeii", "mount vesuvius", "ancient rome"],
+  "hashtags": ["#pompeii", "#history"],
+  "pinned_comment": "What surprised you most about the timeline of the eruption?",
+  "community_post": "New video: how a single eruption buried an entire Roman city.",
+  "promotional_copy": "One eruption. One city. New video is up now."
+}

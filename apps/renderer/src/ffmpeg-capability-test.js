@@ -273,6 +273,50 @@ function main() {
     requireStreams(chainOut, { video: { codec: 'h264' } });
   });
 
+  // --- Thumbnail composition (Step 11: JPEG output, used by
+  // thumbnail.js's composeThumbnail()/composeFromGeneratedBytes() for
+  // every rendered thumbnail variant) ---
+  const jpegOut = join(WORKDIR, 'thumbnail.jpg');
+  record('thumbnail JPEG output (mjpeg encode)', true, () => {
+    ffmpeg([
+      '-f', 'lavfi', '-i', 'color=c=blue:s=1280x720:d=1:r=1',
+      '-frames:v', '1', '-q:v', '2',
+      jpegOut,
+    ]);
+    requireStreams(jpegOut, { video: { codec: 'mjpeg' } });
+  });
+
+  // --- Final-video frame extraction (Step 11: the 'video_frame'
+  // thumbnail strategy, used by thumbnail.js's extractFinalVideoFrame()) ---
+  const frameSourceVideo = join(WORKDIR, 'frame-source.mp4');
+  const extractedFrame = join(WORKDIR, 'extracted-frame.png');
+  record('final-video frame extraction (-ss seek + single-frame output)', true, () => {
+    ffmpeg([
+      '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=25:duration=2',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+      frameSourceVideo,
+    ]);
+    ffmpeg(['-ss', '1', '-i', frameSourceVideo, '-vframes', '1', extractedFrame]);
+    requireStreams(extractedFrame, { video: {} });
+  });
+
+  // --- Thumbnail contrast/readability QC (Step 11: the signalstats+
+  // metadata=print luma-range proxy thumbnail.js's measureContrastRange()
+  // uses -- this specifically must run at `-loglevel info`, not this
+  // test file's own `-loglevel error` default, or the metadata filter's
+  // av_log-based stderr output this check greps for never appears at
+  // all -- a real bug hit during development, see the comment on
+  // measureContrastRange() itself.) ---
+  record('thumbnail contrast measurement (signalstats + metadata=print)', true, () => {
+    const proc = spawnSync('ffmpeg', [
+      '-loglevel', 'info', '-i', jpegOut, '-vf', 'signalstats,metadata=print', '-f', 'null', '-',
+    ], { encoding: 'utf8' });
+    if (proc.status !== 0) throw new Error(`ffmpeg exited ${proc.status}: ${proc.stderr}`);
+    if (!/lavfi\.signalstats\.YMIN=/.test(proc.stderr) || !/lavfi\.signalstats\.YMAX=/.test(proc.stderr)) {
+      throw new Error(`expected YMIN/YMAX in stderr, got: ${proc.stderr.slice(0, 500)}`);
+    }
+  });
+
   rmSync(WORKDIR, { recursive: true, force: true });
 
   const requiredResults = results.filter((r) => r.required);

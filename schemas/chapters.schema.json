@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/chapters.schema.json",
+  "title": "Video Chapters",
+  "description": "metadata_variants.chapters — computed deterministically by persist_metadata_variants() from the voiceover's own timing package (the same timeline the final render's duration comes from), never from LLM-supplied timestamps. Labels come from the LLM's chapter_labels input (see publication-metadata-response.schema.json), matched to sections by section_id. See docs/architecture/publication-package-pipeline.md#chapters.",
+  "type": "array",
+  "minItems": 1,
+  "items": { "$ref": "#/$defs/chapter" },
+  "$defs": {
+    "chapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_ms", "label"],
+      "properties": {
+        "start_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Milliseconds from the start of the final video. The first chapter is always 0."
+        },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

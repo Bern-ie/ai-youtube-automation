@@ -1,0 +1,493 @@
+{
+  "name": "Resolve Publication Approval",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  channel_id: b.channel_id, approval_request_id: b.approval_request_id, decision: b.decision,\n  selected_metadata_variant_id: b.selected_metadata_variant_id || null, selected_thumbnail_id: b.selected_thumbnail_id || null,\n  title_override: b.title_override || null, description_override: b.description_override || null, chapters_override: b.chapters_override || null,\n  reviewer_reference: b.reviewer_reference || null, revision_instructions: b.revision_instructions || null,\n  target_publication_sections: b.target_publication_sections || []\n} }];"
+      },
+      "id": "code-1",
+      "name": "Prepare Resolve Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-publication-approval.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-2",
+      "name": "Resolve Publication Approval SQL",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Did Resolve Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-5",
+      "name": "Build Resolve Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-6",
+              "leftValue": "={{ $json.data.decision === 'revision_requested' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-7",
+      "name": "Is Revision Requested?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-8",
+      "name": "Build Terminal Decision Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: {\n  channel_id: r.runtime.channel_id, content_project_id: r.data.content_project_id,\n  idempotency_key: 'publication-revision:' + r.data.publication_package_id + ':' + Date.now(),\n  correlation_id: r.runtime.correlation_id, target_publication_sections: r.data.target_publication_sections || [], revision_instructions: r.data.revision_instructions,\n  _resolve: r\n} }];"
+      },
+      "id": "code-9",
+      "name": "Prepare Create-Revision Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Prepare Create-Revision Input').first().json;\nreturn [{ json: { channel_id: p.channel_id, workflow_name: 'publication-revision', idempotency_key: 'publication-revision-init:' + p._resolve.data.publication_package_id + ':' + Date.now(), content_project_id: p.content_project_id, correlation_id: p.correlation_id, input: {}, max_retries: 3, _prep: p } }];"
+      },
+      "id": "code-10",
+      "name": "Prepare Init Revision-Run Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:initialize-workflow-run.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Initialize Revision Workflow Run",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const init = $input.first().json;\nconst { _prep: p } = $('Prepare Init Revision-Run Input').first().json;\nreturn [{ json: {\n  channel_id: p.channel_id, workflow_run_id: init.data.workflow_run_id, content_project_id: p.content_project_id,\n  target_sections: p.target_publication_sections, revision_reason: p.revision_instructions, _prep: p\n} }];"
+      },
+      "id": "code-12",
+      "name": "Prepare Create-Revision Call Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-publication-revision.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-13",
+      "name": "Create Publication Revision",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-14",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Did Create Revision Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-16",
+      "name": "Build Create-Revision Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const { _prep: p } = $('Prepare Create-Revision Call Input').first().json;\nreturn [{ json: {\n  channel_id: p.channel_id, content_project_id: p.content_project_id,\n  idempotency_key: 'publication-revision-resume:' + p.content_project_id + ':' + Date.now(),\n  correlation_id: p.correlation_id, target_publication_sections: p.target_publication_sections,\n  revision_trigger: 'targeted_revision', revision_reason: p.revision_instructions\n} }];"
+      },
+      "id": "code-17",
+      "name": "Prepare Revision Resume Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:publication-package-project.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-18",
+      "name": "Resume: Publication Package Project",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resumed = $input.first().json;\nconst { _prep: p } = $('Prepare Create-Revision Call Input').first().json;\nconst revision = $('Create Publication Revision').first().json.data;\nreturn [{ json: { success: true, data: { decision: 'revision_requested', revision, resumed_publication_project: resumed }, error: null, runtime: { channel_id: p.channel_id, content_project_id: p.content_project_id, correlation_id: p.correlation_id } } }];"
+      },
+      "id": "code-19",
+      "name": "Build Revision Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Resolve Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Resolve Input": {
+      "main": [
+        [
+          {
+            "node": "Resolve Publication Approval SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Publication Approval SQL": {
+      "main": [
+        [
+          {
+            "node": "Did Resolve Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Create-Revision Input": {
+      "main": [
+        [
+          {
+            "node": "Prepare Init Revision-Run Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Init Revision-Run Input": {
+      "main": [
+        [
+          {
+            "node": "Initialize Revision Workflow Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Revision Workflow Run": {
+      "main": [
+        [
+          {
+            "node": "Prepare Create-Revision Call Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Create-Revision Call Input": {
+      "main": [
+        [
+          {
+            "node": "Create Publication Revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Publication Revision": {
+      "main": [
+        [
+          {
+            "node": "Did Create Revision Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Revision Resume Input": {
+      "main": [
+        [
+          {
+            "node": "Resume: Publication Package Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume: Publication Package Project": {
+      "main": [
+        [
+          {
+            "node": "Build Revision Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Resolve Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Is Revision Requested?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Resolve Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Revision Requested?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Create-Revision Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Terminal Decision Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Create Revision Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Revision Resume Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Create-Revision Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

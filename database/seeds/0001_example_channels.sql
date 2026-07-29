@@ -581,4 +581,159 @@ UPDATE channel_branding SET render_policy = '{
 }'::jsonb
 WHERE channel_id = '11111111-1111-1111-1111-111111111111' AND render_policy = '{}'::jsonb;
 
+
+-- ------------------------------------------------------------------
+-- Step 11 (publication package pipeline) additions to Channel 1.
+-- ------------------------------------------------------------------
+
+-- Only sets publication_policy if it is still the column default --
+-- never clobbers a value someone has since configured by hand. See
+-- docs/architecture/publication-package-pipeline.md#channel-publication-configuration.
+UPDATE channel_branding SET publication_policy = '{
+  "disclaimers": [],
+  "default_cta_link": null,
+  "pinned_comment_cta": null,
+  "hashtag_max_count": 5,
+  "tag_max_count": 30,
+  "title_char_limit": 100,
+  "description_char_limit": 5000,
+  "min_chapter_count": 3,
+  "auto_select_top_pair": false,
+  "cite_sources_in_description": false
+}'::jsonb
+WHERE channel_id = '11111111-1111-1111-1111-111111111111' AND publication_policy = '{}'::jsonb;
+
+-- Thumbnail composition is local FFmpeg (free); the only paid cost here
+-- is the occasional generated-image thumbnail concept (reusing the same
+-- gpt-image-1 pricing as Step 9's visual assets) plus a handful of small
+-- LLM calls -- a modest ceiling comfortably covers a full run.
+INSERT INTO channel_budget_limits (channel_id, limit_type, amount_usd, enforcement, warning_threshold_pct)
+VALUES ('11111111-1111-1111-1111-111111111111', 'publication_stage', 1.00, 'hard', 80.0)
+ON CONFLICT (channel_id, limit_type) DO NOTHING;
+
+INSERT INTO prompts (id, name, purpose, scope, status)
+VALUES
+  ('eeeeeeee-0000-0000-0000-000000000001', 'thumbnail-concepts', 'Proposes at least 3 structured, varied thumbnail concepts (visual idea, source strategy, overlay text, factual-risk notes) for an approved final video -- never generates or renders imagery itself.', 'shared', 'active'),
+  ('eeeeeeee-0000-0000-0000-000000000002', 'publication-metadata-generation', 'Generates at least 5 title options plus description components, chapter labels, tags, hashtags, pinned comment, community post, and promotional copy from an approved script -- grounded, never introduces new facts.', 'shared', 'active'),
+  ('eeeeeeee-0000-0000-0000-000000000003', 'title-thumbnail-scoring', 'Scores title/thumbnail PAIRS (not independently) on clarity/curiosity/specificity/relevance/audience-fit/emotional-pull/mobile-readability/complementarity/brand-fit, plus deceptive/implies-fake-evidence/brand-violation flags for deterministic hard gates.', 'shared', 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'eeeeeeee-0000-0000-0000-000000000011', 'eeeeeeee-0000-0000-0000-000000000001', 1,
+$prompt$You are a thumbnail strategist for a YouTube video. The video is fully produced, approved, and rendered — your job is to propose distinct thumbnail CONCEPTS (ideas), not to generate or render any image yourself.
+
+You will be given:
+- the video's topic, title concept, and approved script (hook, sections, outro)
+- the approved visual shot list's assets (which existing images/video frames are available and their storage references)
+- the channel's brand colors, fonts, logo, and thumbnail_rules/visual_style
+- the final video's duration
+
+Produce at least 3, and ideally 4-5, meaningfully DIFFERENT thumbnail concepts — not minor variations of the same idea. For each concept, specify:
+
+- visual_idea: one or two sentences describing what the thumbnail shows and why it will make someone want to click, without being misleading.
+- source_asset_strategy: exactly one of:
+  - "generated_image" — a new image should be generated (use this when no existing asset captures the idea well, or a stylized/illustrative treatment is needed).
+  - "existing_asset" — reuse one of the approved visual assets you were given, with typography added. Reference it by its exact asset identity from what you were given — never invent an asset that wasn't provided.
+  - "video_frame" — extract a specific frame from the final rendered video. Specify a plausible source_frame_timestamp_ms within the video's actual duration.
+  - "composite" — combine an existing asset with a second one (e.g. a portrait inset over a wider scene).
+  - "brand_template" — a clean brand-colored background with typography only, no photographic/generated imagery. Use this when a strong visual isn't available or a simple, high-contrast text-forward thumbnail fits the topic best.
+- overlay_text: 0-5 words. Never a duplicate of the full title. Leave null for a concept with no text at all. Must remain legible at small size — short, punchy, concrete.
+- focal_subject: what the eye should land on first.
+- composition: brief framing/layout notes (rule-of-thirds placement, close-up vs. wide, where text sits relative to the subject).
+- emotional_angle: the feeling this concept leans on (curiosity, awe, tension, humor, etc.) — must match what the video actually delivers, not an exaggerated promise.
+- branding_notes: how this concept uses the channel's brand colors/fonts/logo.
+- generation_prompt: REQUIRED when source_asset_strategy is "generated_image", null otherwise. A specific, concrete image-generation prompt. Prefer an illustrative/artistic/diagrammatic treatment over attempting photorealism of real people or events unless the source material genuinely supports it.
+- factual_risk_notes: null if this concept carries no factual-accuracy risk. If the concept depicts a real person, a real specific event, or implies documentary evidence, describe exactly what is being depicted and why it is (or is not) an accurate, non-deceptive representation of what the video actually covers.
+
+Non-negotiable:
+- Do not invent a claim, statistic, date, name, or event that is not already in the approved script you were given.
+- Never propose a concept that presents generated or stock imagery as if it were authentic photographic evidence of a real, identifiable person or a specific real event that did not actually appear in the video. A generated illustration of a historical figure/scene is acceptable when clearly stylized/illustrative; a photorealistic "fake photograph" implying real footage exists is not.
+- Do not propose deceptive or bait-and-switch imagery — the thumbnail must be accurate to what the video actually contains.
+- Do not make every concept a "generated_image" if an existing asset or video frame would represent the video just as well or better — vary the source strategy across your concepts based on what's actually available and effective, not habit.
+
+Return only the structured concept list matching the provided schema.$prompt$,
+  '{"schema": "thumbnail-concept.schema.json"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'eeeeeeee-0000-0000-0000-000000000021', 'eeeeeeee-0000-0000-0000-000000000002', 1,
+$prompt$You are writing the YouTube publication metadata for a fully produced, approved video. Nothing you write may introduce a fact, statistic, date, name, quote, or claim that is not already present in the approved script/research you are given.
+
+You will be given:
+- the video's topic and approved script (hook, intro, sections with their section_id/heading, outro, cta)
+- the research package's source/claim summary (for grounding only — do not cite raw source URLs unless the channel's policy explicitly asks for it)
+- the channel's style (tone, CTA style/type), publication_policy (disclaimers, hashtag/tag limits, default CTA link), and target audience
+- the final video's duration
+
+Produce:
+
+1. titles: at least 5 title options, each a genuinely DIFFERENT approach (not five near-identical rewordings) — for example: direct/explanatory, curiosity-driven, outcome-focused, and (only when the content actually supports it) a contrarian or data-specific angle. Each title must:
+   - be clear, specific, and relevant to what the video actually covers
+   - avoid deceptive clickbait, unsupported superlatives, fake urgency, excessive punctuation, or ALL CAPS
+   - not sacrifice clarity just to hit a character count
+
+2. description_summary: a concise 1-3 sentence opening that hooks a reader and accurately previews the video.
+3. value_proposition: 1-2 sentences on what the viewer gets from watching.
+4. context: any additional grounded context worth including (optional — return an empty string if nothing more is needed beyond the summary/value proposition).
+5. cta_text: a short call-to-action matching the channel's configured cta_style/cta_type (subscribe, comment, next video, etc.) — do not invent a link, resource, or offer that was not configured.
+6. chapter_labels: an array of {section_id, label} — one entry per section_id from the approved script's sections array (use the exact section_id values you were given, never invented ones). Each label is a short, natural chapter title for that section's content (do not include timestamps — those are computed separately from the actual video timing, not from anything you write).
+7. tags: a relevant, non-keyword-stuffed list of search tags grounded in the actual topic/entities/niche — no unrelated trending terms.
+8. hashtags: a SMALL set (per the channel's configured maximum — do not generate dozens) of relevant hashtags.
+9. pinned_comment: a natural comment inviting discussion, pointing to a clarification/source note, or a soft CTA — never claiming a link or resource that was not configured.
+10. community_post: one short draft post suitable for promoting this video to the channel's community tab.
+11. promotional_copy: short copy suitable for later posting elsewhere (social media) — metadata only, this does not get posted anywhere by this step.
+
+Non-negotiable:
+- Every factual specific in a title or the description must trace back to the approved script/research you were given — never invent a number, date, name, or claim.
+- Do not imply footage, evidence, or an interview exists that is not actually in the video.
+- Disclaimers and attribution are handled separately and appended automatically — do not write your own attribution text, and do not fabricate a disclaimer beyond what the channel's publication_policy specifies.
+
+Return only the structured metadata matching the provided schema.$prompt$,
+  '{"schema": "publication-metadata-response.schema.json"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO prompt_versions (id, prompt_id, version, content, schema_expectations, model_compatibility)
+VALUES (
+  'eeeeeeee-0000-0000-0000-000000000031', 'eeeeeeee-0000-0000-0000-000000000003', 1,
+$prompt$You are reviewing candidate title/thumbnail PAIRS for a fully produced YouTube video — score each pair as a combination, not the title and thumbnail independently, since a strong title can be undercut by a mismatched thumbnail and vice versa.
+
+You will be given, for each pair: the title text, the thumbnail's visual_idea/overlay_text/focal_subject (from its concept), the approved script's topic/summary, and the channel's target audience/brand style.
+
+For every pair, return sub-scores from 0-100 on each dimension:
+- clarity: is it immediately clear what the video is about?
+- curiosity: does it create a genuine information gap worth closing (not a withheld-obvious-answer bait)?
+- specificity: concrete and specific vs. generic/vague?
+- topic_relevance: does the pair actually represent the video's real content?
+- audience_fit: does it match the channel's target audience/tone?
+- emotional_pull: does it evoke an appropriate emotional response for the content?
+- mobile_readability: would the thumbnail's text/composition read clearly at a small mobile size?
+- complementarity: do the title and thumbnail work together (neither redundant nor contradictory), each adding something the other doesn't?
+- brand_fit: consistent with the channel's established visual/tonal brand?
+
+Also return three booleans, applied conservatively — only mark true when clearly warranted:
+- deceptive: true if the pair, together, misrepresents what the video actually contains (a claim, outcome, or event the video does not actually deliver).
+- implies_fake_evidence: true if the thumbnail presents generated or stock imagery in a way that would lead a viewer to believe it is authentic photographic/video evidence of a real, specific event or person, when it is not.
+- brand_violation: true if the pair conflicts with the channel's established branding/style guidance you were given.
+
+Do not compute or return an overall score yourself — the platform combines your sub-scores deterministically. Do not describe any of this as a predicted click-through rate; it is an internal quality/safety review only.
+
+Return only the structured per-pair scoring matching the provided schema.$prompt$,
+  '{"schema": "title-thumbnail-scoring-response.schema.json"}'::jsonb,
+  '["claude-opus-4-8"]'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO channel_prompt_assignments (channel_id, prompt_id, prompt_version_id)
+VALUES
+  ('11111111-1111-1111-1111-111111111111', 'eeeeeeee-0000-0000-0000-000000000001', 'eeeeeeee-0000-0000-0000-000000000011'),
+  ('11111111-1111-1111-1111-111111111111', 'eeeeeeee-0000-0000-0000-000000000002', 'eeeeeeee-0000-0000-0000-000000000021'),
+  ('11111111-1111-1111-1111-111111111111', 'eeeeeeee-0000-0000-0000-000000000003', 'eeeeeeee-0000-0000-0000-000000000031')
+ON CONFLICT (channel_id, prompt_id) DO NOTHING;
+
 COMMIT;

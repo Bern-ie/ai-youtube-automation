@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/title-variant.schema.json",
+  "title": "Title Variant",
+  "description": "One title option from the publication-metadata-generation LLM call — see docs/architecture/publication-package-pipeline.md#title-rules. `approach` documents which strategy this title takes (direct/explanatory, curiosity-driven, outcome-focused, contrarian, data-specific) so reviewers can see the titles are genuinely varied, not five near-identical rewordings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text"],
+  "properties": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "approach": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "visual_idea": "A brand-colored title card with the topic's key phrase in bold white text.",
+    "source_asset_strategy": "brand_template",
+    "overlay_text": "Pompeii Buried",
+    "focal_subject": "Bold central text",
+    "composition": "Centered, high contrast",
+    "emotional_angle": "curiosity",
+    "branding_notes": "Uses the channel's primary brand color as background.",
+    "generation_prompt": null,
+    "factual_risk_notes": null
+  },
+  {
+    "visual_idea": "Reuse an approved visual asset from the video with a short text overlay.",
+    "source_asset_strategy": "existing_asset",
+    "overlay_text": "18 Hours of Ash",
+    "focal_subject": "The approved visual asset's subject",
+    "composition": "Asset fills the frame, text lower third",
+    "emotional_angle": "awe",
+    "branding_notes": "Logo bottom-left.",
+    "generation_prompt": null,
+    "factual_risk_notes": null
+  },
+  {
+    "visual_idea": "Extract a representative frame from the final video near the midpoint.",
+    "source_asset_strategy": "video_frame",
+    "source_frame_timestamp_ms": 5000,
+    "overlay_text": "The Eruption",
+    "focal_subject": "Whatever the video shows at this timestamp",
+    "composition": "Frame as-is, text overlay top",
+    "emotional_angle": "tension",
+    "branding_notes": null,
+    "generation_prompt": null,
+    "factual_risk_notes": null
+  },
+  {
+    "visual_idea": "A stylized illustrative generated image of Mount Vesuvius erupting, clearly artistic rather than photorealistic.",
+    "source_asset_strategy": "generated_image",
+    "overlay_text": null,
+    "focal_subject": "Illustrated volcano",
+    "composition": "Wide shot, dramatic sky",
+    "emotional_angle": "awe",
+    "branding_notes": null,
+    "generation_prompt": "A dramatic, stylized illustration of an ancient volcano erupting over a Roman coastal city, painterly art style, not photorealistic",
+    "factual_risk_notes": "Illustrative/artistic depiction only, not presented as an authentic photograph of the actual historical eruption."
+  }
+]

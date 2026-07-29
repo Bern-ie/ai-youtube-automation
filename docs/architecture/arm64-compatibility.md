@@ -47,7 +47,19 @@ exact fix for a real timebase-mismatch bug hit during development — see
 checks were added to `apps/renderer/src/ffmpeg-capability-test.js`
 covering all four; all passed on both AMD64 and ARM64 Level 1 (QEMU) —
 see [FFmpeg validation results](#ffmpeg-validation-results). No new
-native dependency or base image was introduced.** **Nothing in
+native dependency or base image was introduced.** **Step 11 added
+`apps/renderer/src/thumbnail.js`/`routes-thumbnail.js` (thumbnail
+composition, final-video frame extraction, and contrast/readability QC
+for the publication package pipeline) — three new FFmpeg operations not
+previously covered: MJPEG output (thumbnail encode), `-ss`-seeked
+single-frame extraction, and `signalstats`+`metadata=print` (the luma-
+range contrast proxy). Three new checks were added to
+`apps/renderer/src/ffmpeg-capability-test.js`; all passed on both AMD64
+and ARM64 Level 1 (QEMU) — see
+[FFmpeg validation results](#ffmpeg-validation-results). Still no
+sharp/libvips or other new image-processing dependency — every
+operation reuses the same `ffmpeg`/`ffprobe` binary already validated
+since Step 8.** **Nothing in
 this matrix is Level 2 (native Oracle Ampere A1) verified yet** — that
 happens once the VM exists, a later step.
 
@@ -116,25 +128,33 @@ src/ffmpeg-capability-test.js`, via `scripts/test-arm64.sh`). Both ran
 | Text overlay (`drawtext` filter, DejaVu Sans Bold) | PASS | PASS |
 | Audio ducking (`sidechaincompress` filter) | PASS | PASS |
 | Multi-clip `concat`+`xfade` chain with `settb=AVTB` normalization | PASS | PASS |
+| Thumbnail JPEG output (`mjpeg` encode) | PASS | PASS |
+| Final-video frame extraction (`-ss` seek + single-frame output) | PASS | PASS |
+| Thumbnail contrast measurement (`signalstats`+`metadata=print`) | PASS | PASS |
 
 All required capabilities passed on both platforms. This is not a "does it
 launch" check — it generates real synthetic media, encodes it, and probes
 the result with `ffprobe` for each capability. As expected, QEMU emulation
-made each check noticeably slower (e.g. the primary pipeline: ~780ms on
-AMD64 vs. ~4.1s emulated on ARM64; WAV/PCM transcode ~460ms vs. ~2.7s;
-concat ~275ms vs. ~2.1s; `silencedetect` ~235ms vs. ~1.6s; `loudnorm`
-measurement ~285ms vs. ~1.0s; `zoompan` ~240ms vs. ~2.0s; `drawtext`
-~235ms vs. ~1.9s; `sidechaincompress` ~275ms vs. ~2.8s; the
-`concat`+`xfade` chain ~315ms vs. ~2.7s) but every check still passed —
-that timing gap is exactly why Level 1 isn't a performance proxy for
-Level 2. The four audio checks were added in Step 8
-(`apps/renderer/src/ffmpeg-capability-test.js`) specifically to cover the
-operations `apps/renderer/src/audio.js` performs against TTS provider
-chunks — see [voiceover-pipeline.md](voiceover-pipeline.md#arm64). The
-four checks after that (`zoompan` through the `concat`+`xfade` chain)
-were added in Step 10 to cover the operations
-`apps/renderer/src/render.js` performs during scene composition — see
-[video-render-pipeline.md](video-render-pipeline.md#arm64).
+made each check noticeably slower (e.g. the primary pipeline: ~440ms on
+AMD64 vs. ~4.2s emulated on ARM64; WAV/PCM transcode ~280ms vs. ~2.0s;
+concat ~200ms vs. ~1.3s; `silencedetect` ~175ms vs. ~2.6s; `loudnorm`
+measurement ~150ms vs. ~1.4s; `zoompan` ~315ms vs. ~2.2s; `drawtext`
+~335ms vs. ~1.8s; `sidechaincompress` ~445ms vs. ~2.8s; the
+`concat`+`xfade` chain ~425ms vs. ~3.1s; JPEG output ~260ms vs. ~2.1s;
+frame extraction ~995ms vs. ~3.1s; contrast measurement ~100ms vs.
+~790ms) but every check still passed — that timing gap is exactly why
+Level 1 isn't a performance proxy for Level 2. The four audio checks
+were added in Step 8 (`apps/renderer/src/ffmpeg-capability-test.js`)
+specifically to cover the operations `apps/renderer/src/audio.js`
+performs against TTS provider chunks — see
+[voiceover-pipeline.md](voiceover-pipeline.md#arm64). The next four
+(`zoompan` through the `concat`+`xfade` chain) were added in Step 10 to
+cover `apps/renderer/src/render.js`'s scene composition — see
+[video-render-pipeline.md](video-render-pipeline.md#arm64). The final
+three (JPEG output through contrast measurement) were added in Step 11
+to cover `apps/renderer/src/thumbnail.js`'s composition/frame-extraction/
+QC operations — see
+[publication-package-pipeline.md](publication-package-pipeline.md#arm64).
 
 ## Object storage note {#object-storage-note}
 
@@ -197,9 +217,11 @@ The rendering worker must support, on native ARM64: H.264 encode, AAC
 encode, scaling, image/video overlays, subtitle burn-in, audio
 normalization, audio mixing, transitions, still-image motion (`zoompan`),
 text overlays (`drawtext`), background-music ducking
-(`sidechaincompress`), multi-clip concat/crossfade chaining, and
-image-sequence input (image-sequence input specifically is not yet
-exercised by the capability test — everything else is). All implemented capabilities are now covered
+(`sidechaincompress`), multi-clip concat/crossfade chaining, JPEG
+thumbnail output, timestamp-seeked frame extraction, luma-range contrast
+measurement (`signalstats`), and image-sequence input (image-sequence
+input specifically is not yet exercised by the capability test —
+everything else is). All implemented capabilities are now covered
 by an automated test (`apps/renderer/src/ffmpeg-capability-test.js`) and
 all passed on both AMD64 and ARM64 Level 1 (QEMU). Level 2 (native Oracle
 Ampere A1) validation happens once that VM exists — re-run

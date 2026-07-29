@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/thumbnail-variant.schema.json",
+  "title": "Thumbnail Variant",
+  "description": "One rendered/composed thumbnail — the persisted `thumbnails` row shape returned by get_or_create_thumbnail()/persist_thumbnail_success() and surfaced in the approval package. See docs/architecture/publication-package-pipeline.md#thumbnail-rendering.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["thumbnail_id", "variant_number"],
+  "properties": {
+    "thumbnail_id": { "type": "string", "format": "uuid" },
+    "variant_number": { "type": "integer", "minimum": 1 },
+    "storage_path": { "type": ["string", "null"] },
+    "checksum": { "type": ["string", "null"] },
+    "width_px": { "type": ["integer", "null"] },
+    "height_px": { "type": ["integer", "null"] },
+    "format": { "type": ["string", "null"], "enum": ["jpeg", "png", null] },
+    "status": { "type": "string", "enum": ["pending", "generating", "completed", "failed"] },
+    "qc_status": { "type": ["string", "null"], "enum": ["passed", "revision_needed", "failed", null] },
+    "qc_details": { "type": "object" },
+    "generated": { "type": "boolean" },
+    "provider": { "type": ["string", "null"] },
+    "cost_usd": { "type": ["number", "null"] }
+  }
+}

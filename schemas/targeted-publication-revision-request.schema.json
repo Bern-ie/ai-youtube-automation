@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/targeted-publication-revision-request.schema.json",
+  "title": "Targeted Publication Revision Request",
+  "description": "The decision payload for resolve_publication_approval() when decision=revision_requested. target_publication_sections empty/omitted means the whole package needs rework; a non-empty list identifies which sections the reviewer flagged. See docs/architecture/publication-package-pipeline.md#targeted-revision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "revision_instructions"],
+  "properties": {
+    "decision": { "const": "revision_requested" },
+    "revision_instructions": { "type": "string", "minLength": 1 },
+    "reviewer_reference": { "type": ["string", "null"] },
+    "target_publication_sections": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(thumbnail:[0-9]+|thumbnails|titles|description|chapters|tags|hashtags|pinned_comment|community_post|promotional_copy|all)$"
+      },
+      "description": "Empty/omitted = revise the whole package. Non-empty = the reviewer-identified sections needing rework."
+    }
+  }
+}

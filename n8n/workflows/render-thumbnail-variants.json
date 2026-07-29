@@ -1,0 +1,982 @@
+{
+  "name": "Render Thumbnail Variants",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: Object.assign({}, b, { _iteration: (b._iteration || 0) + 1, _max_iterations: b._max_iterations || 300 }) }];"
+      },
+      "id": "code-2",
+      "name": "Normalize Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-3-c",
+              "leftValue": "={{ $json._iteration > $json._max_iterations }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-3",
+      "name": "Is Iteration Budget Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { success: false, data: null, error: { code: 'THUMBNAIL_GENERATION_FAILED', message: 'thumbnail render loop exceeded its safety iteration budget (' + b._max_iterations + ') -- aborting to prevent an unbounded cost loop', retryable: false, error_id: null }, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: null } } }];"
+      },
+      "id": "code-4",
+      "name": "Build Loop Budget Exceeded Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, publication_package_id: b.publication_package_id } }];"
+      },
+      "id": "code-5",
+      "name": "Prepare Claim Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:claim-next-pending-thumbnail-concept.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-6",
+      "name": "Claim Next Pending Thumbnail Concept",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-7-c",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-7",
+      "name": "Did Claim Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-8",
+      "name": "Build Claim Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-9-c",
+              "leftValue": "={{ $json.data !== null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Was A Concept Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nreturn [{ json: { channel_id: ctx.channel_id, publication_package_id: ctx.publication_package_id, _ctx: ctx } }];"
+      },
+      "id": "code-10",
+      "name": "Prepare Summary Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-publication-batch-status.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Get Publication Batch Status",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-12-c",
+              "leftValue": "={{ $json.all_settled === true && $json.failed === 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-12",
+      "name": "Did All Concepts Complete Successfully?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summary = $input.first().json;\nconst ctx = $('Prepare Summary Input').first().json._ctx;\nreturn [{ json: { success: false, data: null, error: { code: 'THUMBNAIL_GENERATION_FAILED', message: (summary.failed) + ' of ' + (summary.total_concepts) + ' thumbnail concepts permanently failed (retry budget exhausted) -- resolve via a targeted revision or fix the underlying issue and resume', retryable: true, error_id: null, details: summary }, runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null } } }];"
+      },
+      "id": "code-13",
+      "name": "Build Incomplete-Concepts Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summary = $input.first().json;\nconst ctx = $('Prepare Summary Input').first().json._ctx;\nreturn [{ json: { success: true, data: Object.assign({ publication_package_id: ctx.publication_package_id }, summary), error: null, runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null } } }];"
+      },
+      "id": "code-14",
+      "name": "Build Render-Thumbnail-Variants Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nconst claimed = $('Claim Next Pending Thumbnail Concept').first().json.data;\nreturn [{ json: {\n  channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id,\n  publication_package_id: ctx.publication_package_id, providers: ctx.providers, renderer_version: ctx.renderer_version,\n  brand_colors: ctx.brand_colors, logo_asset_path: ctx.logo_asset_path,\n  thumbnail_concept_id: claimed.thumbnail_concept_id, source_asset_strategy: claimed.source_asset_strategy,\n  source_asset_id: claimed.source_asset_id, source_frame_timestamp_ms: claimed.source_frame_timestamp_ms,\n  overlay_text: claimed.overlay_text, generation_prompt: claimed.generation_prompt,\n  _loop: { _iteration: ctx._iteration, _max_iterations: ctx._max_iterations }\n} }];"
+      },
+      "id": "code-15",
+      "name": "Merge Concept With Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-or-create-thumbnail.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-16",
+      "name": "Get Or Create Thumbnail",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT storage_path FROM assets WHERE id = $1) AS source_asset_path, (get_current_final_video($2, $3)->>'output_path') AS final_video_storage_path, COALESCE((get_current_final_video($2, $3)->>'duration_seconds')::numeric, 0) AS final_video_duration_seconds;",
+        "options": {
+          "queryReplacement": "={{ [$('Merge Concept With Context').first().json.source_asset_id, $('Merge Concept With Context').first().json.channel_id, $('Merge Concept With Context').first().json.content_project_id] }}"
+        }
+      },
+      "id": "pg-17",
+      "name": "Fetch Compose Context",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "PLACEHOLDER_PG",
+          "name": "postgres-app-runtime"
+        }
+      },
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-18-c",
+              "leftValue": "={{ $('Merge Concept With Context').first().json.source_asset_strategy }}",
+              "rightValue": "generated_image",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-18",
+      "name": "Is Generated-Image Strategy?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const merged = $('Merge Concept With Context').first().json;\nreturn [{ json: { channel_id: merged.channel_id, providers: merged.providers, generation_prompt: merged.generation_prompt } }];"
+      },
+      "id": "code-19",
+      "name": "Prepare Image-Gen Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-image-asset.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-20",
+      "name": "Generate Image Asset",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-21-c",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-21",
+      "name": "Did Image Gen Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst merged = $('Merge Concept With Context').first().json;\nconst goc = $('Get Or Create Thumbnail').first().json.data;\nreturn [{ json: {\n  channel_id: merged.channel_id, thumbnail_id: goc.thumbnail_id, workflow_run_id: merged.workflow_run_id,\n  error_code: 'THUMBNAIL_GENERATION_FAILED', message: (resp.error && resp.error.message) || 'image generation failed for thumbnail concept',\n  sanitized_details: {}, retryable: (resp.error && resp.error.retryable) !== false\n} }];"
+      },
+      "id": "code-22",
+      "name": "Build Image-Gen Failure Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const merged = $('Merge Concept With Context').first().json;\nconst goc = $('Get Or Create Thumbnail').first().json.data;\nconst fetched = $('Fetch Compose Context').first().json;\nlet imageGen = null;\ntry { const g = $('Generate Image Asset').first().json; if (g && g.success) imageGen = g.data; } catch (e) { imageGen = null; }\n\nconst durationMs = (fetched.final_video_duration_seconds || 0) * 1000;\nconst strategy = merged.source_asset_strategy;\nconst body = { channel_id: merged.channel_id, content_project_id: merged.content_project_id, thumbnail_id: goc.thumbnail_id, overlay_text: merged.overlay_text || null };\n\nif (strategy === 'generated_image' && imageGen && imageGen.b64_data) {\n  body.source_asset_strategy = 'generated_image';\n  body.generated_image_b64 = imageGen.b64_data;\n} else if ((strategy === 'existing_asset' || strategy === 'composite') && fetched.source_asset_path) {\n  body.source_asset_strategy = 'existing_asset';\n  body.source_asset_path = fetched.source_asset_path;\n} else if (strategy === 'video_frame' && fetched.final_video_storage_path) {\n  let ts = merged.source_frame_timestamp_ms;\n  if (ts == null || ts < 0 || (durationMs > 0 && ts >= durationMs)) ts = Math.min(Math.max(1000, Math.floor(durationMs * 0.3)), Math.max(0, durationMs - 200));\n  body.source_asset_strategy = 'video_frame';\n  body.final_video_storage_path = fetched.final_video_storage_path;\n  body.source_frame_timestamp_ms = ts;\n} else {\n  body.source_asset_strategy = 'brand_template';\n  const colors = merged.brand_colors || {};\n  body.brand_color = colors.primary || colors.primary_color || Object.values(colors)[0] || '#222222';\n}\nif (merged.logo_asset_path) body.logo_asset_path = merged.logo_asset_path;\nreturn [{ json: { requestBody: body, _ctx: merged, _thumbnail_id: goc.thumbnail_id, _image_gen_cost: imageGen ? imageGen.cost_usd : 0, _image_gen_provider: imageGen ? imageGen.provider : null, _image_gen_request_id: imageGen ? imageGen.request_id : null } }];"
+      },
+      "id": "code-23",
+      "name": "Build Compose Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://renderer:3000/thumbnails/compose",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-24",
+      "name": "Call Renderer: Compose Thumbnail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-25-c",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-25",
+      "name": "Is Compose Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $input.first().json;\nconst built = $('Build Compose Body').first().json;\nreturn [{ json: {\n  channel_id: built._ctx.channel_id, thumbnail_id: built._thumbnail_id, storage_path: renderer.storage_path, checksum: renderer.checksum,\n  width_px: renderer.width_px, height_px: renderer.height_px, format: renderer.format,\n  provider: built._image_gen_provider, request_id: built._image_gen_request_id, cost_usd: built._image_gen_cost || 0,\n  metadata: { qc: renderer.qc || {} }\n} }];"
+      },
+      "id": "code-26",
+      "name": "Prepare Persist Success Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-thumbnail-success.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-27",
+      "name": "Persist Thumbnail Success",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const renderer = $input.first().json;\nconst built = $('Build Compose Body').first().json;\nreturn [{ json: {\n  channel_id: built._ctx.channel_id, thumbnail_id: built._thumbnail_id, workflow_run_id: built._ctx.workflow_run_id,\n  error_code: 'THUMBNAIL_INVALID', message: 'renderer rejected thumbnail composition: ' + JSON.stringify(renderer.issues || []),\n  sanitized_details: { issues: renderer.issues || [] }, retryable: true\n} }];"
+      },
+      "id": "code-28",
+      "name": "Prepare Mark-Failed Input: Compose",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-thumbnail-failed.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-29",
+      "name": "Mark Thumbnail Failed",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const merged = $('Merge Concept With Context').first().json;\nreturn [{ json: { channel_id: merged.channel_id, workflow_run_id: merged.workflow_run_id, content_project_id: merged.content_project_id, publication_package_id: merged.publication_package_id, providers: merged.providers, renderer_version: merged.renderer_version, _iteration: merged._loop._iteration, _max_iterations: merged._loop._max_iterations } }];"
+      },
+      "id": "code-30",
+      "name": "Prepare Next Iteration Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:render-thumbnail-variants.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-31",
+      "name": "Render Thumbnail Variants (Recurse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6600,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Is Iteration Budget Exceeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Claim Input": {
+      "main": [
+        [
+          {
+            "node": "Claim Next Pending Thumbnail Concept",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Next Pending Thumbnail Concept": {
+      "main": [
+        [
+          {
+            "node": "Did Claim Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Summary Input": {
+      "main": [
+        [
+          {
+            "node": "Get Publication Batch Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Publication Batch Status": {
+      "main": [
+        [
+          {
+            "node": "Did All Concepts Complete Successfully?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Concept With Context": {
+      "main": [
+        [
+          {
+            "node": "Get Or Create Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Or Create Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Fetch Compose Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Compose Context": {
+      "main": [
+        [
+          {
+            "node": "Is Generated-Image Strategy?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Image-Gen Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Image Asset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Asset": {
+      "main": [
+        [
+          {
+            "node": "Did Image Gen Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Compose Body": {
+      "main": [
+        [
+          {
+            "node": "Call Renderer: Compose Thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Renderer: Compose Thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Is Compose Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Persist Success Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Thumbnail Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Thumbnail Success": {
+      "main": [
+        [
+          {
+            "node": "Prepare Next Iteration Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Image-Gen Failure Info": {
+      "main": [
+        [
+          {
+            "node": "Mark Thumbnail Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Failed Input: Compose": {
+      "main": [
+        [
+          {
+            "node": "Mark Thumbnail Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Thumbnail Failed": {
+      "main": [
+        [
+          {
+            "node": "Prepare Next Iteration Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Iteration Input": {
+      "main": [
+        [
+          {
+            "node": "Render Thumbnail Variants (Recurse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Iteration Budget Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Build Loop Budget Exceeded Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Claim Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Claim Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Was A Concept Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Claim Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was A Concept Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Merge Concept With Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Summary Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did All Concepts Complete Successfully?": {
+      "main": [
+        [
+          {
+            "node": "Build Render-Thumbnail-Variants Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Incomplete-Concepts Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Generated-Image Strategy?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Image-Gen Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Compose Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Image Gen Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Build Compose Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Image-Gen Failure Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Compose Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Persist Success Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Failed Input: Compose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

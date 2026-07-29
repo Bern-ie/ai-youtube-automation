@@ -21,7 +21,7 @@ export const PREVIEW_WIDTH = 1280;
 export const PREVIEW_HEIGHT = 720;
 export const DEFAULT_FPS = 30;
 export const DEFAULT_LOUDNESS_LUFS = -14;
-const FONT_FILE = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+export const FONT_FILE = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
 // A short, fixed crossfade length -- long enough to read as an
 // intentional transition, short enough that clamping shot durations to
 // the Step 9 3-8s granularity guidance always leaves room for it (see
@@ -36,7 +36,7 @@ async function ffmpeg(args, opts = {}) {
 // as syntactically meaningful -- these must be escaped even though the
 // *outer* ffmpeg invocation is always argv-array (never a shell string),
 // per docs/architecture/video-render-pipeline.md#ffmpeg-command-construction.
-function escapeDrawtext(text) {
+export function escapeDrawtext(text) {
   return String(text)
     .replace(/\\/g, '\\\\\\\\')
     .replace(/:/g, '\\:')

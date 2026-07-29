@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/title-thumbnail-scoring-response.schema.json",
+  "title": "Title/Thumbnail Pair Scoring Response",
+  "description": "Structured output of the title-thumbnail-scoring LLM call, before score_title_thumbnail_pairs(). The final 0-100 score is always computed server-side from sub_scores (weighted, documented in docs/architecture/publication-package-pipeline.md#title-thumbnail-pair-scoring) — never trusted as an LLM-supplied aggregate. deceptive/implies_fake_evidence/brand_violation feed deterministic hard gates the LLM only supplies signals for, never the final enforcement decision.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["metadata_variant_id", "thumbnail_id", "sub_scores"],
+    "properties": {
+      "metadata_variant_id": { "type": "string", "format": "uuid" },
+      "thumbnail_id": { "type": "string", "format": "uuid" },
+      "sub_scores": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clarity", "curiosity", "specificity", "topic_relevance", "audience_fit", "emotional_pull", "mobile_readability", "complementarity", "brand_fit"],
+        "properties": {
+          "clarity": { "type": "number", "minimum": 0, "maximum": 100 },
+          "curiosity": { "type": "number", "minimum": 0, "maximum": 100 },
+          "specificity": { "type": "number", "minimum": 0, "maximum": 100 },
+          "topic_relevance": { "type": "number", "minimum": 0, "maximum": 100 },
+          "audience_fit": { "type": "number", "minimum": 0, "maximum": 100 },
+          "emotional_pull": { "type": "number", "minimum": 0, "maximum": 100 },
+          "mobile_readability": { "type": "number", "minimum": 0, "maximum": 100 },
+          "complementarity": { "type": "number", "minimum": 0, "maximum": 100 },
+          "brand_fit": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      },
+      "deceptive": { "type": "boolean" },
+      "implies_fake_evidence": { "type": "boolean" },
+      "brand_violation": { "type": "boolean" }
+    }
+  }
+}

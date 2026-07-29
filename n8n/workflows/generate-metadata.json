@@ -1,0 +1,1037 @@
+{
+  "name": "Generate Metadata",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, content_project_id: b.content_project_id, _ctx: b } }];"
+      },
+      "id": "code-2",
+      "name": "Prepare Research Fetch Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-current-research-package.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Get Current Research Package",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const research = $input.first().json;\nconst ctx = $('Prepare Research Fetch Input').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, prompt_name: 'publication-metadata-generation', _ctx: Object.assign({}, ctx, { research_summary: research || null }) } }];"
+      },
+      "id": "code-4",
+      "name": "Prepare Get-Prompt Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-channel-prompt.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-5",
+      "name": "Get Channel Prompt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-6-c",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-6",
+      "name": "Did Get Prompt Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-7",
+      "name": "Build Prompt Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst userPayload = {\n  topic: ctx.topic, script_content: ctx.script_content, research_summary: ctx.research_summary,\n  final_video: { duration_seconds: ctx.final_video && ctx.final_video.duration_seconds },\n  channel: { style: ctx.style, publication_policy: ctx.publication_policy, target_audience: ctx.channel && ctx.channel.target_audience }\n};\nconst schema = {\"title\":\"Publication Metadata Response\",\"description\":\"Structured output of the publication-metadata-generation LLM call, before persist_metadata_variants(). Chapter start times and the deterministic attribution block are computed server-side, never trusted from this response \u2014 chapter_labels here supplies TEXT ONLY (see docs/architecture/publication-package-pipeline.md#chapters). `titles` must contain at least 5 genuinely different options.\",\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"titles\",\"description_summary\",\"chapter_labels\",\"tags\",\"hashtags\",\"pinned_comment\",\"community_post\",\"promotional_copy\"],\"properties\":{\"titles\":{\"type\":\"array\",\"minItems\":5,\"items\":{\"title\":\"Title Variant\",\"description\":\"One title option from the publication-metadata-generation LLM call \u2014 see docs/architecture/publication-package-pipeline.md#title-rules. `approach` documents which strategy this title takes (direct/explanatory, curiosity-driven, outcome-focused, contrarian, data-specific) so reviewers can see the titles are genuinely varied, not five near-identical rewordings.\",\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"text\"],\"properties\":{\"text\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":100},\"approach\":{\"type\":[\"string\",\"null\"]}}}},\"description_summary\":{\"type\":\"string\",\"minLength\":1},\"value_proposition\":{\"type\":[\"string\",\"null\"]},\"context\":{\"type\":[\"string\",\"null\"]},\"cta_text\":{\"type\":[\"string\",\"null\"]},\"intro_chapter_label\":{\"type\":[\"string\",\"null\"],\"description\":\"Label for the always-present 0:00 introduction chapter (covering the hook+intro narration). Defaults to \\\"Introduction\\\" if omitted.\"},\"chapter_labels\":{\"type\":\"array\",\"description\":\"One entry per script section_id. Text only \u2014 start times are always computed server-side from the voiceover's own timing package, never from this field.\",\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"section_id\",\"label\"],\"properties\":{\"section_id\":{\"type\":\"string\",\"minLength\":1},\"label\":{\"type\":\"string\",\"minLength\":1}}}},\"tags\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"minLength\":1}},\"hashtags\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"pattern\":\"^#\"}},\"pinned_comment\":{\"type\":\"string\"},\"community_post\":{\"type\":\"string\"},\"promotional_copy\":{\"type\":\"string\"},\"disclaimers_text\":{\"type\":[\"string\",\"null\"],\"description\":\"Deterministically assembled from the channel's publication_policy.disclaimers by the caller before this is persisted \u2014 never authored by the LLM.\"}}};\nreturn [{ json: {\n  ctx, model,\n  requestBody: { model, max_tokens: 8192, system: prompt.content, messages: [{ role: 'user', content: JSON.stringify(userPayload) }], output_config: { format: { type: 'json_schema', schema } } }\n} }];"
+      },
+      "id": "code-8",
+      "name": "Prepare Anthropic Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-9",
+      "name": "Call Anthropic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        1760,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "anthropic-api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Anthropic Request').first().json.ctx;\nconst model = $('Prepare Anthropic Request').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, metadata: result, usage: resp.usage || {}, provider_request_id: resp.id || null, _raw_text: textBlock ? textBlock.text : null, repaired: false } }];"
+      },
+      "id": "code-10",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-11-c",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-11",
+      "name": "Did Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Parse Response').first().json;\nconst orig = $('Prepare Anthropic Request').first().json.requestBody;\nconst repairMessages = orig.messages.concat([{ role: 'assistant', content: p._raw_text || '' }, { role: 'user', content: 'Your previous response was not valid JSON matching the required schema. Return ONLY the corrected JSON object matching the schema -- no prose, no markdown fences.' }]);\nreturn [{ json: { ctx: p.ctx, model: p.model, requestBody: { ...orig, messages: repairMessages } } }];"
+      },
+      "id": "code-12",
+      "name": "Prepare Repair Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-13",
+      "name": "Call Anthropic: Repair",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        2640,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "anthropic-api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst ctx = $('Prepare Repair Request').first().json.ctx;\nconst model = $('Prepare Repair Request').first().json.model;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = false; } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx, model, metadata: result, usage: resp.usage || {}, provider_request_id: resp.id || null, repaired: true } }];"
+      },
+      "id": "code-14",
+      "name": "Parse Repair Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-15-c",
+              "leftValue": "={{ $json.parse_failed === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Did Repair Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json.ctx;\nreturn [{ json: { success: false, data: null, error: { code: 'METADATA_GENERATION_FAILED', message: 'LLM response was not a valid structured metadata object, even after one repair attempt', retryable: true, error_id: null }, runtime: { channel_id: ctx.channel_id, workflow_run_id: ctx.workflow_run_id, content_project_id: ctx.content_project_id, correlation_id: null } } }];"
+      },
+      "id": "code-16",
+      "name": "Build Parse Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-17",
+      "name": "Parsed Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-18",
+      "name": "Prepare Usage Event: Input Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-19",
+      "name": "Record Usage: Input Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: {} } }];"
+      },
+      "id": "code-20",
+      "name": "Prepare Usage Event: Output Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-21",
+      "name": "Record Usage: Output Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx;\nconst inputTokens = j.usage.input_tokens || 0; const outputTokens = j.usage.output_tokens || 0;\nconst cost = Math.round(((inputTokens / 1000000) * 5 + (outputTokens / 1000000) * 25) * 1000000) / 1000000;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: ctx.content_project_id, workflow_run_id: ctx.workflow_run_id, workflow_step_id: null, provider: 'anthropic', service_type: 'llm', model: j.model, quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null, total_cost_usd: cost, provider_request_id: j.provider_request_id, estimated: false, metadata: { repaired: !!j.repaired }, _cost: cost } }];"
+      },
+      "id": "code-22",
+      "name": "Prepare Cost Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-23",
+      "name": "Record Cost Event",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parsed Result').first().json; const ctx = j.ctx; const parsed = j.metadata;\nconst disclaimers = (ctx.publication_policy && ctx.publication_policy.disclaimers) || [];\nconst disclaimersText = Array.isArray(disclaimers) && disclaimers.length > 0 ? disclaimers.join('\\n') : null;\nconst shared = {\n  description_summary: parsed.description_summary, value_proposition: parsed.value_proposition || null, context: parsed.context || null,\n  cta_text: parsed.cta_text || null, intro_chapter_label: parsed.intro_chapter_label || null, chapter_labels: parsed.chapter_labels || [],\n  tags: parsed.tags || [], hashtags: parsed.hashtags || [], pinned_comment: parsed.pinned_comment || '', community_post: parsed.community_post || '',\n  promotional_copy: parsed.promotional_copy || '', disclaimers_text: disclaimersText,\n};\nreturn [{ json: { ctx, titles: parsed.titles, shared, model: j.model, provider_request_id: j.provider_request_id } }];"
+      },
+      "id": "code-24",
+      "name": "Prepare Assemble Shared Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const s = $('Prepare Assemble Shared Input').first().json; const cost = $('Prepare Cost Event').first().json._cost;\nreturn [{ json: { channel_id: s.ctx.channel_id, workflow_run_id: s.ctx.workflow_run_id, content_project_id: s.ctx.content_project_id, publication_package_id: s.ctx.publication_package_id, titles: s.titles, shared: s.shared, provider: 'anthropic', model: s.model, request_id: s.provider_request_id, cost_usd: cost, revision_trigger: s.ctx.revision_trigger || 'initial_generation', revision_reason: s.ctx.revision_reason || null } }];"
+      },
+      "id": "code-25",
+      "name": "Prepare Persist Metadata Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:persist-metadata-variants.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-26",
+      "name": "Persist Metadata Variants",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-27-c",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-27",
+      "name": "Did Persist Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-28",
+      "name": "Build Persist Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const persisted = $('Persist Metadata Variants').first().json;\nconst ctx = $('Parsed Result').first().json.ctx;\nconst model = $('Parsed Result').first().json.model || 'claude-opus-4-8';\nconst variants = persisted.data.variants;\nconst systemPrompt = \"You are fact-checking YouTube video titles against the video's approved script for unsupported factual claims. For each title, return grounding_status 'valid' if every specific fact/number/date/name/claim in the title is supported by the provided script, or 'invalid' if the title asserts something not present in the material. Be conservative -- only mark 'invalid' for a genuine unsupported factual claim, not stylistic language. Return only the structured array matching the schema.\";\nconst userPayload = { script_content: ctx.script_content, titles: variants.map((v) => ({ metadata_variant_id: v.metadata_variant_id, title: v.title })) };\nconst schema = { type: 'array', items: { type: 'object', additionalProperties: false, required: ['metadata_variant_id', 'grounding_status'], properties: { metadata_variant_id: { type: 'string', format: 'uuid' }, grounding_status: { type: 'string', enum: ['valid', 'invalid'] }, notes: { type: ['string', 'null'] } } } };\nreturn [{ json: { ctx, variants, requestBody: { model, max_tokens: 4096, system: systemPrompt, messages: [{ role: 'user', content: JSON.stringify(userPayload) }], output_config: { format: { type: 'json_schema', schema } } } } }];"
+      },
+      "id": "code-29",
+      "name": "Prepare Grounding Review Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-30",
+      "name": "Call Anthropic: Grounding Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        6380,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "anthropic-api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst { ctx, variants } = $('Prepare Grounding Review Input').first().json;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null;\nif (textBlock) { try { result = JSON.parse(textBlock.text); } catch (e) { result = null; } }\nif (!Array.isArray(result)) {\n  result = variants.map((v) => ({ metadata_variant_id: v.metadata_variant_id, grounding_status: 'valid', notes: 'grounding review response was unparseable; defaulted to valid' }));\n}\nconst byId = {}; for (const r of result) byId[r.metadata_variant_id] = r;\nconst complete = variants.map((v) => byId[v.metadata_variant_id] || { metadata_variant_id: v.metadata_variant_id, grounding_status: 'valid', notes: 'no verdict returned; defaulted to valid' });\nreturn [{ json: { ctx, groundings: complete } }];"
+      },
+      "id": "code-31",
+      "name": "Parse Grounding Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT record_metadata_grounding_result($1, (elem->>'metadata_variant_id')::uuid, elem->>'grounding_status', jsonb_build_object('notes', elem->>'notes')) AS result FROM jsonb_array_elements($2::jsonb) AS elem;",
+        "options": {
+          "queryReplacement": "={{ [$('Parse Grounding Response').first().json.ctx.channel_id, JSON.stringify($('Parse Grounding Response').first().json.groundings)] }}"
+        }
+      },
+      "id": "pg-32",
+      "name": "Record All Groundings",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "credentials": {
+        "postgres": {
+          "id": "PLACEHOLDER_PG",
+          "name": "postgres-app-runtime"
+        }
+      },
+      "position": [
+        6820,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const persisted = $('Persist Metadata Variants').first().json;\nconst groundings = $('Parse Grounding Response').first().json.groundings;\nreturn [{ json: { success: true, data: Object.assign({}, persisted.data, { groundings }), error: null, runtime: persisted.runtime } }];"
+      },
+      "id": "code-33",
+      "name": "Build Generate Metadata Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Research Fetch Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Research Fetch Input": {
+      "main": [
+        [
+          {
+            "node": "Get Current Research Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current Research Package": {
+      "main": [
+        [
+          {
+            "node": "Prepare Get-Prompt Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Get-Prompt Input": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Prompt": {
+      "main": [
+        [
+          {
+            "node": "Did Get Prompt Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Anthropic Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Did Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Repair Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Repair",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Repair": {
+      "main": [
+        [
+          {
+            "node": "Parse Repair Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Repair Response": {
+      "main": [
+        [
+          {
+            "node": "Did Repair Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsed Result": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Assemble Shared Input": {
+      "main": [
+        [
+          {
+            "node": "Prepare Persist Metadata Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Persist Metadata Input": {
+      "main": [
+        [
+          {
+            "node": "Persist Metadata Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Metadata Variants": {
+      "main": [
+        [
+          {
+            "node": "Did Persist Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Grounding Review Input": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Grounding Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Grounding Review": {
+      "main": [
+        [
+          {
+            "node": "Parse Grounding Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Grounding Response": {
+      "main": [
+        [
+          {
+            "node": "Record All Groundings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record All Groundings": {
+      "main": [
+        [
+          {
+            "node": "Build Generate Metadata Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get Prompt Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prompt Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Repair Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Repair Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Parse Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Persist Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Grounding Review Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Persist Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Assemble Shared Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

@@ -68,7 +68,8 @@
         "visual_style": { "type": ["string", "null"] },
         "thumbnail_rules": { "type": "object" },
         "visual_policy": { "type": "object", "description": "Added Step 9 — per-channel visual production policy (blocked categories, reuse rules, asset resolution priority, motion/transition/text-overlay defaults). See visual-asset-pipeline.md#channel-visual-configuration." },
-        "render_policy": { "type": "object", "description": "Added Step 10 — per-channel render policy (aspect handling, fps, loudness target, background music, caption burn-in/style, intro/outro flags, preview/final CRF+preset). See video-render-pipeline.md#channel-render-configuration." }
+        "render_policy": { "type": "object", "description": "Added Step 10 — per-channel render policy (aspect handling, fps, loudness target, background music, caption burn-in/style, intro/outro flags, preview/final CRF+preset). See video-render-pipeline.md#channel-render-configuration." },
+        "publication_policy": { "type": "object", "description": "Added Step 11 — per-channel publication metadata policy (disclaimers, hashtag/tag limits, title/description char limits, CTA link, min chapter count, auto-select-top-pair flag). See publication-package-pipeline.md#channel-publication-configuration." }
       }
     },
     "branding": {
