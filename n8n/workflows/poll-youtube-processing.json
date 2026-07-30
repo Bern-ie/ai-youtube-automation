@@ -1,0 +1,600 @@
+{
+  "name": "Poll YouTube Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('When Executed by Another Workflow').first().json.youtube_api_base_url }}/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $('When Executed by Another Workflow').first().json.youtube_video_id }}"
+            },
+            {
+              "name": "part",
+              "value": "status,processingDetails"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-2",
+      "name": "Poll Attempt 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nconst body = $input.first().json || {};\nconst item = (body.items || [])[0];\nconst status = item?.processingDetails?.processingStatus || null;\nreturn [{ json: { processing_status: status, timed_out: false, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-3",
+      "name": "Parse Attempt 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-4",
+              "leftValue": "={{ $json.processing_status }}",
+              "rightValue": "processing",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-5",
+      "name": "Processing Settled? (1)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "seconds",
+        "amount": 2
+      },
+      "id": "wait-6",
+      "name": "Wait Before Attempt 2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        200
+      ],
+      "webhookId": "b1a2c3d4-1111-4a2b-9c3d-000000000002"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('When Executed by Another Workflow').first().json.youtube_api_base_url }}/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $('When Executed by Another Workflow').first().json.youtube_video_id }}"
+            },
+            {
+              "name": "part",
+              "value": "status,processingDetails"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-7",
+      "name": "Poll Attempt 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nconst body = $input.first().json || {};\nconst item = (body.items || [])[0];\nconst status = item?.processingDetails?.processingStatus || null;\nreturn [{ json: { processing_status: status, timed_out: false, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-8",
+      "name": "Parse Attempt 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-9",
+              "leftValue": "={{ $json.processing_status }}",
+              "rightValue": "processing",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-10",
+      "name": "Processing Settled? (2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "seconds",
+        "amount": 2
+      },
+      "id": "wait-11",
+      "name": "Wait Before Attempt 3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        400
+      ],
+      "webhookId": "b1a2c3d4-1111-4a2b-9c3d-000000000003"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('When Executed by Another Workflow').first().json.youtube_api_base_url }}/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $('When Executed by Another Workflow').first().json.youtube_video_id }}"
+            },
+            {
+              "name": "part",
+              "value": "status,processingDetails"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-12",
+      "name": "Poll Attempt 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "position": [
+        1980,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nconst body = $input.first().json || {};\nconst item = (body.items || [])[0];\nconst status = item?.processingDetails?.processingStatus || null;\nreturn [{ json: { processing_status: status, timed_out: false, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-13",
+      "name": "Parse Attempt 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-14",
+              "leftValue": "={{ $json.processing_status }}",
+              "rightValue": "processing",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-15",
+      "name": "Processing Settled? (3)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "seconds",
+        "amount": 2
+      },
+      "id": "wait-16",
+      "name": "Wait Before Attempt 4",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        600
+      ],
+      "webhookId": "b1a2c3d4-1111-4a2b-9c3d-000000000004"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('When Executed by Another Workflow').first().json.youtube_api_base_url }}/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $('When Executed by Another Workflow').first().json.youtube_video_id }}"
+            },
+            {
+              "name": "part",
+              "value": "status,processingDetails"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-17",
+      "name": "Poll Attempt 4 (Final)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "position": [
+        2860,
+        600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Bounded polling: 4 attempts total (~6s of waiting), matching the\n// brief's \"do not poll forever\" -- if YouTube is still transcoding\n// after this, we PRESERVE the recorded video id/upload state as\n// 'processing' and let a later recheck resolve it (never re-upload).\nconst b = $('When Executed by Another Workflow').first().json;\nconst body = $input.first().json || {};\nconst item = (body.items || [])[0];\nconst status = item?.processingDetails?.processingStatus || null;\nreturn [{ json: { processing_status: status, timed_out: status === 'processing' || status === null, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-18",
+      "name": "Parse Attempt 4 (Final)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { success: true, data: { processing_status: r.processing_status, timed_out: r.timed_out }, error: null, runtime: r.runtime } }];"
+      },
+      "id": "code-19",
+      "name": "Build Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Poll Attempt 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Attempt 1": {
+      "main": [
+        [
+          {
+            "node": "Parse Attempt 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Attempt 1": {
+      "main": [
+        [
+          {
+            "node": "Processing Settled? (1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processing Settled? (1)": {
+      "main": [
+        [
+          {
+            "node": "Build Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Attempt 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Attempt 2": {
+      "main": [
+        [
+          {
+            "node": "Poll Attempt 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Attempt 2": {
+      "main": [
+        [
+          {
+            "node": "Parse Attempt 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Attempt 2": {
+      "main": [
+        [
+          {
+            "node": "Processing Settled? (2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processing Settled? (2)": {
+      "main": [
+        [
+          {
+            "node": "Build Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Attempt 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Attempt 3": {
+      "main": [
+        [
+          {
+            "node": "Poll Attempt 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Attempt 3": {
+      "main": [
+        [
+          {
+            "node": "Parse Attempt 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Attempt 3": {
+      "main": [
+        [
+          {
+            "node": "Processing Settled? (3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processing Settled? (3)": {
+      "main": [
+        [
+          {
+            "node": "Build Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Attempt 4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Attempt 4": {
+      "main": [
+        [
+          {
+            "node": "Poll Attempt 4 (Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Attempt 4 (Final)": {
+      "main": [
+        [
+          {
+            "node": "Parse Attempt 4 (Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Attempt 4 (Final)": {
+      "main": [
+        [
+          {
+            "node": "Build Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

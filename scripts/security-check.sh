@@ -224,6 +224,74 @@ sys.exit(0)
 "
 }
 
+# Step 12 — no workflow node may carry a literal bearer token / access
+# token / client secret as a hardcoded parameter value (header, query, or
+# body). Real auth must always come from the named oAuth2Api/httpHeaderAuth
+# credential object (already covered by n8n_workflow_exports_have_no_credential_values
+# above) — never a string pasted directly into a node's parameters. Catches
+# both an accidental paste and a regression back to header-based auth with
+# an inlined token instead of the credential.
+youtube_workflows_have_no_hardcoded_tokens() {
+  python3 -c "
+import json, sys, glob, re
+
+TOKEN_PATTERNS = [
+    re.compile(r'ya29\.[A-Za-z0-9_-]{20,}'),        # Google OAuth2 access token
+    re.compile(r'^[0-9]+-[a-z0-9_]{20,}\.apps\.googleusercontent\.com\$'),  # OAuth client id (should only ever come from the credential, never inlined)
+    re.compile(r'GOCSPX-[A-Za-z0-9_-]{10,}'),        # Google OAuth2 client secret prefix
+    re.compile(r'Bearer [A-Za-z0-9._-]{20,}'),       # a literal (non-expression) bearer header value
+]
+
+def walk(obj, path, hits):
+    if isinstance(obj, str):
+        if obj.startswith('={{'):
+            return  # an n8n expression, not a literal value
+        for pat in TOKEN_PATTERNS:
+            if pat.search(obj):
+                hits.append((path, obj[:40] + '...'))
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            walk(v, path + '.' + str(k), hits)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            walk(v, path + f'[{i}]', hits)
+
+bad = []
+for path in glob.glob('n8n/workflows/*.json'):
+    data = json.load(open(path))
+    for node in data.get('nodes', []):
+        walk(node.get('parameters', {}), f\"{path}:{node.get('name')}\", bad)
+
+if bad:
+    print(bad, file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
+# Step 12 — every channel_credentials lookup in the YouTube publication
+# pipeline functions must filter by channel_id. This is the actual
+# production-blocking security property from the brief ("Channel A must
+# never be able to upload using Channel B's YouTube credential") — a
+# lookup missing the channel_id filter would let any channel's workflow
+# run resolve any other channel's credential reference.
+youtube_credential_lookups_are_channel_scoped() {
+  python3 -c "
+import re, sys
+
+text = open('database/migrations/20260722280001_youtube_publication_pipeline_functions.sql').read()
+# Every 'FROM channel_credentials' select must have 'channel_id = p_channel_id'
+# somewhere in the same statement (checked within a generous window after
+# the FROM clause, since the WHERE clause always follows shortly after).
+blocks = re.split(r'FROM channel_credentials', text)[1:]
+bad = [b[:200] for b in blocks if 'channel_id = p_channel_id' not in b[:300]]
+if bad:
+    print(bad, file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+"
+}
+
 check "postgres publishes no port in production config"    service_has_no_ports prod postgres
 check "redis publishes no port in production config"       service_has_no_ports prod redis
 check "renderer publishes no port in production config"    service_has_no_ports prod renderer
@@ -243,6 +311,8 @@ check "n8n's Postgres credential uses app_runtime, not an elevated role" n8n_cre
 check "DEV_TEST_TOKEN is sourced from environment, not hardcoded"        dev_test_token_from_env
 check "every n8n dev webhook requires headerAuth"                        n8n_dev_webhooks_require_header_auth
 check "n8n Postgres nodes bind parameters, never interpolate SQL"        n8n_postgres_queries_are_parameterized
+check "no hardcoded OAuth tokens/secrets in n8n workflow exports"        youtube_workflows_have_no_hardcoded_tokens
+check "YouTube credential lookups are channel-scoped"                    youtube_credential_lookups_are_channel_scoped
 
 echo
 if [[ $FAILURES -eq 0 ]]; then

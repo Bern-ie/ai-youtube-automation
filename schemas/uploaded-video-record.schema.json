@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/uploaded-video-record.schema.json",
+  "title": "Uploaded Video Record",
+  "description": "The persisted `published_videos` row shape — the Step 13 handoff point (get_current_published_video()). Never contains a bearer token; youtube_credential_reference is a reference only. See docs/architecture/youtube-publication-pipeline.md#published-videos-table.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["published_video_id", "upload_status", "privacy_status"],
+  "properties": {
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "youtube_video_id": { "type": ["string", "null"] },
+    "youtube_url": { "type": ["string", "null"] },
+    "upload_status": { "type": "string", "enum": ["pending", "initializing", "uploading", "processing", "complete", "failed", "cancelled"] },
+    "privacy_status": { "type": "string", "enum": ["private", "unlisted", "public"] },
+    "scheduled_at": { "type": ["string", "null"], "format": "date-time" },
+    "published_at": { "type": ["string", "null"], "format": "date-time" },
+    "title": { "type": ["string", "null"] },
+    "selected_thumbnail_id": { "type": ["string", "null"], "format": "uuid" },
+    "metadata_variant_id": { "type": ["string", "null"], "format": "uuid" },
+    "publication_package_id": { "type": ["string", "null"], "format": "uuid" },
+    "final_render_job_id": { "type": ["string", "null"], "format": "uuid" },
+    "youtube_playlist_id": { "type": ["string", "null"] },
+    "caption_language": { "type": ["string", "null"] },
+    "pinned_comment_status": { "type": "string", "enum": ["not_applicable", "manual_pending", "posted"] },
+    "community_post_status": { "type": "string", "enum": ["not_applicable", "manual_pending", "posted"] }
+  }
+}

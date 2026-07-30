@@ -1,0 +1,404 @@
+{
+  "name": "Upload YouTube Captions",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-2",
+              "leftValue": "={{ $json.already_applied }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-3",
+      "name": "Already Applied?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { success: true, data: { already_applied: true, skipped: false }, error: null, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-4",
+      "name": "Return Already Applied",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3b",
+              "leftValue": "={{ $json.caption_storage_path }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-3b",
+      "name": "Has Caption File Configured?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { success: true, data: { already_applied: false, skipped: true, reason: 'no caption file configured for this project' }, error: null, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-3c",
+      "name": "Skip Cleanly (No Captions)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://renderer:3000/storage/download",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "channel_id",
+              "value": "={{ $json.channel_id }}"
+            },
+            {
+              "name": "content_project_id",
+              "value": "={{ $json.content_project_id }}"
+            },
+            {
+              "name": "storage_path",
+              "value": "={{ $json.caption_storage_path }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "http-5",
+      "name": "Download Caption Bytes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        660,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('When Executed by Another Workflow').first().json.youtube_api_base_url }}/captions",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "videoId",
+              "value": "={{ $('When Executed by Another Workflow').first().json.youtube_video_id }}"
+            },
+            {
+              "name": "language",
+              "value": "={{ $('When Executed by Another Workflow').first().json.caption_language }}"
+            },
+            {
+              "name": "name",
+              "value": ""
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-6",
+      "name": "Captions Insert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        880,
+        120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nconst res = $input.first().json;\nconst runtime = { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null };\nif (res.statusCode !== 200) {\n  const retryable = res.statusCode === 429 || res.statusCode >= 500;\n  return [{ json: { success: false, data: null, error: { code: 'YOUTUBE_CAPTIONS_UPLOAD_FAILED', message: `captions.insert failed (HTTP ${res.statusCode}): ${JSON.stringify(res.body)}`, retryable, error_id: null }, runtime, published_video_id: b.published_video_id } }];\n}\nreturn [{ json: { success: true, channel_id: b.channel_id, runtime, published_video_id: b.published_video_id, caption_language: b.caption_language, caption_storage_path: b.caption_storage_path, last_provider_response: res.body } }];"
+      },
+      "id": "code-7",
+      "name": "Parse Insert Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-8",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Did Insert Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-captions-applied.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "pg-10",
+      "name": "Mark Captions Applied",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const raw = $input.first().json;\nif (!raw.success) return [{ json: raw }];\nreturn [{ json: { success: true, data: { already_applied: false, skipped: false, captions_applied_at: raw.data.captions_applied_at }, error: null, runtime: raw.runtime } }];"
+      },
+      "id": "code-11",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Already Applied?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Applied?": {
+      "main": [
+        [
+          {
+            "node": "Return Already Applied",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Caption File Configured?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Caption File Configured?": {
+      "main": [
+        [
+          {
+            "node": "Download Caption Bytes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Cleanly (No Captions)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Caption Bytes": {
+      "main": [
+        [
+          {
+            "node": "Captions Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Captions Insert": {
+      "main": [
+        [
+          {
+            "node": "Parse Insert Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Insert Response": {
+      "main": [
+        [
+          {
+            "node": "Did Insert Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Insert Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Mark Captions Applied",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Captions Applied": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

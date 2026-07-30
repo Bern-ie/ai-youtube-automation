@@ -1,0 +1,5 @@
+{
+  "status": 308,
+  "range_header": "bytes=0-1048575",
+  "note": "Intermediate chunk accepted, not yet complete. YouTube (and this project's mock) always reports the RANGE of bytes actually persisted so far, not a percentage."
+}

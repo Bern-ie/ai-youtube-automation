@@ -25,7 +25,7 @@ require_env N8N_ADMIN_EMAIL N8N_ADMIN_PASSWORD POSTGRES_DB APP_DB_USER APP_DB_PA
 # CHANGE_ME placeholder must not block setup. Only the opt-in live smoke
 # test (RUN_LIVE_AI_TESTS=1) needs real values; see
 # docs/architecture/research-pipeline.md#test-mode--cost-control.
-for var in ANTHROPIC_API_KEY TAVILY_API_KEY BRAVE_SEARCH_API_KEY ELEVENLABS_API_KEY STOCK_MEDIA_PROVIDER_API_KEY OPENAI_API_KEY; do
+for var in ANTHROPIC_API_KEY TAVILY_API_KEY BRAVE_SEARCH_API_KEY ELEVENLABS_API_KEY STOCK_MEDIA_PROVIDER_API_KEY OPENAI_API_KEY YOUTUBE_OAUTH_CLIENT_ID YOUTUBE_OAUTH_CLIENT_SECRET YOUTUBE_OAUTH_ACCESS_TOKEN; do
   if [[ -z "${!var:-}" || "${!var:-}" == "CHANGE_ME" ]]; then
     warn "$var is still CHANGE_ME — fine for fixture tests, but live-provider calls (and RUN_LIVE_AI_TESTS=1) will fail until it's set."
   fi
@@ -143,5 +143,28 @@ ensure_credential "pexels-api" "httpHeaderAuth" \
 
 ensure_credential "openai-images-api" "httpHeaderAuth" \
   "{\"name\": \"Authorization\", \"value\": \"Bearer $OPENAI_API_KEY\"}"
+
+# Step 12 YouTube publication pipeline — see
+# docs/architecture/youtube-publication-pipeline.md#oauth-setup. One n8n
+# credential per real channel — Channel 1 ("history-explained") is the only
+# one configured today (channel_credentials.n8n_credential_reference).
+# Deliberately httpHeaderAuth (a static "Authorization: Bearer <token>"
+# header), matching every other provider credential in this file, NOT
+# n8n's native oAuth2Api credential type: empirically, n8n's HTTP Request
+# node refuses to sign ANY request with an oAuth2Api credential that has
+# never been through Google's interactive consent flow ("Unable to sign
+# without access token") -- that includes calling the local mock YouTube
+# API, which would make the default (mock-only) regression suite
+# undevelopable/untestable without a live Google Cloud OAuth app. A real
+# deployment populates $YOUTUBE_OAUTH_ACCESS_TOKEN with a real access
+# token obtained via the standard OAuth authorization-code flow
+# (YOUTUBE_OAUTH_CLIENT_ID/SECRET + the scopes/redirect URI documented in
+# the architecture doc) and must refresh it periodically by hand or via a
+# small external process -- Google access tokens expire hourly. This is a
+# known, documented limitation of choosing the simplest working
+# implementation over n8n's native (but here unusable for testing)
+# OAuth2 credential flow.
+ensure_credential "youtube-oauth-history-explained" "httpHeaderAuth" \
+  "{\"name\": \"Authorization\", \"value\": \"Bearer $YOUTUBE_OAUTH_ACCESS_TOKEN\"}"
 
 pass "n8n dev setup complete. Run scripts/n8n-import-workflows.mjs next."

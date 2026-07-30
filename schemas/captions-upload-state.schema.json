@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/captions-upload-state.schema.json",
+  "title": "Captions Upload State",
+  "description": "The result of uploading the approved Step 8 caption track via captions.insert — mark_captions_applied()'s persisted fact. Captions are never regenerated in this step — only the already-approved SRT/VTT file is uploaded. See docs/architecture/youtube-publication-pipeline.md#captions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["published_video_id", "captions_applied_at"],
+  "properties": {
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "captions_applied_at": { "type": ["string", "null"], "format": "date-time" },
+    "caption_language": { "type": ["string", "null"] },
+    "caption_storage_path": { "type": ["string", "null"] }
+  }
+}

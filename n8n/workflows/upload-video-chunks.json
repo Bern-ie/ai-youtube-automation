@@ -1,0 +1,755 @@
+{
+  "name": "Upload Video Chunks",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-1b",
+              "leftValue": "={{ $json.youtube_video_id_already }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-1b",
+      "name": "Video Already Uploaded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Core duplicate-upload guarantee: a youtube_video_id was already\n// recorded (by record_youtube_video_id, in this run or an earlier\n// interrupted one) -- never send another byte to YouTube for this\n// published_video_id, no matter how this step got re-invoked. See\n// docs/architecture/youtube-publication-pipeline.md#duplicate-upload-prevention.\nconst b = $input.first().json;\nconst youtubeUrl = b.youtube_url_already || ('https://www.youtube.com/watch?v=' + b.youtube_video_id_already);\nreturn [{ json: { success: true, data: { youtube_video_id: b.youtube_video_id_already, youtube_url: youtubeUrl, already_uploaded: true }, error: null, runtime: { channel_id: b.channel_id, workflow_run_id: b.workflow_run_id, content_project_id: b.content_project_id, correlation_id: b.correlation_id ?? null } } }];"
+      },
+      "id": "code-1c",
+      "name": "Return Existing Video Id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const CHUNK_SIZE = 8 * 1024 * 1024; // 8MB -- a multiple of 256KB, per YouTube's resumable-upload chunk-size requirement.\nconst c = $input.first().json;\nreturn [{ json: Object.assign({}, c, {\n  _iteration: (c._iteration || 0) + 1,\n  _max_iterations: c._max_iterations || (Math.ceil(c.total_bytes / CHUNK_SIZE) + 2),\n  _chunk_size: CHUNK_SIZE,\n}) }];"
+      },
+      "id": "code-2",
+      "name": "Normalize Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json._iteration > $json._max_iterations }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Is Chunk Budget Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Normalize Loop Input').first().json;\nreturn [{ json: {\n  success: false, data: null,\n  error: { code: 'YOUTUBE_UPLOAD_FAILED', message: `upload of published_video ${c.published_video_id} did not complete within ${c._max_iterations} chunk attempts (bytes_uploaded=${c.bytes_uploaded}/${c.total_bytes}) -- progress is preserved, retry will resume from here`, retryable: true, error_id: null },\n  runtime: { channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id, correlation_id: c.correlation_id ?? null },\n  published_video_id: c.published_video_id\n} }];"
+      },
+      "id": "code-5",
+      "name": "Build Chunk-Budget Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Normalize Loop Input').first().json;\nconst isStatusCheck = c.bytes_uploaded >= c.total_bytes;\nconst start = c.bytes_uploaded;\nconst end = isStatusCheck ? null : Math.min(start + c._chunk_size, c.total_bytes) - 1;\nreturn [{ json: { is_status_check: isStatusCheck, range_start: start, range_end: end } }];"
+      },
+      "id": "code-6",
+      "name": "Compute Chunk Range",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://renderer:3000/storage/download",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "channel_id",
+              "value": "={{ $('Normalize Loop Input').first().json.channel_id }}"
+            },
+            {
+              "name": "content_project_id",
+              "value": "={{ $('Normalize Loop Input').first().json.content_project_id }}"
+            },
+            {
+              "name": "storage_path",
+              "value": "={{ $('Normalize Loop Input').first().json.storage_path }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Range",
+              "value": "={{ 'bytes=' + $json.range_start + '-' + $json.range_end }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "http-7",
+      "name": "Download Chunk Bytes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1540,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Normalize Loop Input').first().json.upload_session_uri }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Range",
+              "value": "={{ 'bytes ' + $('Compute Chunk Range').first().json.range_start + '-' + $('Compute Chunk Range').first().json.range_end + '/' + $('Normalize Loop Input').first().json.total_bytes }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-8",
+      "name": "Upload Chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1760,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Normalize Loop Input').first().json.upload_session_uri }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Range",
+              "value": "={{ 'bytes */' + $('Normalize Loop Input').first().json.total_bytes }}"
+            },
+            {
+              "name": "Content-Length",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-9",
+      "name": "Status Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1540,
+        180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-10",
+              "leftValue": "={{ $json.is_status_check }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-10",
+      "name": "Is Status Check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Normalize Loop Input').first().json;\nconst isStatusCheck = $('Compute Chunk Range').first().json.is_status_check;\nconst res = isStatusCheck ? $('Status Check').first().json : $('Upload Chunk').first().json;\nconst runtime = { channel_id: c.channel_id, workflow_run_id: c.workflow_run_id, content_project_id: c.content_project_id, correlation_id: c.correlation_id ?? null };\n\nif (res.statusCode === 308) {\n  const range = res.headers['range'] || res.headers['Range'];\n  const match = range ? range.match(/bytes=0-(\\d+)/) : null;\n  const newBytesUploaded = match ? Number(match[1]) + 1 : c.bytes_uploaded;\n  return [{ json: { outcome: 'continue', bytes_uploaded: newBytesUploaded, runtime, provider_response: res.body || {} } }];\n}\nif (res.statusCode === 200) {\n  return [{ json: { outcome: 'complete', bytes_uploaded: c.total_bytes, youtube_video_id: res.body.id, provider_response: res.body, runtime } }];\n}\nconst retryable = res.statusCode === 429 || res.statusCode >= 500;\nreturn [{ json: { outcome: 'error', error: { code: 'YOUTUBE_UPLOAD_FAILED', message: `chunk upload failed (HTTP ${res.statusCode}): ${JSON.stringify(res.body)}`, retryable, error_id: null }, runtime, published_video_id: c.published_video_id } }];"
+      },
+      "id": "code-11",
+      "name": "Parse Chunk Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-12",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-12",
+      "name": "Did Chunk Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { success: false, data: null, error: r.error, runtime: r.runtime, published_video_id: r.published_video_id } }];"
+      },
+      "id": "code-13",
+      "name": "Build Chunk-Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Normalize Loop Input').first().json;\nconst r = $input.first().json;\nreturn [{ json: { channel_id: c.channel_id, published_video_id: c.published_video_id, bytes_uploaded: r.bytes_uploaded, last_provider_response: r.provider_response || {}, new_attempt: false } }];"
+      },
+      "id": "code-14",
+      "name": "Prepare Progress Update Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:update-upload-progress.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-15",
+      "name": "Call: Update Upload Progress",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-16",
+              "leftValue": "={{ $('Parse Chunk Response').first().json.outcome }}",
+              "rightValue": "complete",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-16",
+      "name": "Is Upload Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Normalize Loop Input').first().json;\nconst r = $('Parse Chunk Response').first().json;\nconst youtubeUrl = 'https://www.youtube.com/watch?v=' + r.youtube_video_id;\nreturn [{ json: { channel_id: c.channel_id, published_video_id: c.published_video_id, youtube_video_id: r.youtube_video_id, youtube_url: youtubeUrl, last_provider_response: r.provider_response || {} } }];"
+      },
+      "id": "code-17",
+      "name": "Prepare Record-Video-Id Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-youtube-video-id.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-18",
+      "name": "Call: Record YouTube Video Id",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $('Prepare Record-Video-Id Input').first().json;\nreturn [{ json: { success: true, data: { youtube_video_id: r.youtube_video_id, youtube_url: r.youtube_url, already_uploaded: false }, error: null, runtime: { channel_id: r.channel_id, workflow_run_id: $('Normalize Loop Input').first().json.workflow_run_id, content_project_id: $('Normalize Loop Input').first().json.content_project_id, correlation_id: $('Normalize Loop Input').first().json.correlation_id ?? null } } }];"
+      },
+      "id": "code-19",
+      "name": "Build Upload-Complete Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Normalize Loop Input').first().json;\nconst r = $('Parse Chunk Response').first().json;\nreturn [{ json: Object.assign({}, c, { bytes_uploaded: r.bytes_uploaded }) }];"
+      },
+      "id": "code-20",
+      "name": "Prepare Next Iteration Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:upload-video-chunks.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-21",
+      "name": "Upload Video Chunks (Recurse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Video Already Uploaded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Already Uploaded?": {
+      "main": [
+        [
+          {
+            "node": "Return Existing Video Id",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Is Chunk Budget Exceeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Chunk Budget Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Build Chunk-Budget Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute Chunk Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Chunk Range": {
+      "main": [
+        [
+          {
+            "node": "Is Status Check?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Status Check?": {
+      "main": [
+        [
+          {
+            "node": "Status Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download Chunk Bytes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Chunk Bytes": {
+      "main": [
+        [
+          {
+            "node": "Upload Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Chunk": {
+      "main": [
+        [
+          {
+            "node": "Parse Chunk Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Check": {
+      "main": [
+        [
+          {
+            "node": "Parse Chunk Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Chunk Response": {
+      "main": [
+        [
+          {
+            "node": "Did Chunk Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Chunk Error?": {
+      "main": [
+        [
+          {
+            "node": "Build Chunk-Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Progress Update Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Progress Update Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Update Upload Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Update Upload Progress": {
+      "main": [
+        [
+          {
+            "node": "Is Upload Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Upload Complete?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Record-Video-Id Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Next Iteration Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Record-Video-Id Input": {
+      "main": [
+        [
+          {
+            "node": "Call: Record YouTube Video Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call: Record YouTube Video Id": {
+      "main": [
+        [
+          {
+            "node": "Build Upload-Complete Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Next Iteration Input": {
+      "main": [
+        [
+          {
+            "node": "Upload Video Chunks (Recurse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

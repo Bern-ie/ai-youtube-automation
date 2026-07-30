@@ -1,0 +1,144 @@
+{
+  "name": "Resolve Publishing Failure",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Shared failure handler for every step of \"YouTube Publish Project\".\n// Classifies the provider error (terminal vs. retryable -- node-level\n// retryOnFail already handled 429/5xx by the time an error reaches\n// here, so anything arriving here is either a genuinely terminal\n// provider error (401/403 forbidden/403 quota) or a non-provider\n// validation/preflight failure) and records it against the\n// published_videos row -- but only once that row exists (get_or_create_publication_record\n// runs partway through the pipeline; earlier steps have no row to\n// attach a failure to, and the generic errors-table record from\n// fail-workflow-run.json already covers those). See\n// docs/architecture/youtube-publication-pipeline.md#retry-and-failure-handling.\nconst b = $input.first().json;\nconst TERMINAL_CODES = new Set(['YOUTUBE_AUTH_FAILED', 'YOUTUBE_QUOTA_EXCEEDED', 'YOUTUBE_CREDENTIAL_NOT_CONFIGURED', 'YOUTUBE_PREFLIGHT_FAILED', 'YOUTUBE_SCHEDULE_INVALID']);\nconst retryable = b.retryable !== undefined && b.retryable !== null ? b.retryable : !TERMINAL_CODES.has(b.error_code);\nreturn [{ json: {\n  channel_id: b.channel_id, published_video_id: b.published_video_id ?? null, workflow_run_id: b.workflow_run_id,\n  error_code: b.error_code, message: b.message, sanitized_details: b.sanitized_details ?? {}, retryable,\n} }];"
+      },
+      "id": "code-2",
+      "name": "Classify Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.published_video_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Has Published Video Row Yet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-publication-failed.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "pg-5",
+      "name": "Mark Publication Failed",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "continueOnFail": true,
+      "position": [
+        660,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { skipped: true, reason: 'no published_videos row exists yet for this failure' } }];"
+      },
+      "id": "code-6",
+      "name": "No Row To Mark Yet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Classify Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Failure": {
+      "main": [
+        [
+          {
+            "node": "Has Published Video Row Yet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Published Video Row Yet?": {
+      "main": [
+        [
+          {
+            "node": "Mark Publication Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Row To Mark Yet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

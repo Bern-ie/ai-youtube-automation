@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/publication-completion-result.schema.json",
+  "title": "Publication Completion Result",
+  "description": "The `mark_publication_complete()` result — the terminal state of the upload pipeline. upload_status='complete' means every configured side effect succeeded; it does NOT by itself mean the video is public — see privacy_status/youtube_url. See docs/architecture/youtube-publication-pipeline.md#final-publication-state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["published_video_id", "upload_status", "privacy_status"],
+  "properties": {
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "upload_status": { "type": "string", "enum": ["pending", "initializing", "uploading", "processing", "complete", "failed", "cancelled"] },
+    "privacy_status": { "type": "string", "enum": ["private", "unlisted", "public"] },
+    "youtube_video_id": { "type": ["string", "null"] },
+    "youtube_url": { "type": ["string", "null"] }
+  }
+}

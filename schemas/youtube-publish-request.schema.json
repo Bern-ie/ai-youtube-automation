@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/youtube-publish-request.schema.json",
+  "title": "YouTube Publish Project Request",
+  "description": "Input to the `YouTube Publish Project` reusable workflow (and its dev test webhook). Mirrors the Step 6-11 orchestrator request shape. See docs/architecture/youtube-publication-pipeline.md#input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_id", "content_project_id", "idempotency_key"],
+  "properties": {
+    "channel_id": { "type": "string", "format": "uuid" },
+    "content_project_id": { "type": "string", "format": "uuid" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "privacy_status_override": {
+      "type": ["string", "null"],
+      "enum": ["private", "unlisted", "public", null],
+      "description": "Development/testing override only. Default publication behavior is always private/unlisted — see docs/architecture/youtube-publication-pipeline.md#critical-safety-rule."
+    },
+    "made_for_kids_override": { "type": ["boolean", "null"] },
+    "scheduled_at_override": { "type": ["string", "null"], "format": "date-time" },
+    "playlist_id_override": { "type": ["string", "null"] },
+    "_dev_fail_after_step": { "type": ["string", "null"], "description": "Dev-only failure-injection escape hatch — never part of the public contract." }
+  }
+}

@@ -4,7 +4,7 @@ A reusable, multi-channel automated AI YouTube production framework built
 on n8n, PostgreSQL, Redis (where justified), FFmpeg, Docker, and external
 AI/YouTube APIs.
 
-## Status: Step 11 — thumbnail generation, YouTube metadata, chapters, attribution, and publication package (complete)
+## Status: Step 12 — YouTube OAuth, resumable upload, scheduling, captions, playlist assignment, and publication state (complete)
 
 A working local Docker Compose stack (PostgreSQL, Redis, n8n, MinIO,
 Caddy, `renderer`, `approval-api` — Step 2), a migration-managed,
@@ -36,23 +36,39 @@ readability, and deceptive/fake-evidence representation, deterministic
 publication QC, and a human publication-package approval — including a
 targeted revision path (one thumbnail, titles only, description only,
 etc.) — that survives an n8n/Docker restart the same DB-backed way every
-earlier stage's approval does. No YouTube authentication, upload,
-scheduling, or analytics workflow exists yet — this step ends with an
-approved publication package (selected title, selected thumbnail,
-complete description with chapters/attribution, tags, hashtags, pinned
-comment, community post, promotional copy) ready for Step 12 to upload
-without regenerating anything. See
-[docs/architecture/publication-package-pipeline.md](docs/architecture/publication-package-pipeline.md)
+earlier stage's approval does — and now **`YouTube Publish Project`**:
+resolves a channel-scoped YouTube OAuth credential (n8n's own credential
+store, never a token in Postgres), re-verifies everything against the
+live final-video checksum at upload time, guarantees a single video is
+never uploaded twice for the same approved combination (a strong
+identity checksum gates every side effect), uploads via YouTube's real
+resumable-upload protocol in 8MB chunks with per-chunk progress
+persistence (interrupted uploads/n8n restarts resume from the last
+acknowledged byte, never from scratch), applies metadata/thumbnail/
+captions/playlist with independent per-side-effect completion markers,
+polls processing state with a bounded budget, defaults every upload to
+**private** and requires an explicit human public-publish confirmation
+before a video is ever made public (never auto-promoted), and supports
+optional scheduling. Pinned-comment/community-post text is preserved
+from Step 11 but applied manually — the YouTube Data API has no
+endpoint for either, and this project does not use browser automation
+to work around that. Step 12 ends with an uploaded/scheduled/published
+YouTube video connected to its channel and project; it does not collect
+analytics, CTR, retention, or revenue, and does not modify content
+strategy — that is Step 13. See
+[docs/architecture/youtube-publication-pipeline.md](docs/architecture/youtube-publication-pipeline.md)
 for the full contract,
+[docs/architecture/publication-package-pipeline.md](docs/architecture/publication-package-pipeline.md)
+for the Step 11 foundation it publishes,
 [docs/architecture/video-render-pipeline.md](docs/architecture/video-render-pipeline.md)
 and
 [docs/architecture/visual-asset-pipeline.md](docs/architecture/visual-asset-pipeline.md)
-for the Step 10/9 foundations it consumes,
+for the Step 10/9 foundations further upstream,
 [docs/architecture/voiceover-pipeline.md](docs/architecture/voiceover-pipeline.md),
 [docs/architecture/script-pipeline.md](docs/architecture/script-pipeline.md),
 and
 [docs/architecture/research-pipeline.md](docs/architecture/research-pipeline.md)
-for the foundations further upstream,
+for the foundations further upstream still,
 [docs/architecture/workflow-runtime.md](docs/architecture/workflow-runtime.md)
 for the Step 4 foundation everything builds on, and
 [docs/operations/development-commands.md](docs/operations/development-commands.md)
@@ -381,10 +397,61 @@ Full index: [docs/README.md](docs/README.md)
   JavaScript syntax error only surfaced by the real n8n-restart/
   revision-request workflow test. Complete. See
   [docs/architecture/publication-package-pipeline.md](docs/architecture/publication-package-pipeline.md).
-- **Later steps:** YouTube authentication/upload, scheduling, analytics;
-  Oracle Ampere A1 provisioning and deployment (Level 2 native ARM64
-  validation happens here); first channel configuration and end-to-end
-  single-channel test.
+- **Step 12 (this step) — YouTube OAuth, resumable upload, scheduling,
+  captions, playlist assignment, and publication state.** The `YouTube
+  Publish Project` reusable workflow (17 unrolled resumable steps,
+  the same Mark-Running/Call/Did-Succeed?/Mark-Failed/Mark-Succeeded
+  cluster pattern as every prior orchestrator, plus a shared `Resolve
+  Publishing Failure` sub-workflow every step's failure branch calls),
+  a migration extending `published_videos` from Step 3's minimal shape
+  into a full upload-state/idempotency/completion-marker entity (one
+  small follow-up migration too, adding `channels.language` to
+  `load_publication_upload_inputs`'s return once caption-language
+  resolution actually needed it), 20 new SQL functions, ~30 new n8n
+  workflows, 10 new JSON Schemas. The first workflow with real OAuth
+  (not a static API key) — one shared Google Cloud OAuth client, one
+  n8n `oAuth2Api` credential per real channel, channel-scoped at the SQL
+  layer everywhere `channel_credentials` is read. Duplicate-upload
+  prevention is a single strong identity checksum
+  (`get_or_create_publication_record`) computed over channel + project +
+  render job + render checksum + publication package + credential +
+  idempotency key — reused rather than re-created on any resume, and
+  `record_youtube_video_id` persists the video ID the instant it's
+  known so no later failure in metadata/thumbnail/captions/playlist can
+  ever trigger a second upload. Resumable upload sends real 8MB chunks
+  via YouTube's actual resumable protocol (a bounded n8n self-recursion
+  loop, the same pattern Step 10's `poll-render-job.json` established,
+  since chunk count is data-dependent and can't be a fixed node graph),
+  persisting `bytes_uploaded` after every chunk so an interrupted upload
+  or an n8n restart resumes from the last acknowledged byte. Every
+  upload defaults to `private`; a public-publish confirmation
+  (`require_public_publish_confirmation = true` by default) gates any
+  transition to public behind an explicit human decision — a video is
+  never auto-promoted. A mock YouTube Data API v3
+  (`apps/renderer/src/routes-youtube-mock.js`, real HTTP, gated by
+  `ENABLE_YOUTUBE_MOCK=1`, never mounted in production) implements the
+  actual resumable-upload/error-response protocol so the default
+  regression suite exercises real chunking/retry/idempotency logic with
+  zero real uploads and zero real cost; an explicit, separately-gated
+  live-upload smoke test
+  (`RUN_LIVE_YOUTUBE_TESTS=1 scripts/n8n-test-youtube-live.sh`) exists
+  for when a real Google OAuth client is available (not run in this
+  environment — none is configured here, which the brief explicitly
+  allows). Pinned-comment/community-post text is preserved from Step 11
+  verbatim but applied manually — the YouTube Data API has no
+  endpoint for either, and no browser automation is used to fake one. A
+  57-scenario automated test suite (52 direct SQL/mock-HTTP scenarios
+  with zero real uploads, 5 exercising the real webhook end to end
+  including an n8n-restart-survival check on a pending public-publish
+  confirmation) proving preflight, duplicate-upload prevention, resumable
+  progress, per-side-effect idempotency, retry classification, bounded
+  processing polling, privacy/scheduling defaults, and public-publish
+  confirmation. Complete. See
+  [docs/architecture/youtube-publication-pipeline.md](docs/architecture/youtube-publication-pipeline.md).
+- **Later steps:** YouTube analytics ingestion and content-strategy
+  feedback; Oracle Ampere A1 provisioning and deployment (Level 2 native
+  ARM64 validation happens here); first channel configuration and
+  end-to-end single-channel test.
 
 ## Engineering rules
 

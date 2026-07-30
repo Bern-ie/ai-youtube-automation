@@ -5,6 +5,7 @@ import { audioRouter } from './routes-audio.js';
 import { visualRouter } from './routes-visual.js';
 import { renderRouter } from './routes-render.js';
 import { thumbnailRouter } from './routes-thumbnail.js';
+import { storageTransportRouter } from './routes-storage-transport.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const MAX_CONCURRENCY = Number(process.env.RENDERER_MAX_CONCURRENCY || 1);
@@ -26,6 +27,16 @@ app.use(audioRouter);
 app.use(visualRouter);
 app.use(renderRouter);
 app.use(thumbnailRouter);
+app.use(storageTransportRouter);
+
+// Mock YouTube Data API v3 -- ONLY mounted when ENABLE_YOUTUBE_MOCK=1 is
+// explicitly set (never in a real deployment). See
+// routes-youtube-mock.js and docs/architecture/youtube-publication-pipeline.md#testing-without-real-uploads.
+if (process.env.ENABLE_YOUTUBE_MOCK === '1') {
+  const { youtubeMockRouter } = await import('./routes-youtube-mock.js');
+  app.use(youtubeMockRouter);
+  logger.info('YouTube mock API enabled (ENABLE_YOUTUBE_MOCK=1) -- never enable this in production');
+}
 
 app.use((req, res) => {
   res.status(404).json({ error: 'not_found', path: req.path });

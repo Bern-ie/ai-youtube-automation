@@ -113,7 +113,7 @@ INSERT INTO channel_credentials (channel_id, credential_type, provider, external
 VALUES (
   '11111111-1111-1111-1111-111111111111', 'youtube_oauth', 'youtube',
   'example-secrets-manager://channels/history-explained/youtube-oauth',
-  'n8n-cred-placeholder-history-explained', 'pending'
+  'youtube-oauth-history-explained', 'pending'
 )
 ON CONFLICT (channel_id, credential_type, provider) DO NOTHING;
 

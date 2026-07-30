@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/thumbnail-upload-state.schema.json",
+  "title": "Thumbnail Upload State",
+  "description": "The result of applying the selected approved Step 11 thumbnail via thumbnails.set — mark_thumbnail_applied()'s persisted fact. See docs/architecture/youtube-publication-pipeline.md#thumbnail-upload.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["published_video_id", "thumbnail_applied_at"],
+  "properties": {
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "thumbnail_applied_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

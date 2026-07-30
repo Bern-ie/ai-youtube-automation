@@ -27,6 +27,13 @@ export N8N_STEP5_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step5-m
 export N8N_STEP6_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step6-research-project-test"
 export N8N_STEP7_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step7-script-project-test"
 export N8N_STEP8_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step8-voiceover-project-test"
+export N8N_STEP9_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step9-visual-project-test"
+export N8N_STEP10_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step10-render-project-test"
+export N8N_STEP11_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step11-publication-project-test"
+export N8N_STEP12_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step12-youtube-publish-project-test"
+export N8N_DEV_PUBLIC_CONFIRMATIONS_LIST_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/public-publish-confirmations"
+export N8N_DEV_PUBLIC_CONFIRMATION_GET_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/public-publish-confirmation"
+export N8N_DEV_PUBLIC_CONFIRMATION_DECIDE_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/public-publish-confirmation/decide"
 export N8N_BASE_URL="http://127.0.0.1:${N8N_PORT:-5678}"
 
 cd "$REPO_ROOT/n8n/tests"
@@ -40,3 +47,34 @@ log "Running Step 7 script pipeline tests (Level A -- fixtures only, no paid API
 node run-step7.js
 log "Running Step 8 voiceover pipeline tests (Level A -- fixtures only, no paid TTS calls)..."
 node run-step8.js
+log "Running Step 9 visual asset pipeline tests (Level A -- fixtures only, no paid API calls)..."
+node run-step9.js
+log "Running Step 10 video render pipeline tests (local FFmpeg only, no external API calls)..."
+node run-step10.js
+log "Running Step 11 publication package pipeline tests (Level A -- fixtures only, no paid API calls)..."
+node run-step11.js
+
+log "Running Step 12 YouTube publication pipeline tests..."
+log "  Recreating renderer/n8n with the mock YouTube Data API enabled for this run..."
+(
+  cd "$REPO_ROOT"
+  ENABLE_YOUTUBE_MOCK=1 \
+  YOUTUBE_API_BASE_URL="http://renderer:3000/youtube-mock/youtube/v3" \
+  YOUTUBE_UPLOAD_API_BASE_URL="http://renderer:3000/youtube-mock/upload/youtube/v3" \
+  docker compose up -d --no-deps --force-recreate renderer n8n
+)
+# Wait for both containers to report healthy before hitting webhooks.
+deadline=$((SECONDS + 90))
+until [[ "$(docker inspect -f '{{.State.Health.Status}}' "$(cd "$REPO_ROOT" && docker compose ps -q renderer)" 2>/dev/null)" == "healthy" \
+      && "$(docker inspect -f '{{.State.Health.Status}}' "$(cd "$REPO_ROOT" && docker compose ps -q n8n)" 2>/dev/null)" == "healthy" ]]; do
+  [[ $SECONDS -ge $deadline ]] && fail "renderer/n8n did not become healthy within 90s of enabling the YouTube mock."
+  sleep 2
+done
+step12_status=0
+node run-step12.js || step12_status=$?
+log "  Restoring renderer/n8n to their default (non-mock, real-API) configuration..."
+(
+  cd "$REPO_ROOT"
+  docker compose up -d --no-deps --force-recreate renderer n8n
+)
+exit $step12_status

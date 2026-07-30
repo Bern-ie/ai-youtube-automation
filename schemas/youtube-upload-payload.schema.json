@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/youtube-upload-payload.schema.json",
+  "title": "YouTube Upload Payload",
+  "description": "The structured metadata payload sent to YouTube's videos.insert/videos.update endpoints. Contains only safe structured metadata — never an OAuth token/header. Titles/description/tags/chapters come exactly from the approved Step 11 publication package; no LLM call happens in this step. See docs/architecture/youtube-publication-pipeline.md#title--description.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["snippet", "status"],
+  "properties": {
+    "snippet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "description"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "categoryId": { "type": ["string", "null"] },
+        "defaultLanguage": { "type": ["string", "null"] }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["privacyStatus", "selfDeclaredMadeForKids"],
+      "properties": {
+        "privacyStatus": { "type": "string", "enum": ["private", "unlisted", "public"] },
+        "selfDeclaredMadeForKids": { "type": "boolean" },
+        "publishAt": { "type": ["string", "null"], "format": "date-time", "description": "ISO8601 UTC. Requires privacyStatus=private when set — YouTube itself flips the video to public at this time." }
+      }
+    }
+  }
+}

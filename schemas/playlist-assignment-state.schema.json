@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/playlist-assignment-state.schema.json",
+  "title": "Playlist Assignment State",
+  "description": "The result of assigning the video to a configured playlist via playlistItems.insert, or a clean skip when no playlist is configured — mark_playlist_applied()'s persisted fact. Never creates a playlist. See docs/architecture/youtube-publication-pipeline.md#playlist-assignment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["published_video_id", "skipped"],
+  "properties": {
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "playlist_applied_at": { "type": ["string", "null"], "format": "date-time" },
+    "youtube_playlist_id": { "type": ["string", "null"] },
+    "skipped": { "type": "boolean", "description": "true when no playlist was configured for this channel/project — a clean no-op, not a failure." }
+  }
+}

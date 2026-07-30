@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/publication-preflight-result.schema.json",
+  "title": "Publication Preflight Result",
+  "description": "The `youtube_publication_preflight()` result — deterministic pre-upload validation (final render QC, checksum, attribution, thumbnail/title selection, credential status, made-for-kids policy). See docs/architecture/youtube-publication-pipeline.md#publication-preflight.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["publication_package_id", "final_render_job_id", "final_render_checksum", "made_for_kids"],
+  "properties": {
+    "publication_package_id": { "type": "string", "format": "uuid" },
+    "final_render_job_id": { "type": "string", "format": "uuid" },
+    "final_render_checksum": { "type": "string" },
+    "made_for_kids": { "type": "boolean" }
+  }
+}

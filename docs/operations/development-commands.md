@@ -1,16 +1,26 @@
 # Development Commands
 
-Status: reflects Step 7 — a working local Docker Compose stack (Postgres,
+Status: reflects Step 12 — a working local Docker Compose stack (Postgres,
 Redis, n8n, MinIO, Caddy, renderer, approval-api), multi-arch build
 tooling, a migration-managed PostgreSQL domain schema with role
 separation, five reusable n8n workflows providing channel-config loading
 and workflow-run tracking (Step 4), the `Manual Topic Intake` workflow
 (Step 5, see [topic-intake.md](../architecture/topic-intake.md)), the
 `Research Project` workflow (Step 6, see
-[research-pipeline.md](../architecture/research-pipeline.md)), and the
+[research-pipeline.md](../architecture/research-pipeline.md)), the
 `Script Project` workflow (Step 7, see
-[script-pipeline.md](../architecture/script-pipeline.md)). No
-TTS/media/rendering/publishing workflow or Oracle deployment exist yet.
+[script-pipeline.md](../architecture/script-pipeline.md)), the
+`Voiceover Project` workflow (Step 8, see
+[voiceover-pipeline.md](../architecture/voiceover-pipeline.md)), the
+`Visual Asset Project` workflow (Step 9, see
+[visual-asset-pipeline.md](../architecture/visual-asset-pipeline.md)),
+the `Video Render Project` workflow (Step 10, see
+[video-render-pipeline.md](../architecture/video-render-pipeline.md)),
+the `Publication Package Project` workflow (Step 11, see
+[publication-package-pipeline.md](../architecture/publication-package-pipeline.md)),
+and the `YouTube Publish Project` workflow (Step 12, see
+[youtube-publication-pipeline.md](../architecture/youtube-publication-pipeline.md)).
+No analytics workflow or Oracle deployment exist yet.
 
 ## Environment
 
@@ -116,20 +126,30 @@ existing Step 2 volume rather than starting fresh, you need
 
 ```bash
 scripts/n8n-setup-dev.sh              # owner account, API key (saved to .env), credentials — idempotent
-node scripts/n8n-import-workflows.mjs  # imports + publishes all 59 workflows from n8n/workflows/
-scripts/n8n-test.sh                    # runs the Step 4 + Step 5 + Step 6 + Step 7 (fixture-only) test suites
+node scripts/n8n-import-workflows.mjs  # imports + publishes all workflows from n8n/workflows/ (206 as of Step 12)
+scripts/n8n-test.sh                    # runs the Step 4-12 test suites end to end
 ```
 
 Requires `scripts/db-migrate.sh` and `scripts/db-seed.sh` to have already
 run (the workflows load real seeded channel config). See
 [workflow-runtime.md](../architecture/workflow-runtime.md),
 [topic-intake.md](../architecture/topic-intake.md),
-[research-pipeline.md](../architecture/research-pipeline.md), and
-[script-pipeline.md](../architecture/script-pipeline.md) for what each
-script does and the manual-UI alternative to `n8n-setup-dev.sh`.
-`scripts/n8n-test.sh` never incurs API charges — the Step 6 (36-check)
-and Step 7 (49-check) suites are both fixture-based (Level A); see each
-doc's `#test-mode--cost-control` section for the opt-in live smoke test.
+[research-pipeline.md](../architecture/research-pipeline.md),
+[script-pipeline.md](../architecture/script-pipeline.md),
+[voiceover-pipeline.md](../architecture/voiceover-pipeline.md),
+[visual-asset-pipeline.md](../architecture/visual-asset-pipeline.md),
+[video-render-pipeline.md](../architecture/video-render-pipeline.md),
+[publication-package-pipeline.md](../architecture/publication-package-pipeline.md),
+and [youtube-publication-pipeline.md](../architecture/youtube-publication-pipeline.md)
+for what each script does and the manual-UI alternative to
+`n8n-setup-dev.sh`. `scripts/n8n-test.sh` never incurs real provider API
+charges or real YouTube uploads by default — Steps 6/7/9/11 are
+fixture-based (Level A) and Step 12 runs against a mocked YouTube Data
+API v3 (the script recreates `renderer`/`n8n` with `ENABLE_YOUTUBE_MOCK=1`
+for that one stanza, then restores the default configuration); see each
+doc's `#test-mode--cost-control` (or, for Step 12,
+`#testing-without-real-uploads`/`#live-test-procedure`) section for the
+opt-in live smoke tests.
 
 Manual test calls, once set up:
 
@@ -194,7 +214,8 @@ registry is configured yet; that's a later step).
 scripts/test-infrastructure.sh   # full stack smoke test (see below) — requires dev-up.sh first
 scripts/test-arm64.sh            # builds + QEMU-runs both images on arm64, checks arch + FFmpeg
 scripts/db-test.sh                # 31-check database test suite (see database-architecture.md)
-scripts/n8n-test.sh                # 12-check workflow-runtime test suite (see workflow-runtime.md)
+scripts/n8n-test.sh                # Step 4-12 test suites (see workflow-runtime.md and each step's architecture doc)
+scripts/n8n-test-youtube-live.sh   # RUN_LIVE_YOUTUBE_TESTS=1 only -- real YouTube upload smoke test, never run by default
 scripts/security-check.sh        # static checks: no exposed ports, no secrets in git, etc.
 ```
 

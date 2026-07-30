@@ -8,7 +8,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 
 const STORAGE_BUCKET = process.env.STORAGE_BUCKET;
 
-const client = new S3Client({
+export const client = new S3Client({
   endpoint: process.env.STORAGE_ENDPOINT,
   region: process.env.STORAGE_REGION || 'us-east-1',
   credentials: {

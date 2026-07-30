@@ -237,6 +237,22 @@ services:
       N8N_PROXY_HOPS: "1"
       N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-true}
       N8N_LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Step 12 — the real YouTube Data API v3 base URLs by default;
+      # overridden (only for the Step 12 test suite's workflow-dependent
+      # section) to point at the renderer's mock endpoints instead —
+      # see apps/renderer/src/routes-youtube-mock.js and
+      # docs/architecture/youtube-publication-pipeline.md#testing-without-real-uploads.
+      # Never overridden in a real deployment.
+      YOUTUBE_API_BASE_URL: ${YOUTUBE_API_BASE_URL:-https://www.googleapis.com/youtube/v3}
+      YOUTUBE_UPLOAD_API_BASE_URL: ${YOUTUBE_UPLOAD_API_BASE_URL:-https://www.googleapis.com/upload/youtube/v3}
+      # n8n blocks $env access from every node by default (workflow authors
+      # are normally untrusted in a shared n8n instance) -- this project's
+      # workflows are first-party and authored entirely in this repo, and
+      # "resolve-youtube-credential.json" needs to read exactly the two
+      # non-secret URLs above to pick mock vs. real YouTube. No credential
+      # or secret is ever read this way (those stay in n8n's credential
+      # store, never in process env).
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
       - n8n-data:/home/node/.n8n
     networks: [gateway, application, data]
@@ -291,6 +307,12 @@ services:
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       STORAGE_BUCKET: ${STORAGE_BUCKET}
+      # Step 12 — mounts a mock YouTube Data API v3 for the Step 12 test
+      # suite ONLY when explicitly set to "1" (e.g. `ENABLE_YOUTUBE_MOCK=1
+      # docker compose up -d renderer`). Unset/"0" by default, including
+      # in production — see routes-youtube-mock.js and
+      # docs/architecture/youtube-publication-pipeline.md#testing-without-real-uploads.
+      ENABLE_YOUTUBE_MOCK: ${ENABLE_YOUTUBE_MOCK:-0}
     networks: [application, data]
     stop_grace_period: 15s
     restart: unless-stopped

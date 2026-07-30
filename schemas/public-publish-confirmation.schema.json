@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/public-publish-confirmation.schema.json",
+  "title": "Public Publish Confirmation",
+  "description": "Two related shapes for the final explicit human go-ahead required before a private/unlisted upload becomes public (require_public_publish_confirmation=true, the initial-rollout default). See docs/architecture/youtube-publication-pipeline.md#public-publish-confirmation.",
+  "$defs": {
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_request_id", "status", "content_project_id", "published_video", "requested_at"],
+      "properties": {
+        "approval_request_id": { "type": "string", "format": "uuid" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revision_requested", "expired", "cancelled"] },
+        "content_project_id": { "type": "string", "format": "uuid" },
+        "topic": { "type": ["string", "null"] },
+        "published_video": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["published_video_id"],
+          "properties": {
+            "published_video_id": { "type": "string", "format": "uuid" },
+            "youtube_video_id": { "type": ["string", "null"] },
+            "youtube_url": { "type": ["string", "null"] },
+            "title": { "type": ["string", "null"] },
+            "privacy_status": { "type": ["string", "null"] },
+            "upload_status": { "type": ["string", "null"] },
+            "metadata_applied_at": { "type": ["string", "null"], "format": "date-time" },
+            "thumbnail_applied_at": { "type": ["string", "null"], "format": "date-time" },
+            "captions_applied_at": { "type": ["string", "null"], "format": "date-time" },
+            "playlist_applied_at": { "type": ["string", "null"], "format": "date-time" }
+          }
+        },
+        "requested_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["approved", "rejected"] },
+        "reviewer_reference": { "type": ["string", "null"] },
+        "scheduled_at": { "type": ["string", "null"], "format": "date-time", "description": "Only meaningful when decision=approved. Must be a future timestamp — never in the past." }
+      }
+    }
+  }
+}
