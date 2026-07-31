@@ -1,0 +1,80 @@
+{
+  "name": "Complete Analytics Collection Job",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT complete_analytics_collection_job($1, $2, $3) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.job_id, $json.snapshot_id || null] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call Complete Analytics Collection Job",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Complete Analytics Collection Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Complete Analytics Collection Job": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

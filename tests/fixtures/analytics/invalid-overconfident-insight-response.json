@@ -1,0 +1,16 @@
+{
+  "insights": [
+    {
+      "insight_type": "title_style",
+      "insight_kind": "observation",
+      "subject": "click-through rate",
+      "observation": "CTR is below the channel median.",
+      "recommendation": "Try a guaranteed viral title next time.",
+      "sample_size": 3,
+      "confidence_label": "high",
+      "evidence_rule_ids": ["ctr_below_median_all_time"],
+      "limitations": null
+    }
+  ],
+  "_note": "Deliberately invalid on two independent axes, for exercising create_strategy_insight()'s deterministic QC gate: (1) confidence_label 'high' at sample_size=3 exceeds what the sample-size/confidence table permits (max is 'low' at 3-4) -- STRATEGY_INSIGHT_INVALID; (2) the recommendation text contains a denylisted deceptive/clickbait phrase ('guaranteed viral') -- also STRATEGY_INSIGHT_INVALID. The LLM proposing this is an expected, handled case, not a workflow bug -- see docs/architecture/analytics-strategy-pipeline.md#strategy-qc."
+}

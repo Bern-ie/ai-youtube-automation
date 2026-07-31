@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/deterministic-observation.schema.json",
+  "title": "Deterministic Observation",
+  "description": "A single rule-based, threshold-triggered observation computed from video_benchmarks -- the structured, non-LLM evidence supplied to the strategy-synthesis prompt (prompts/shared/strategy/strategy-synthesis.v1.md). The LLM may phrase these in prose but must not invent, alter, or upgrade their confidence -- see docs/architecture/analytics-strategy-pipeline.md#deterministic-insight-rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rule_id", "metric_name", "benchmark_group", "direction", "sample_size", "confidence_label"],
+  "properties": {
+    "rule_id": { "type": "string", "description": "Stable identifier for the threshold rule that fired, e.g. 'ctr_below_median_healthy_retention'." },
+    "metric_name": { "type": "string" },
+    "benchmark_group": { "type": "string", "enum": ["all_time", "recent_5", "recent_10", "trailing_90_days", "same_format", "similar_duration", "same_topic_cluster"] },
+    "video_metric_value": { "type": ["number", "null"] },
+    "benchmark_metric_value": { "type": ["number", "null"] },
+    "percentage_difference": { "type": ["number", "null"] },
+    "direction": { "type": "string", "enum": ["above", "below", "at"] },
+    "sample_size": { "type": "integer", "minimum": 0 },
+    "confidence_label": { "type": "string", "enum": ["insufficient", "exploratory", "low", "moderate", "high"] },
+    "video_benchmark_id": { "type": ["string", "null"], "format": "uuid" },
+    "statement": { "type": "string", "description": "Plain-language, cautious statement of the observation (e.g. 'CTR is 18% below the channel median at the 24h checkpoint')." }
+  }
+}

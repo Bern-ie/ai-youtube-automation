@@ -1,0 +1,205 @@
+{
+  "name": "Compute Video Benchmarks Project",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:compute-video-benchmarks.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-2",
+      "name": "Compute Video Benchmarks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Did Benchmarks Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-5",
+      "name": "Build Benchmark Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nconst benchmarks = $input.first().json.data;\nreturn [{ json: { channel_id: b.channel_id, published_video_id: b.published_video_id, checkpoint: b.checkpoint, benchmarks: benchmarks.benchmarks } }];"
+      },
+      "id": "code-6",
+      "name": "Prepare Generate-Strategy-Insights Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:generate-strategy-insights.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-7",
+      "name": "Generate Strategy Insights",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('Did Benchmarks Succeed?').first().json.data;\nconst insights = $input.first().json;\nreturn [{ json: { success: true, data: { benchmarks: b.benchmarks, strategy_insights: insights.data }, error: null } }];"
+      },
+      "id": "code-8",
+      "name": "Build Compute-Benchmarks-Project Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Compute Video Benchmarks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Video Benchmarks": {
+      "main": [
+        [
+          {
+            "node": "Did Benchmarks Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Benchmarks Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Generate-Strategy-Insights Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Benchmark Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Benchmark Failure Response": {
+      "main": []
+    },
+    "Prepare Generate-Strategy-Insights Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Strategy Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Strategy Insights": {
+      "main": [
+        [
+          {
+            "node": "Build Compute-Benchmarks-Project Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Compute-Benchmarks-Project Success Response": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

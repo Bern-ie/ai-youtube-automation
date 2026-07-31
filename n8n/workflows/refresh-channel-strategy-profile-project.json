@@ -1,0 +1,55 @@
+{
+  "name": "Refresh Channel Strategy Profile Project",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:refresh-channel-strategy-profile.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-2",
+      "name": "Refresh Channel Strategy Profile",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Refresh Channel Strategy Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Channel Strategy Profile": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

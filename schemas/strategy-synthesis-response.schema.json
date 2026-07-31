@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/strategy-synthesis-response.schema.json",
+  "title": "Strategy Synthesis Response",
+  "description": "Required structured-output shape for the strategy-synthesis LLM call (prompts/shared/strategy/strategy-synthesis.v1.md). The LLM synthesizes human-readable recommendations from supplied deterministic-observation.schema.json evidence -- it must not invent metrics, invent causation, or upgrade confidence beyond what evidence.sample_size permits. Every downstream insight is passed through create_strategy_insight()'s deterministic QC gate regardless of what this response contains -- see docs/architecture/analytics-strategy-pipeline.md#strategy-qc.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["insights"],
+  "properties": {
+    "insights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["insight_type", "insight_kind", "recommendation", "sample_size", "evidence_rule_ids", "confidence_label"],
+        "properties": {
+          "insight_type": { "type": "string", "enum": ["topic_selection", "hook_structure", "first_30_second_pacing", "video_duration", "section_pacing", "cta_placement", "thumbnail_style", "title_style", "publishing_schedule", "visual_treatment", "chapter_structure", "traffic_targeting"] },
+          "insight_kind": { "type": "string", "enum": ["observation", "recommendation"] },
+          "subject": { "type": ["string", "null"] },
+          "observation": { "type": ["string", "null"], "description": "What was observed, distinct from the recommendation -- must restate only supplied deterministic-observation data, never a new number." },
+          "recommendation": { "type": "string", "description": "The bounded, actionable suggestion. Must never include deceptive/clickbait tactics." },
+          "sample_size": { "type": "integer", "minimum": 0, "description": "Must exactly match the sample_size of the cited deterministic-observation evidence -- never inflated." },
+          "confidence_label": { "type": "string", "enum": ["exploratory", "low", "moderate", "high"] },
+          "evidence_rule_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "deterministic_observation.rule_id values this insight is grounded in." },
+          "limitations": { "type": ["string", "null"], "description": "Explicit caveats, e.g. small sample size or single-video basis." }
+        }
+      }
+    }
+  }
+}

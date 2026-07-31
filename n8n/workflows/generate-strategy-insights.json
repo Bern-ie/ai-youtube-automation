@@ -1,0 +1,796 @@
+{
+  "name": "Generate Strategy Insights",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Threshold rules -- centralized here, versioned via methodology_version\n// (1). Numeric truth comes entirely from compute_video_benchmarks()'s\n// SQL-computed median/percentile/sample_size/confidence_label; this\n// Code node only applies fixed thresholds to decide which rule_ids\n// fire -- see docs/architecture/analytics-strategy-pipeline.md#deterministic-observations.\nconst THRESHOLDS = {\n  ctr_below_median_all_time: { group: 'all_time', metric: 'ctr', ratio: 0.85, direction: 'below', insight_type: 'thumbnail_style' },\n  ctr_above_median_all_time: { group: 'all_time', metric: 'ctr', ratio: 1.15, direction: 'above', insight_type: 'thumbnail_style' },\n  views_below_median_recent_5: { group: 'recent_5', metric: 'views', ratio: 0.70, direction: 'below', insight_type: 'topic_selection' },\n  watch_time_above_median_all_time: { group: 'all_time', metric: 'watch_time_minutes', ratio: 1.15, direction: 'above', insight_type: 'video_duration' },\n  avg_percentage_viewed_below_median_all_time: { group: 'all_time', metric: 'average_percentage_viewed', ratio: 0.85, direction: 'below', insight_type: 'first_30_second_pacing' },\n};\nconst b = $input.first().json;\nconst benchmarks = b.benchmarks || [];\nconst observations = [];\nfor (const [ruleId, rule] of Object.entries(THRESHOLDS)) {\n  const row = benchmarks.find((x) => x.benchmark_group === rule.group && x.metric_name === rule.metric);\n  if (!row || row.sample_size < 3 || row.benchmark_metric_value === null || row.video_metric_value === null) continue;\n  const fired = rule.direction === 'below' ? row.video_metric_value < row.benchmark_metric_value * rule.ratio : row.video_metric_value > row.benchmark_metric_value * rule.ratio;\n  if (!fired) continue;\n  const pctDiff = row.benchmark_metric_value !== 0 ? Number((((row.video_metric_value - row.benchmark_metric_value) / row.benchmark_metric_value) * 100).toFixed(2)) : null;\n  observations.push({\n    rule_id: ruleId, metric_name: rule.metric, benchmark_group: rule.group, video_metric_value: row.video_metric_value,\n    benchmark_metric_value: row.benchmark_metric_value, percentage_difference: pctDiff, direction: rule.direction,\n    sample_size: row.sample_size, confidence_label: row.confidence_label, video_benchmark_id: row.id,\n    statement: rule.metric + ' is ' + (pctDiff !== null ? Math.abs(pctDiff) + '% ' : '') + rule.direction + ' the ' + rule.group + ' median at this checkpoint.',\n    _insight_type: rule.insight_type,\n  });\n}\nreturn [{ json: { channel_id: b.channel_id, published_video_id: b.published_video_id, checkpoint: b.checkpoint, observations } }];"
+      },
+      "id": "code-2",
+      "name": "Compute Deterministic Observations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.observations.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Any Observations Fired?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: true, data: { insights: [], skipped_reason: 'no_threshold_rule_fired' }, error: null } }];"
+      },
+      "id": "code-5",
+      "name": "Build No-Observations Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT si.id FROM strategy_insight_evidence se JOIN strategy_insights si ON si.id = se.insight_id WHERE se.channel_id = $1 AND se.evidence_type = 'video_benchmark' AND se.evidence_id = ANY($2::uuid[]) AND si.methodology_version = $3 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.observations.map(o => o.video_benchmark_id), 1] }}"
+        }
+      },
+      "id": "pg-6",
+      "name": "Check Existing Insights For These Benchmarks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { channel_id: $('Compute Deterministic Observations').first().json.channel_id, found: $input.all().length > 0 } }];"
+      },
+      "id": "code-7",
+      "name": "Was Already Synthesized?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-8",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Already Synthesized For These Benchmarks?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: true, data: { insights: [], idempotent: true }, error: null } }];"
+      },
+      "id": "code-10",
+      "name": "Build Idempotent-Skip Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Compute Deterministic Observations').first().json;\nreturn [{ json: { channel_id: ctx.channel_id, prompt_name: 'strategy-synthesis', _ctx: ctx } }];"
+      },
+      "id": "code-11",
+      "name": "Prepare Get-Prompt Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:get-channel-prompt.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-12",
+      "name": "Get Channel Prompt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-13",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-14",
+      "name": "Did Get Prompt Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null, error: { code: 'STRATEGY_SYNTHESIS_FAILED', message: 'no strategy-synthesis prompt configured', retryable: false, error_id: null } } }];"
+      },
+      "id": "code-15",
+      "name": "Build Prompt-Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prompt = $json.data;\nconst ctx = $('Prepare Get-Prompt Input').first().json._ctx;\nconst model = (prompt.model_compatibility && prompt.model_compatibility[0]) || 'claude-opus-4-8';\nconst schema = { type: 'object', additionalProperties: false, required: ['insights'], properties: { insights: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['insight_type', 'insight_kind', 'recommendation', 'sample_size', 'evidence_rule_ids', 'confidence_label'], properties: { insight_type: { type: 'string', enum: ['topic_selection','hook_structure','first_30_second_pacing','video_duration','section_pacing','cta_placement','thumbnail_style','title_style','publishing_schedule','visual_treatment','chapter_structure','traffic_targeting'] }, insight_kind: { type: 'string', enum: ['observation','recommendation'] }, subject: { type: ['string','null'] }, observation: { type: ['string','null'] }, recommendation: { type: 'string' }, sample_size: { type: 'integer', minimum: 0 }, confidence_label: { type: 'string', enum: ['exploratory','low','moderate','high'] }, evidence_rule_ids: { type: 'array', items: { type: 'string' }, minItems: 1 }, limitations: { type: ['string','null'] } } } } } };\nconst userPayload = { published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint, observations: ctx.observations };\nreturn [{ json: { ctx, model, requestBody: { model, max_tokens: 4096, system: prompt.content, messages: [{ role: 'user', content: JSON.stringify(userPayload) }], output_config: { format: { type: 'json_schema', schema } } } } }];"
+      },
+      "id": "code-16",
+      "name": "Prepare Anthropic Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-17",
+      "name": "Call Anthropic: Strategy Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        1980,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "anthropic-api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const resp = $input.first().json;\nconst prep = $('Prepare Anthropic Request').first().json;\nconst textBlock = (resp.content || []).find((b) => b.type === 'text');\nlet result = null; let parse_failed = true;\nif (textBlock) { try { result = JSON.parse(textBlock.text); parse_failed = !result || !Array.isArray(result.insights); } catch (e) { parse_failed = true; } }\nreturn [{ json: { parse_failed, ctx: prep.ctx, model: prep.model, insights: result ? result.insights : [], usage: resp.usage || {}, provider_request_id: resp.id || null } }];"
+      },
+      "id": "code-18",
+      "name": "Parse LLM Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-19",
+              "leftValue": "={{ $json.parse_failed !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-20",
+      "name": "Did Parse Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { success: false, data: null, error: { code: 'STRATEGY_SYNTHESIS_FAILED', message: 'strategy-synthesis LLM response was not valid structured JSON', retryable: true, error_id: null } } }];"
+      },
+      "id": "code-21",
+      "name": "Build Parse-Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse LLM Response').first().json;\nreturn [{ json: { channel_id: j.ctx.channel_id, content_project_id: null, provider: 'anthropic', service_type: 'llm', metric: 'input_tokens', quantity: j.usage.input_tokens || 0, unit: 'token', metadata: { published_video_id: j.ctx.published_video_id, checkpoint: j.ctx.checkpoint } } }];"
+      },
+      "id": "code-22",
+      "name": "Prepare Usage Event: Input Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-23",
+      "name": "Record Usage: Input Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse LLM Response').first().json;\nreturn [{ json: { channel_id: j.ctx.channel_id, content_project_id: null, provider: 'anthropic', service_type: 'llm', metric: 'output_tokens', quantity: j.usage.output_tokens || 0, unit: 'token', metadata: { published_video_id: j.ctx.published_video_id, checkpoint: j.ctx.checkpoint } } }];"
+      },
+      "id": "code-24",
+      "name": "Prepare Usage Event: Output Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-25",
+      "name": "Record Usage: Output Tokens",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Claude Opus pricing -- same $/M-token constants used at every other\n// LLM call site in this repo (Step 6/7's generate-shot-list.json etc).\nconst j = $('Parse LLM Response').first().json;\nconst inputTokens = j.usage.input_tokens || 0;\nconst outputTokens = j.usage.output_tokens || 0;\nconst totalCost = Math.round(((inputTokens / 1000000) * 5 + (outputTokens / 1000000) * 25) * 1000000) / 1000000;\nreturn [{ json: { channel_id: j.ctx.channel_id, content_project_id: null, workflow_run_id: null, workflow_step_id: null, provider: 'anthropic', service_type: 'llm', model: j.model, quantity: inputTokens + outputTokens, unit: 'token', unit_price_usd: null, total_cost_usd: totalCost, provider_request_id: j.provider_request_id, estimated: false, metadata: { published_video_id: j.ctx.published_video_id, checkpoint: j.ctx.checkpoint } } }];"
+      },
+      "id": "code-26",
+      "name": "Prepare Cost Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-cost-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-27",
+      "name": "Record Cost Event",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $('Parse LLM Response').first().json;\nreturn [{ json: { channel_id: j.ctx.channel_id, insights: j.insights, observations: j.ctx.observations, _iteration: 0, _created: [] } }];"
+      },
+      "id": "code-28",
+      "name": "Prepare Insight Creation Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-strategy-insights-from-proposals.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-29",
+      "name": "Create Strategy Insights From Proposals",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { success: true, data: { insights: r.data.created }, error: null } }];"
+      },
+      "id": "code-30",
+      "name": "Build Generate-Strategy-Insights Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Compute Deterministic Observations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Deterministic Observations": {
+      "main": [
+        [
+          {
+            "node": "Any Observations Fired?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Observations Fired?": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Insights For These Benchmarks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build No-Observations Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build No-Observations Response": {
+      "main": []
+    },
+    "Check Existing Insights For These Benchmarks": {
+      "main": [
+        [
+          {
+            "node": "Was Already Synthesized?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was Already Synthesized?": {
+      "main": [
+        [
+          {
+            "node": "Already Synthesized For These Benchmarks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Synthesized For These Benchmarks?": {
+      "main": [
+        [
+          {
+            "node": "Build Idempotent-Skip Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Get-Prompt Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Idempotent-Skip Response": {
+      "main": []
+    },
+    "Prepare Get-Prompt Input": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Prompt": {
+      "main": [
+        [
+          {
+            "node": "Did Get Prompt Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Get Prompt Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Anthropic Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prompt-Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt-Failure Response": {
+      "main": []
+    },
+    "Prepare Anthropic Request": {
+      "main": [
+        [
+          {
+            "node": "Call Anthropic: Strategy Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Anthropic: Strategy Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Did Parse Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Parse Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Parse-Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Parse-Failure Response": {
+      "main": []
+    },
+    "Prepare Usage Event: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Input Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Input Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Usage Event: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Usage Event: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Record Usage: Output Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Usage: Output Tokens": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Record Cost Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Cost Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Insight Creation Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Insight Creation Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Create Strategy Insights From Proposals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Strategy Insights From Proposals": {
+      "main": [
+        [
+          {
+            "node": "Build Generate-Strategy-Insights Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Generate-Strategy-Insights Success Response": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

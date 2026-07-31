@@ -35,6 +35,12 @@ app.use(storageTransportRouter);
 if (process.env.ENABLE_YOUTUBE_MOCK === '1') {
   const { youtubeMockRouter } = await import('./routes-youtube-mock.js');
   app.use(youtubeMockRouter);
+  // Step 13 -- mock YouTube Analytics API v2, gated by the same flag as
+  // the Data API v3 mock above (both are only ever enabled/disabled
+  // together for a test run). See routes-youtube-analytics-mock.js and
+  // docs/architecture/analytics-strategy-pipeline.md#fixture-and-live-tests.
+  const { youtubeAnalyticsMockRouter } = await import('./routes-youtube-analytics-mock.js');
+  app.use(youtubeAnalyticsMockRouter);
   logger.info('YouTube mock API enabled (ENABLE_YOUTUBE_MOCK=1) -- never enable this in production');
 }
 

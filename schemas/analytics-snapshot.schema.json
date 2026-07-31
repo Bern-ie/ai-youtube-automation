@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/analytics-snapshot.schema.json",
+  "title": "Analytics Snapshot",
+  "description": "The persisted shape returned by record_analytics_snapshot() and get_video_analytics_history(). See analytics_snapshots in database/schema.sql and docs/architecture/analytics-strategy-pipeline.md#snapshot-identity.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["id", "channel_id", "published_video_id", "checkpoint", "captured_at", "intended_checkpoint_at", "snapshot_status", "is_test_data"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "channel_id": { "type": "string", "format": "uuid" },
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "checkpoint": { "type": "string", "enum": ["1h", "24h", "72h", "7d", "28d"] },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "intended_checkpoint_at": { "type": "string", "format": "date-time" },
+    "lateness_seconds": { "type": ["integer", "null"], "minimum": 0 },
+    "snapshot_status": { "type": "string", "enum": ["pending_data", "partial", "complete", "revised"] },
+    "retention_status": { "type": "string", "enum": ["available", "unavailable", "not_authorized", "not_yet_processed", "not_applicable"] },
+    "traffic_status": { "type": "string", "enum": ["available", "unavailable", "not_authorized", "not_yet_processed", "not_applicable"] },
+    "revenue_status": { "type": "string", "enum": ["available", "unavailable", "not_authorized", "not_yet_processed", "not_applicable"] },
+    "core_metrics_availability": { "type": "object" },
+    "is_test_data": { "type": "boolean" },
+    "is_current": { "type": "boolean" },
+    "supersedes_snapshot_id": { "type": ["string", "null"], "format": "uuid" },
+    "methodology_version": { "type": "integer", "minimum": 1 },
+    "collection_job_id": { "type": ["string", "null"], "format": "uuid" }
+  }
+}

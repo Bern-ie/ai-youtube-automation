@@ -1,0 +1,42 @@
+{
+  "provider": "youtube",
+  "video_id": "dQw4w9WgXcQ",
+  "captured_at": "2026-07-25T10:00:00Z",
+  "checkpoint": "24h",
+  "snapshot_status": "complete",
+  "metrics": {
+    "impressions": 9400,
+    "views": 1180,
+    "ctr_ratio": 0.1255,
+    "watch_time_minutes": 3260,
+    "average_view_duration_seconds": 166,
+    "average_percentage_viewed_ratio": 0.41,
+    "subscribers_gained": 38,
+    "subscribers_lost": 2,
+    "likes": 290,
+    "comments": 24,
+    "shares": 11,
+    "returning_viewers": null,
+    "unique_viewers": null,
+    "monetized_playbacks": null,
+    "estimated_revenue_usd": null
+  },
+  "availability": {
+    "impressions": "available",
+    "views": "available",
+    "ctr_ratio": "available",
+    "watch_time_minutes": "available",
+    "average_view_duration_seconds": "available",
+    "average_percentage_viewed_ratio": "available",
+    "subscribers_gained": "available",
+    "subscribers_lost": "available",
+    "likes": "available",
+    "comments": "available",
+    "shares": "available",
+    "returning_viewers": "not_applicable",
+    "unique_viewers": "not_applicable",
+    "monetized_playbacks": "not_applicable",
+    "estimated_revenue_usd": "not_authorized"
+  },
+  "provider_request_reference": "mock-reports-query-0001"
+}

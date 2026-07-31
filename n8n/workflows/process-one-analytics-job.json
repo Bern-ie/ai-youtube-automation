@@ -1,0 +1,1567 @@
+{
+  "name": "Process One Analytics Job",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT status FROM channel_credentials WHERE channel_id = $1 AND credential_type = 'youtube_oauth' LIMIT 1) AS credential_status, (SELECT published_at FROM published_videos WHERE id = $2 AND channel_id = $1) AS published_at;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id, $json.published_video_id] }}"
+        }
+      },
+      "id": "pg-2",
+      "name": "Load Job Context",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Checkpoint offsets mirror schedule_analytics_checkpoints' own\n// definitions (database/migrations/20260722290000_youtube_analytics_pipeline_schema.sql)\n// -- centralized here once rather than scattered across call sites.\nconst CHECKPOINT_OFFSET_SECONDS = { '1h': 3600, '24h': 86400, '72h': 259200, '7d': 604800, '28d': 2419200 };\nconst b = $('When Executed by Another Workflow').first().json;\nconst row = $input.first().json;\nconst publishedAt = row.published_at ? new Date(row.published_at) : new Date();\nconst offsetMs = (CHECKPOINT_OFFSET_SECONDS[b.checkpoint] || 0) * 1000;\nconst intended = new Date(publishedAt.getTime() + offsetMs);\nreturn [{ json: {\n  channel_id: b.channel_id, job_id: b.job_id, published_video_id: b.published_video_id, checkpoint: b.checkpoint,\n  youtube_video_id: b.youtube_video_id, privacy_status: b.privacy_status, youtube_credential_reference: b.youtube_credential_reference,\n  youtube_credential_status: row.credential_status || null, published_at: publishedAt.toISOString(), intended_checkpoint_at: intended.toISOString(),\n  _mock_simulate: b._mock_simulate || null\n} }];"
+      },
+      "id": "code-3",
+      "name": "Merge Job Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-youtube-credential.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-4",
+      "name": "Resolve Youtube Credential",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-5",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-6",
+      "name": "Did Credential Resolve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Merge Job Context').first().json;\nconst err = $input.first().json.error;\nreturn [{ json: { channel_id: ctx.channel_id, job_id: ctx.job_id, error_code: err.code, message: err.message, retryable: false, sanitized_details: {}, provider: 'youtube', _ctx: ctx } }];"
+      },
+      "id": "code-7",
+      "name": "Build Credential-Fail Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-analytics-collection-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-8",
+      "name": "Fail Job: Credential",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Build Credential-Fail Input').first().json._ctx;\nreturn [{ json: { success: false, data: null, error: { code: 'ANALYTICS_CREDENTIAL_MISSING', message: 'youtube credential not resolvable for channel ' + ctx.channel_id, retryable: false, error_id: null }, job_id: ctx.job_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint } }];"
+      },
+      "id": "code-9",
+      "name": "Build Job Result: Credential Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Merge Job Context').first().json;\nconst cred = $input.first().json.data;\nreturn [{ json: { ...ctx, youtube_analytics_api_base_url: ($env.YOUTUBE_ANALYTICS_API_BASE_URL || 'https://youtubeanalytics.googleapis.com/v2').replace(/\\/$/, ''), youtube_api_base_url: cred.youtube_api_base_url } }];"
+      },
+      "id": "code-10",
+      "name": "Merge Resolved Credential",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:start-analytics-collection-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Start Analytics Collection Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-12",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-13",
+      "name": "Did Start Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Merge Resolved Credential').first().json;\nconst err = $input.first().json.error;\nreturn [{ json: { channel_id: ctx.channel_id, job_id: ctx.job_id, error_code: err.code || 'ANALYTICS_COLLECTION_FAILED', message: err.message, retryable: false, sanitized_details: {}, provider: 'youtube', _ctx: ctx } }];"
+      },
+      "id": "code-14",
+      "name": "Build Start-Fail Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-analytics-collection-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-15",
+      "name": "Fail Job: Start",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Build Start-Fail Input').first().json._ctx;\nreturn [{ json: { success: false, data: null, error: { code: 'ANALYTICS_COLLECTION_FAILED', message: 'could not transition job to collecting', retryable: false, error_id: null }, job_id: ctx.job_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint } }];"
+      },
+      "id": "code-16",
+      "name": "Build Job Result: Start Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Core metrics batched in ONE call (never one call per metric) --\n// see docs/architecture/analytics-strategy-pipeline.md#quota-tracking.\nconst ctx = $('Merge Resolved Credential').first().json;\nconst CORE_METRICS = ['views','estimatedMinutesWatched','averageViewDuration','averageViewPercentageRatio','subscribersGained','subscribersLost','likes','comments','shares','impressions','impressionsCtr'];\nconst start = new Date(ctx.published_at).toISOString().slice(0, 10);\nconst end = new Date().toISOString().slice(0, 10);\nreturn [{ json: { ...ctx, _reports_url: ctx.youtube_analytics_api_base_url + '/reports', _q_metrics: CORE_METRICS.join(','), _q_start: start, _q_end: end, _q_filters: 'video==' + ctx.youtube_video_id } }];"
+      },
+      "id": "code-17",
+      "name": "Prepare Core Metrics Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json._reports_url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "channel==MINE"
+            },
+            {
+              "name": "startDate",
+              "value": "={{ $json._q_start }}"
+            },
+            {
+              "name": "endDate",
+              "value": "={{ $json._q_end }}"
+            },
+            {
+              "name": "metrics",
+              "value": "={{ $json._q_metrics }}"
+            },
+            {
+              "name": "filters",
+              "value": "={{ $json._q_filters }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Mock-Simulate",
+              "value": "={{ $json._mock_simulate || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-18",
+      "name": "Call Core Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1980,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Core Metrics Call').first().json;\nconst res = $input.first().json;\nif (res.statusCode !== 200) {\n  const retryable = res.statusCode === 429 || res.statusCode >= 500;\n  const code = res.statusCode === 401 ? 'ANALYTICS_NOT_AUTHORIZED' : (res.statusCode === 403 ? 'ANALYTICS_QUOTA_EXCEEDED' : 'ANALYTICS_COLLECTION_FAILED');\n  return [{ json: { _failed: true, channel_id: ctx.channel_id, job_id: ctx.job_id, error_code: code, message: 'core metrics call failed (HTTP ' + res.statusCode + '): ' + JSON.stringify(res.body), retryable, sanitized_details: {}, provider: 'youtube', _ctx: ctx } }];\n}\nconst body = res.body || {};\nconst headers = (body.columnHeaders || []).map((h) => h.name);\nconst row = (body.rows && body.rows[0]) || null;\nconst FIELD_MAP = {\n  views: 'views', estimatedMinutesWatched: 'watch_time_minutes', averageViewDuration: 'average_view_duration_seconds',\n  averageViewPercentageRatio: 'average_percentage_viewed_ratio', subscribersGained: 'subscribers_gained', subscribersLost: 'subscribers_lost',\n  likes: 'likes', comments: 'comments', shares: 'shares', impressions: 'impressions', impressionsCtr: 'ctr_ratio',\n};\nconst metrics = { returning_viewers: null, unique_viewers: null, monetized_playbacks: null, estimated_revenue_usd: null };\nconst availability = { returning_viewers: 'not_applicable', unique_viewers: 'not_applicable', monetized_playbacks: 'not_applicable', estimated_revenue_usd: 'not_authorized' };\nheaders.forEach((h, i) => {\n  const key = FIELD_MAP[h];\n  if (!key) return;\n  const val = row ? row[i] : undefined;\n  if (val === undefined || val === null) { metrics[key] = null; availability[key] = 'not_yet_processed'; }\n  else { metrics[key] = val; availability[key] = 'available'; }\n});\nconst allAvailable = Object.values(availability).filter((v) => v !== 'not_applicable' && v !== 'not_authorized').every((v) => v === 'available');\nconst noneAvailable = !row;\nconst snapshotStatus = noneAvailable ? 'pending_data' : (allAvailable ? 'complete' : 'partial');\nreturn [{ json: { _failed: false, ctx, metrics, availability, snapshot_status: snapshotStatus } }];"
+      },
+      "id": "code-19",
+      "name": "Parse Core Metrics Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-20",
+              "leftValue": "={{ $json._failed !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-21",
+      "name": "Did Core Metrics Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-analytics-collection-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-22",
+      "name": "Fail Job: Core Metrics",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Parse Core Metrics Response').first().json._ctx;\nreturn [{ json: { success: false, data: null, error: { code: $('Parse Core Metrics Response').first().json.error_code, message: $('Parse Core Metrics Response').first().json.message, retryable: $('Parse Core Metrics Response').first().json.retryable, error_id: null }, job_id: ctx.job_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint } }];"
+      },
+      "id": "code-23",
+      "name": "Build Job Result: Core Metrics Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-analytics-snapshot.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-24",
+      "name": "Record Analytics Snapshot",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const parsed = $('Parse Core Metrics Response').first().json;\nconst ctx = parsed.ctx;\nreturn [{ json: {\n  channel_id: ctx.channel_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint,\n  intended_checkpoint_at: ctx.intended_checkpoint_at, captured_at: new Date().toISOString(), snapshot_status: parsed.snapshot_status,\n  metrics: parsed.metrics, core_metrics_availability: parsed.availability, collection_job_id: ctx.job_id,\n  is_test_data: ctx.privacy_status === 'private', methodology_version: 1, supersede: false,\n  _ctx: ctx\n} }];"
+      },
+      "id": "code-25",
+      "name": "Prepare Record-Snapshot Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-26",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-27",
+      "name": "Did Snapshot Record Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:fail-analytics-collection-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-28",
+      "name": "Fail Job: Snapshot",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Record-Snapshot Input').first().json._ctx;\nconst err = $input.first().json.error;\nreturn [{ json: { channel_id: ctx.channel_id, job_id: ctx.job_id, error_code: err.code || 'ANALYTICS_SNAPSHOT_CONFLICT', message: err.message, retryable: true, sanitized_details: {}, provider: 'youtube', _ctx: ctx } }];"
+      },
+      "id": "code-29",
+      "name": "Build Snapshot-Fail Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Build Snapshot-Fail Input').first().json._ctx;\nreturn [{ json: { success: false, data: null, error: { code: 'ANALYTICS_SNAPSHOT_CONFLICT', message: 'record_analytics_snapshot failed', retryable: true, error_id: null }, job_id: ctx.job_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint } }];"
+      },
+      "id": "code-30",
+      "name": "Build Job Result: Snapshot Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Record-Snapshot Input').first().json._ctx;\nconst snapshot = $('Did Snapshot Record Succeed?').first().json.data;\nconst start = new Date(ctx.published_at).toISOString().slice(0, 10);\nconst end = new Date().toISOString().slice(0, 10);\nreturn [{ json: { ...ctx, _snapshot_id: snapshot.id, _reports_url: ctx.youtube_analytics_api_base_url + '/reports', _q_start: start, _q_end: end, _q_filters: 'video==' + ctx.youtube_video_id } }];"
+      },
+      "id": "code-31",
+      "name": "Prepare Retention Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json._reports_url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "channel==MINE"
+            },
+            {
+              "name": "startDate",
+              "value": "={{ $json._q_start }}"
+            },
+            {
+              "name": "endDate",
+              "value": "={{ $json._q_end }}"
+            },
+            {
+              "name": "dimensions",
+              "value": "elapsedVideoTimeRatio"
+            },
+            {
+              "name": "metrics",
+              "value": "audienceWatchRatio,relativeRetentionPerformance"
+            },
+            {
+              "name": "filters",
+              "value": "={{ $json._q_filters }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Mock-Simulate",
+              "value": "={{ $json._mock_simulate || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-32",
+      "name": "Call Retention",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        3300,
+        -400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Retention Call').first().json;\nconst res = $input.first().json;\nif (res.statusCode !== 200 || !res.body || !res.body.rows || res.body.rows.length === 0) {\n  const retryable = res.statusCode === 429 || res.statusCode >= 500;\n  return [{ json: { ok: false, channel_id: ctx.channel_id, snapshot_id: ctx._snapshot_id, status: res.statusCode === 401 ? 'not_authorized' : 'unavailable' } }];\n}\nconst points = res.body.rows.map((r) => ({ elapsed_ratio: r[0], audience_watch_ratio: r[1], relative_retention: r[2] ?? null }));\nreturn [{ json: { ok: true, channel_id: ctx.channel_id, snapshot_id: ctx._snapshot_id, points } }];"
+      },
+      "id": "code-33",
+      "name": "Parse Retention Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-34",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-35",
+      "name": "Did Retention Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-analytics-retention-points.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-36",
+      "name": "Record Analytics Retention Points",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-snapshot-metric-group-unavailable.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-37",
+      "name": "Mark Retention Unavailable",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $input.first().json;\nreturn [{ json: { channel_id: p.channel_id, analytics_snapshot_id: p.snapshot_id, metric_group: 'retention', status: p.status } }];"
+      },
+      "id": "code-38",
+      "name": "Prepare Mark-Retention-Unavailable Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Retention Call').first().json;\nreturn [{ json: { ...ctx, _q_dimensions: 'insightTrafficSourceType' } }];"
+      },
+      "id": "code-39",
+      "name": "Prepare Traffic Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json._reports_url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "channel==MINE"
+            },
+            {
+              "name": "startDate",
+              "value": "={{ $json._q_start }}"
+            },
+            {
+              "name": "endDate",
+              "value": "={{ $json._q_end }}"
+            },
+            {
+              "name": "dimensions",
+              "value": "insightTrafficSourceType"
+            },
+            {
+              "name": "metrics",
+              "value": "views,estimatedMinutesWatched"
+            },
+            {
+              "name": "filters",
+              "value": "={{ $json._q_filters }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Mock-Simulate",
+              "value": "={{ $json._mock_simulate || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-40",
+      "name": "Call Traffic Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        4400,
+        -400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Traffic Call').first().json;\nconst res = $input.first().json;\nif (res.statusCode !== 200 || !res.body || !res.body.rows || res.body.rows.length === 0) {\n  return [{ json: { ok: false, channel_id: ctx.channel_id, snapshot_id: ctx._snapshot_id, status: res.statusCode === 401 ? 'not_authorized' : 'unavailable' } }];\n}\nconst LABEL_MAP = { YT_SEARCH: 'youtube_search', SUGGESTED_VIDEO: 'suggested_videos', EXT_URL: 'external', YT_CHANNEL: 'channel_pages', NOTIFICATION: 'notifications', PLAYLIST: 'playlists', SHORTS: 'shorts_feed', BROWSE_FEATURES: 'browse_features' };\nconst totalViews = res.body.rows.reduce((s, r) => s + (r[1] || 0), 0) || 1;\nconst sources = res.body.rows.map((r) => ({ source_type: LABEL_MAP[r[0]] || 'other', views: r[1], watch_time_minutes: r[2], proportion: Number(((r[1] || 0) / totalViews).toFixed(4)) }));\nreturn [{ json: { ok: true, channel_id: ctx.channel_id, snapshot_id: ctx._snapshot_id, sources } }];"
+      },
+      "id": "code-41",
+      "name": "Parse Traffic Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-42",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-43",
+      "name": "Did Traffic Succeed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4840,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-analytics-traffic-sources.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-44",
+      "name": "Record Analytics Traffic Sources",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5060,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-snapshot-metric-group-unavailable.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-45",
+      "name": "Mark Traffic Unavailable",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5060,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $input.first().json;\nreturn [{ json: { channel_id: p.channel_id, analytics_snapshot_id: p.snapshot_id, metric_group: 'traffic', status: p.status } }];"
+      },
+      "id": "code-46",
+      "name": "Prepare Mark-Traffic-Unavailable Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// This dev/mock environment has no yt-analytics-monetary.readonly-\n// scoped credential configured -- revenue is optional per\n// docs/architecture/analytics-strategy-pipeline.md#revenue-metrics and\n// always degrades cleanly to not_authorized here (no monetary API call\n// is made). A future channel with that scope granted would add a real\n// revenue report-query call here instead.\nconst ctx = $('Prepare Retention Call').first().json;\nreturn [{ json: { channel_id: ctx.channel_id, analytics_snapshot_id: ctx._snapshot_id, metric_group: 'revenue', status: 'not_authorized', _ctx: ctx } }];"
+      },
+      "id": "code-47",
+      "name": "Prepare Mark-Revenue-Unavailable Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:mark-snapshot-metric-group-unavailable.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-48",
+      "name": "Mark Revenue Unavailable",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5500,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Analytics API quota is tracked separately from the Data API's\n// upload-side quota table (youtube_quota_preflight) -- one\n// centralized per-call constant here, per\n// docs/architecture/analytics-strategy-pipeline.md#quota-tracking.\nconst ANALYTICS_QUOTA_UNITS_PER_REPORT_QUERY = 1;\nconst ctx = $('Prepare Mark-Revenue-Unavailable Input').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, content_project_id: null, provider: 'youtube', service_type: 'analytics', metric: 'quota_units', quantity: ANALYTICS_QUOTA_UNITS_PER_REPORT_QUERY * 3, unit: 'quota_units', metadata: { checkpoint: ctx.checkpoint, job_id: ctx.job_id } } }];"
+      },
+      "id": "code-49",
+      "name": "Prepare Provider Usage Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:record-provider-usage-event.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-50",
+      "name": "Record Provider Usage Event",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5940,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:complete-analytics-collection-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-51",
+      "name": "Complete Analytics Collection Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6160,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Mark-Revenue-Unavailable Input').first().json._ctx;\nreturn [{ json: { channel_id: ctx.channel_id, job_id: ctx.job_id, snapshot_id: ctx._snapshot_id } }];"
+      },
+      "id": "code-52",
+      "name": "Prepare Complete-Job Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6160,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Mark-Revenue-Unavailable Input').first().json._ctx;\nreturn [{ json: { success: true, data: { job_id: ctx.job_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint, snapshot_id: ctx._snapshot_id }, error: null, job_id: ctx.job_id, published_video_id: ctx.published_video_id, checkpoint: ctx.checkpoint } }];"
+      },
+      "id": "code-53",
+      "name": "Build Job Result: Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        -400
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Load Job Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Job Context": {
+      "main": [
+        [
+          {
+            "node": "Merge Job Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Job Context": {
+      "main": [
+        [
+          {
+            "node": "Resolve Youtube Credential",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Youtube Credential": {
+      "main": [
+        [
+          {
+            "node": "Did Credential Resolve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Credential Resolve?": {
+      "main": [
+        [
+          {
+            "node": "Merge Resolved Credential",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Credential-Fail Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Credential-Fail Input": {
+      "main": [
+        [
+          {
+            "node": "Fail Job: Credential",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Job: Credential": {
+      "main": [
+        [
+          {
+            "node": "Build Job Result: Credential Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Result: Credential Failure": {
+      "main": []
+    },
+    "Merge Resolved Credential": {
+      "main": [
+        [
+          {
+            "node": "Start Analytics Collection Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Analytics Collection Job": {
+      "main": [
+        [
+          {
+            "node": "Did Start Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Start Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Core Metrics Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Start-Fail Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Start-Fail Input": {
+      "main": [
+        [
+          {
+            "node": "Fail Job: Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Job: Start": {
+      "main": [
+        [
+          {
+            "node": "Build Job Result: Start Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Result: Start Failure": {
+      "main": []
+    },
+    "Prepare Core Metrics Call": {
+      "main": [
+        [
+          {
+            "node": "Call Core Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Core Metrics": {
+      "main": [
+        [
+          {
+            "node": "Parse Core Metrics Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Core Metrics Response": {
+      "main": [
+        [
+          {
+            "node": "Did Core Metrics Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Core Metrics Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Record-Snapshot Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fail Job: Core Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Job: Core Metrics": {
+      "main": [
+        [
+          {
+            "node": "Build Job Result: Core Metrics Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Result: Core Metrics Failure": {
+      "main": []
+    },
+    "Record Analytics Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Did Snapshot Record Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Record-Snapshot Input": {
+      "main": [
+        [
+          {
+            "node": "Record Analytics Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Snapshot Record Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Retention Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Snapshot-Fail Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail Job: Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Build Job Result: Snapshot Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Snapshot-Fail Input": {
+      "main": [
+        [
+          {
+            "node": "Fail Job: Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Result: Snapshot Failure": {
+      "main": []
+    },
+    "Prepare Retention Call": {
+      "main": [
+        [
+          {
+            "node": "Call Retention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Retention": {
+      "main": [
+        [
+          {
+            "node": "Parse Retention Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Retention Response": {
+      "main": [
+        [
+          {
+            "node": "Did Retention Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Retention Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Record Analytics Retention Points",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Retention-Unavailable Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Analytics Retention Points": {
+      "main": [
+        [
+          {
+            "node": "Prepare Traffic Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Retention Unavailable": {
+      "main": [
+        [
+          {
+            "node": "Prepare Traffic Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Retention-Unavailable Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Retention Unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Traffic Call": {
+      "main": [
+        [
+          {
+            "node": "Call Traffic Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Traffic Sources": {
+      "main": [
+        [
+          {
+            "node": "Parse Traffic Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Traffic Response": {
+      "main": [
+        [
+          {
+            "node": "Did Traffic Succeed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Traffic Succeed?": {
+      "main": [
+        [
+          {
+            "node": "Record Analytics Traffic Sources",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Mark-Traffic-Unavailable Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Analytics Traffic Sources": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Revenue-Unavailable Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Traffic Unavailable": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mark-Revenue-Unavailable Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Traffic-Unavailable Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Traffic Unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mark-Revenue-Unavailable Input": {
+      "main": [
+        [
+          {
+            "node": "Mark Revenue Unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Revenue Unavailable": {
+      "main": [
+        [
+          {
+            "node": "Prepare Provider Usage Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Provider Usage Event": {
+      "main": [
+        [
+          {
+            "node": "Record Provider Usage Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Provider Usage Event": {
+      "main": [
+        [
+          {
+            "node": "Prepare Complete-Job Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Analytics Collection Job": {
+      "main": [
+        [
+          {
+            "node": "Build Job Result: Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Complete-Job Input": {
+      "main": [
+        [
+          {
+            "node": "Complete Analytics Collection Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Result: Success": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

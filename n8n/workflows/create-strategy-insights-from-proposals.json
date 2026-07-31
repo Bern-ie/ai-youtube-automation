@@ -1,0 +1,230 @@
+{
+  "name": "Create Strategy Insights From Proposals",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, insights: b.insights || [], observations: b.observations || [], _iteration: (b._iteration || 0) + 1, _created: b._created || [] } }];"
+      },
+      "id": "code-2",
+      "name": "Normalize Insight Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json._iteration > $json.insights.length }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "All Proposed Insights Processed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { success: true, data: { created: b._created }, error: null } }];"
+      },
+      "id": "code-5",
+      "name": "Build Insight Creation Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Maps one LLM-proposed insight (strategy-synthesis-response.schema.json\n// shape) onto create_strategy_insight()'s params. evidence_rule_ids is\n// resolved back to the actual video_benchmark row ids the deterministic\n// observations were computed from (generate-strategy-insights.json) --\n// this is real, channel-scoped evidence, never LLM-invented.\nconst b = $input.first().json;\nconst item = b.insights[b._iteration - 1];\nconst matched = b.observations.filter((o) => (item.evidence_rule_ids || []).includes(o.rule_id));\nconst evidence = matched.filter((o) => o.video_benchmark_id).map((o) => ({ evidence_type: 'video_benchmark', evidence_id: o.video_benchmark_id }));\nconst sampleSize = matched.length ? Math.min(...matched.map((o) => o.sample_size)) : (item.sample_size || 0);\nreturn [{ json: {\n  channel_id: b.channel_id, insight_type: item.insight_type, insight_kind: item.insight_kind, recommendation: item.recommendation,\n  sample_size: sampleSize, evidence, subject: item.subject || null, observation: item.observation || null,\n  confidence: null, confidence_label: item.confidence_label || null, metric_basis: matched.map((o) => o.rule_id).join(',') || null,\n  limitations: item.limitations || null, is_test_data: false, methodology_version: 1,\n  _loop: b,\n} }];"
+      },
+      "id": "code-6",
+      "name": "Take Next Proposed Insight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-strategy-insight.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-7",
+      "name": "Create Strategy Insight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const loop = $('Take Next Proposed Insight').first().json._loop;\nconst r = $input.first().json;\nconst entry = r.success ? { status: 'created', insight_id: r.data.id, insight_kind: r.data.insight_kind, insight_status: r.data.status } : { status: 'rejected', error: r.error };\nreturn [{ json: { channel_id: loop.channel_id, insights: loop.insights, observations: loop.observations, _iteration: loop._iteration, _created: [...loop._created, entry] } }];"
+      },
+      "id": "code-8",
+      "name": "Merge Created Insight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:create-strategy-insights-from-proposals.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-9",
+      "name": "Create Strategy Insights From Proposals (Recurse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Insight Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Insight Loop Input": {
+      "main": [
+        [
+          {
+            "node": "All Proposed Insights Processed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All Proposed Insights Processed?": {
+      "main": [
+        [
+          {
+            "node": "Build Insight Creation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Take Next Proposed Insight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Insight Creation Summary": {
+      "main": []
+    },
+    "Take Next Proposed Insight": {
+      "main": [
+        [
+          {
+            "node": "Create Strategy Insight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Strategy Insight": {
+      "main": [
+        [
+          {
+            "node": "Merge Created Insight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Created Insight": {
+      "main": [
+        [
+          {
+            "node": "Create Strategy Insights From Proposals (Recurse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Strategy Insights From Proposals (Recurse)": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

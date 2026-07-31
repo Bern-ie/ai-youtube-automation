@@ -1,0 +1,42 @@
+{
+  "provider": "youtube",
+  "video_id": "dQw4w9WgXcQ",
+  "captured_at": "2026-07-24T11:05:00Z",
+  "checkpoint": "1h",
+  "snapshot_status": "pending_data",
+  "metrics": {
+    "impressions": null,
+    "views": null,
+    "ctr_ratio": null,
+    "watch_time_minutes": null,
+    "average_view_duration_seconds": null,
+    "average_percentage_viewed_ratio": null,
+    "subscribers_gained": null,
+    "subscribers_lost": null,
+    "likes": null,
+    "comments": null,
+    "shares": null,
+    "returning_viewers": null,
+    "unique_viewers": null,
+    "monetized_playbacks": null,
+    "estimated_revenue_usd": null
+  },
+  "availability": {
+    "impressions": "not_yet_processed",
+    "views": "not_yet_processed",
+    "ctr_ratio": "not_yet_processed",
+    "watch_time_minutes": "not_yet_processed",
+    "average_view_duration_seconds": "not_yet_processed",
+    "average_percentage_viewed_ratio": "not_yet_processed",
+    "subscribers_gained": "not_yet_processed",
+    "subscribers_lost": "not_yet_processed",
+    "likes": "not_yet_processed",
+    "comments": "not_yet_processed",
+    "shares": "not_yet_processed",
+    "returning_viewers": "not_applicable",
+    "unique_viewers": "not_applicable",
+    "monetized_playbacks": "not_applicable",
+    "estimated_revenue_usd": "not_authorized"
+  },
+  "provider_request_reference": "mock-reports-query-0003"
+}

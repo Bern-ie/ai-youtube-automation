@@ -1,0 +1,331 @@
+{
+  "name": "Reconcile Youtube Publication State",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT status AS credential_status FROM channel_credentials WHERE channel_id = $1 AND credential_type = 'youtube_oauth' LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id] }}"
+        }
+      },
+      "id": "pg-2",
+      "name": "Load Channel Credential Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nconst row = $input.first().json || {};\nreturn [{ json: { channel_id: b.channel_id, published_video_id: b.published_video_id, workflow_run_id: b.workflow_run_id || null, content_project_id: b.content_project_id || null, correlation_id: b.correlation_id || null, youtube_credential_reference: b.youtube_credential_reference, youtube_credential_status: row.credential_status || null, youtube_video_id: b.youtube_video_id, _mock_simulate: b._mock_simulate || null } }];"
+      },
+      "id": "code-3",
+      "name": "Merge Credential Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:resolve-youtube-credential.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-4",
+      "name": "Resolve Youtube Credential",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-5",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-6",
+      "name": "Did Credential Resolve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "code-7",
+      "name": "Build Credential Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Merge Credential Status').first().json;\nconst cred = $json.data;\nreturn [{ json: { ...ctx, youtube_api_base_url: cred.youtube_api_base_url } }];"
+      },
+      "id": "code-8",
+      "name": "Prepare Videos.List Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.youtube_api_base_url }}/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $json.youtube_video_id }}"
+            },
+            {
+              "name": "part",
+              "value": "snippet,status"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Mock-Simulate",
+              "value": "={{ $json._mock_simulate || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "http-9",
+      "name": "Call Videos.List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "position": [
+        1320,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_CRED",
+          "name": "youtube-oauth-history-explained"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Prepare Videos.List Call').first().json;\nconst res = $input.first().json;\nif (res.statusCode !== 200) {\n  return [{ json: { channel_id: ctx.channel_id, published_video_id: ctx.published_video_id, workflow_run_id: ctx.workflow_run_id, youtube_state: null } }];\n}\nconst items = (res.body && res.body.items) || [];\nif (items.length === 0) {\n  return [{ json: { channel_id: ctx.channel_id, published_video_id: ctx.published_video_id, workflow_run_id: ctx.workflow_run_id, youtube_state: { exists: false } } }];\n}\nconst v = items[0];\nreturn [{ json: { channel_id: ctx.channel_id, published_video_id: ctx.published_video_id, workflow_run_id: ctx.workflow_run_id, youtube_state: { exists: true, privacy_status: v.status ? v.status.privacyStatus : null, title: v.snippet ? v.snippet.title : null, scheduled_publish_time: v.status ? (v.status.publishAt || null) : null } } }];"
+      },
+      "id": "code-10",
+      "name": "Normalize Youtube State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:reconcile-publication-state.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Reconcile Publication State",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Load Channel Credential Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Channel Credential Status": {
+      "main": [
+        [
+          {
+            "node": "Merge Credential Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Credential Status": {
+      "main": [
+        [
+          {
+            "node": "Resolve Youtube Credential",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Youtube Credential": {
+      "main": [
+        [
+          {
+            "node": "Did Credential Resolve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Credential Resolve?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Videos.List Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Credential Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Credential Failure Response": {
+      "main": []
+    },
+    "Prepare Videos.List Call": {
+      "main": [
+        [
+          {
+            "node": "Call Videos.List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Videos.List": {
+      "main": [
+        [
+          {
+            "node": "Normalize Youtube State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Youtube State": {
+      "main": [
+        [
+          {
+            "node": "Reconcile Publication State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile Publication State": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

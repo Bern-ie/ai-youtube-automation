@@ -1,0 +1,7 @@
+{
+  "note": "yt-analytics-monetary.readonly is not granted for this channel's credential -- revenue degrades cleanly per docs/architecture/analytics-strategy-pipeline.md#revenue-metrics. No estimated RPM is ever fabricated from views alone.",
+  "metric_group": "revenue",
+  "status": "not_authorized",
+  "estimated_revenue_usd": null,
+  "monetized_playbacks": null
+}

@@ -1,0 +1,80 @@
+{
+  "name": "Expire Strategy Insights Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { limit: b.limit || 100 } }];"
+      },
+      "id": "code-2",
+      "name": "Prepare Expire Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:expire-due-strategy-insights.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Expire Due Strategy Insights",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare Expire Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Expire Input": {
+      "main": [
+        [
+          {
+            "node": "Expire Due Strategy Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expire Due Strategy Insights": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

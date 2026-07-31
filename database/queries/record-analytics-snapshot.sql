@@ -1,0 +1,23 @@
+-- Idempotent snapshot writer -- see
+-- docs/architecture/analytics-strategy-pipeline.md#snapshot-identity.
+-- Metric field names inside $7 match the normalized adapter output
+-- (schemas/normalized-analytics-response.schema.json).
+--
+-- Parameters ($1..$15):
+--   $1  channel_id                    uuid, required
+--   $2  published_video_id            uuid, required
+--   $3  checkpoint                    text, required -- '1h'|'24h'|'72h'|'7d'|'28d'
+--   $4  intended_checkpoint_at        timestamptz, required
+--   $5  captured_at                   timestamptz, required
+--   $6  snapshot_status               text, required -- 'pending_data'|'partial'|'complete'|'revised'
+--   $7  metrics                       jsonb, required -- normalized metric object
+--   $8  core_metrics_availability     jsonb, required
+--   $9  collection_job_id             uuid, nullable
+--   $10 raw_provider_payload          jsonb, nullable -- sanitized, no secret keys
+--   $11 provider_request_reference    text, nullable
+--   $12 is_test_data                  boolean, nullable -- defaults to (privacy_status = 'private') when null
+--   $13 methodology_version           integer, default 1
+--   $14 supersede                     boolean, default false -- explicit correction, not a retry
+--   $15 workflow_run_id               uuid, nullable
+
+SELECT record_analytics_snapshot($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) AS result;

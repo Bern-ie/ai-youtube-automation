@@ -1,0 +1,80 @@
+{
+  "name": "Record Audit Log",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT record_audit_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) AS result;",
+        "options": {
+          "queryReplacement": "={{ [$json.channel_id || null, $json.actor_type, $json.action, $json.entity_type, $json.entity_id || null, $json.actor_reference || null, $json.actor_reference_type || null, $json.before_state ? JSON.stringify($json.before_state) : null, $json.after_state ? JSON.stringify($json.after_state) : null, $json.correlation_id || null, $json.workflow_run_id || null] }}"
+        }
+      },
+      "id": "postgres-1",
+      "name": "Call Record Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "qErWODSItRrGYhq4",
+          "name": "postgres-app-runtime"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.result }];"
+      },
+      "id": "code-1",
+      "name": "Unwrap Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call Record Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Record Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

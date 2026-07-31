@@ -316,6 +316,51 @@ const IMPORT_ORDER = [
   'dev-list-pending-public-publish-confirmations.json',
   'dev-get-public-publish-confirmation-package.json',
   'dev-decide-public-publish-confirmation.json',
+  // Step 13 -- YouTube analytics ingestion, benchmarking, strategy
+  // insights, audit hardening. Leaf SQL wrappers first (24 files), then
+  // the composite HTTP-calling workflows (collect-analytics-for-due-jobs.json
+  // and create-strategy-insights-from-proposals.json each call themselves
+  // -- see the self-reference handling in main() -- so they only need
+  // their own prerequisites imported first, not themselves), then the
+  // schedulers/orchestrators and everything that references them.
+  'schedule-analytics-checkpoints.json',
+  'find-and-schedule-pending-analytics-checkpoints.json',
+  'claim-due-analytics-jobs.json',
+  'start-analytics-collection-job.json',
+  'complete-analytics-collection-job.json',
+  'fail-analytics-collection-job.json',
+  'record-analytics-snapshot.json',
+  'record-analytics-retention-points.json',
+  'record-analytics-traffic-sources.json',
+  'mark-snapshot-metric-group-unavailable.json',
+  'get-video-analytics-history.json',
+  'compute-section-retention-metrics.json',
+  'compute-video-benchmarks.json',
+  'create-strategy-insight.json',
+  'activate-strategy-insight.json',
+  'reject-strategy-insight.json',
+  'supersede-strategy-insight.json',
+  'expire-due-strategy-insights.json',
+  'link-strategy-insight-evidence.json',
+  'refresh-channel-strategy-profile.json',
+  'get-current-strategy-profile.json',
+  'reconcile-publication-state.json',
+  'record-audit-log.json',
+  'reclaim-abandoned-analytics-jobs.json',
+  'process-one-analytics-job.json',
+  'collect-analytics-for-due-jobs.json',
+  'analytics-collection-scheduler.json',
+  'create-strategy-insights-from-proposals.json',
+  'generate-strategy-insights.json',
+  'compute-video-benchmarks-project.json',
+  'refresh-channel-strategy-profile-project.json',
+  'expire-strategy-insights-scheduler.json',
+  'reconcile-youtube-publication-state.json',
+  'dev-decide-strategy-insight.json',
+  'step13-analytics-collection-scheduler-test.json',
+  'step13-process-one-analytics-job-test.json',
+  'step13-compute-video-benchmarks-project-test.json',
+  'step13-reconcile-publication-state-test.json',
 ];
 
 // n8n paginates list endpoints (a cursor-based `nextCursor` field, default
@@ -987,6 +1032,51 @@ const EXECUTE_WORKFLOW_TARGETS = {
   'Upload Video Chunks (Recurse)': 'upload-video-chunks.json',
   'Resolve Public Publish Confirmation': 'resolve-public-publish-confirmation.json',
   'YouTube Publish Project': 'youtube-publish-project.json',
+  // Step 13 -- process-one-analytics-job.json.
+  'Resolve Youtube Credential': 'resolve-youtube-credential.json',
+  'Fail Job: Credential': 'fail-analytics-collection-job.json',
+  'Start Analytics Collection Job': 'start-analytics-collection-job.json',
+  'Fail Job: Start': 'fail-analytics-collection-job.json',
+  'Fail Job: Core Metrics': 'fail-analytics-collection-job.json',
+  'Record Analytics Snapshot': 'record-analytics-snapshot.json',
+  'Fail Job: Snapshot': 'fail-analytics-collection-job.json',
+  'Record Analytics Retention Points': 'record-analytics-retention-points.json',
+  'Mark Retention Unavailable': 'mark-snapshot-metric-group-unavailable.json',
+  'Record Analytics Traffic Sources': 'record-analytics-traffic-sources.json',
+  'Mark Traffic Unavailable': 'mark-snapshot-metric-group-unavailable.json',
+  'Mark Revenue Unavailable': 'mark-snapshot-metric-group-unavailable.json',
+  'Record Provider Usage Event': 'record-provider-usage-event.json',
+  'Complete Analytics Collection Job': 'complete-analytics-collection-job.json',
+  // Step 13 -- collect-analytics-for-due-jobs.json (self-referencing loop).
+  'Claim Due Analytics Jobs': 'claim-due-analytics-jobs.json',
+  'Process One Analytics Job': 'process-one-analytics-job.json',
+  'Collect Analytics For Due Jobs (Recurse)': 'collect-analytics-for-due-jobs.json',
+  // Step 13 -- analytics-collection-scheduler.json.
+  'Reclaim Abandoned Analytics Jobs': 'reclaim-abandoned-analytics-jobs.json',
+  'Find And Schedule Pending Analytics Checkpoints': 'find-and-schedule-pending-analytics-checkpoints.json',
+  'Collect Analytics For Due Jobs': 'collect-analytics-for-due-jobs.json',
+  // Step 13 -- compute-video-benchmarks-project.json.
+  'Compute Video Benchmarks': 'compute-video-benchmarks.json',
+  'Generate Strategy Insights': 'generate-strategy-insights.json',
+  // Step 13 -- create-strategy-insights-from-proposals.json (self-referencing loop).
+  'Create Strategy Insight': 'create-strategy-insight.json',
+  'Create Strategy Insights From Proposals (Recurse)': 'create-strategy-insights-from-proposals.json',
+  // Step 13 -- generate-strategy-insights.json (Get Channel Prompt / Record
+  // Usage: */ Record Cost Event node names are already mapped above,
+  // shared with Step 6/7).
+  'Create Strategy Insights From Proposals': 'create-strategy-insights-from-proposals.json',
+  // Step 13 -- refresh-channel-strategy-profile-project.json / expire-strategy-insights-scheduler.json.
+  'Refresh Channel Strategy Profile': 'refresh-channel-strategy-profile.json',
+  'Expire Due Strategy Insights': 'expire-due-strategy-insights.json',
+  // Step 13 -- reconcile-youtube-publication-state.json.
+  'Reconcile Publication State': 'reconcile-publication-state.json',
+  // Step 13 -- dev-decide-strategy-insight.json.
+  'Activate Strategy Insight': 'activate-strategy-insight.json',
+  'Reject Strategy Insight': 'reject-strategy-insight.json',
+  // Step 13 -- dev/test webhooks.
+  'Analytics Collection Scheduler': 'analytics-collection-scheduler.json',
+  'Compute Video Benchmarks Project': 'compute-video-benchmarks-project.json',
+  'Reconcile Youtube Publication State': 'reconcile-youtube-publication-state.json',
 };
 const FILE_TO_WORKFLOW_NAME = {
   'initialize-workflow-run.json': 'Initialize Workflow Run',
@@ -1172,6 +1262,44 @@ const FILE_TO_WORKFLOW_NAME = {
   'resolve-public-publish-confirmation.json': 'Resolve Public Publish Confirmation SQL',
   'get-current-published-video.json': 'Get Current Published Video',
   'youtube-publish-project.json': 'YouTube Publish Project',
+  'schedule-analytics-checkpoints.json': 'Schedule Analytics Checkpoints',
+  'find-and-schedule-pending-analytics-checkpoints.json': 'Find And Schedule Pending Analytics Checkpoints',
+  'claim-due-analytics-jobs.json': 'Claim Due Analytics Jobs',
+  'start-analytics-collection-job.json': 'Start Analytics Collection Job',
+  'complete-analytics-collection-job.json': 'Complete Analytics Collection Job',
+  'fail-analytics-collection-job.json': 'Fail Analytics Collection Job',
+  'record-analytics-snapshot.json': 'Record Analytics Snapshot',
+  'record-analytics-retention-points.json': 'Record Analytics Retention Points',
+  'record-analytics-traffic-sources.json': 'Record Analytics Traffic Sources',
+  'mark-snapshot-metric-group-unavailable.json': 'Mark Snapshot Metric Group Unavailable',
+  'get-video-analytics-history.json': 'Get Video Analytics History',
+  'compute-section-retention-metrics.json': 'Compute Section Retention Metrics',
+  'compute-video-benchmarks.json': 'Compute Video Benchmarks',
+  'create-strategy-insight.json': 'Create Strategy Insight',
+  'activate-strategy-insight.json': 'Activate Strategy Insight',
+  'reject-strategy-insight.json': 'Reject Strategy Insight',
+  'supersede-strategy-insight.json': 'Supersede Strategy Insight',
+  'expire-due-strategy-insights.json': 'Expire Due Strategy Insights',
+  'link-strategy-insight-evidence.json': 'Link Strategy Insight Evidence',
+  'refresh-channel-strategy-profile.json': 'Refresh Channel Strategy Profile',
+  'get-current-strategy-profile.json': 'Get Current Strategy Profile',
+  'reconcile-publication-state.json': 'Reconcile Publication State',
+  'record-audit-log.json': 'Record Audit Log',
+  'reclaim-abandoned-analytics-jobs.json': 'Reclaim Abandoned Analytics Jobs',
+  'process-one-analytics-job.json': 'Process One Analytics Job',
+  'collect-analytics-for-due-jobs.json': 'Collect Analytics For Due Jobs',
+  'analytics-collection-scheduler.json': 'Analytics Collection Scheduler',
+  'create-strategy-insights-from-proposals.json': 'Create Strategy Insights From Proposals',
+  'generate-strategy-insights.json': 'Generate Strategy Insights',
+  'compute-video-benchmarks-project.json': 'Compute Video Benchmarks Project',
+  'refresh-channel-strategy-profile-project.json': 'Refresh Channel Strategy Profile Project',
+  'expire-strategy-insights-scheduler.json': 'Expire Strategy Insights Scheduler',
+  'reconcile-youtube-publication-state.json': 'Reconcile Youtube Publication State',
+  'dev-decide-strategy-insight.json': 'Dev Decide Strategy Insight',
+  'step13-analytics-collection-scheduler-test.json': 'Step13 Analytics Collection Scheduler Test',
+  'step13-process-one-analytics-job-test.json': 'Step13 Process One Analytics Job Test',
+  'step13-compute-video-benchmarks-project-test.json': 'Step13 Compute Video Benchmarks Project Test',
+  'step13-reconcile-publication-state-test.json': 'Step13 Reconcile Youtube Publication State Test',
 };
 
 main().catch((err) => {

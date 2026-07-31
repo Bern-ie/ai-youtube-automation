@@ -1,0 +1,167 @@
+{
+  "name": "Analytics Collection Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:reclaim-abandoned-analytics-jobs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-2",
+      "name": "Reclaim Abandoned Analytics Jobs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:find-and-schedule-pending-analytics-checkpoints.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-3",
+      "name": "Find And Schedule Pending Analytics Checkpoints",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('When Executed by Another Workflow').first().json;\nreturn [{ json: { worker_id: 'scheduler-' + $execution.id, _mock_simulate: b._mock_simulate || null, _iteration: 0, _max_iterations: b.max_jobs_per_run || 20, _processed: 0, _errors: [] } }];"
+      },
+      "id": "code-4",
+      "name": "Prepare Collection Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:collect-analytics-for-due-jobs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-5",
+      "name": "Collect Analytics For Due Jobs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const reclaimed = $('Reclaim Abandoned Analytics Jobs').first().json;\nconst scheduled = $('Find And Schedule Pending Analytics Checkpoints').first().json;\nconst collected = $input.first().json;\nreturn [{ json: {\n  success: true,\n  data: {\n    reclaimed: (reclaimed.data && reclaimed.data.reclaimed) || [],\n    checkpoints_scheduled: (scheduled.data && scheduled.data.videos_processed) ?? null,\n    jobs_processed: collected.data.processed, job_errors: collected.data.errors,\n  },\n  error: null,\n} }];"
+      },
+      "id": "code-6",
+      "name": "Build Scheduler Run Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Reclaim Abandoned Analytics Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclaim Abandoned Analytics Jobs": {
+      "main": [
+        [
+          {
+            "node": "Find And Schedule Pending Analytics Checkpoints",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find And Schedule Pending Analytics Checkpoints": {
+      "main": [
+        [
+          {
+            "node": "Prepare Collection Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Collection Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Collect Analytics For Due Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Analytics For Due Jobs": {
+      "main": [
+        [
+          {
+            "node": "Build Scheduler Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scheduler Run Summary": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

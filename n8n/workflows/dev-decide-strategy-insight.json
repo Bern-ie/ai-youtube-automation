@@ -1,0 +1,251 @@
+{
+  "name": "Dev Decide Strategy Insight",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "internal/dev/strategy-insight/decide",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-1",
+      "name": "Dev Test Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_DEVTEST",
+          "name": "dev-test-webhook-auth"
+        }
+      },
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json.body || {};\nreturn [{ json: { channel_id: b.channel_id, insight_id: b.insight_id, decision: b.decision, reason: b.reason || null, reviewer_reference: b.reviewer_reference || null } }];"
+      },
+      "id": "code-2",
+      "name": "Extract Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json.decision === 'approved' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Is Decision Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, insight_id: b.insight_id, actor_type: 'user', actor_reference: b.reviewer_reference, workflow_run_id: null } }];"
+      },
+      "id": "code-5",
+      "name": "Prepare Activate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:activate-strategy-insight.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-6",
+      "name": "Activate Strategy Insight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: { channel_id: b.channel_id, insight_id: b.insight_id, reason: b.reason || 'rejected via dev review', actor_type: 'user', actor_reference: b.reviewer_reference, workflow_run_id: null } }];"
+      },
+      "id": "code-7",
+      "name": "Prepare Reject Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:reject-strategy-insight.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-8",
+      "name": "Reject Strategy Insight",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": "={{ $json.success === false ? 400 : 200 }}"
+        }
+      },
+      "id": "rtw-9",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Dev Test Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body": {
+      "main": [
+        [
+          {
+            "node": "Is Decision Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Decision Approved?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Activate Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Reject Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Activate Input": {
+      "main": [
+        [
+          {
+            "node": "Activate Strategy Insight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activate Strategy Insight": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Reject Input": {
+      "main": [
+        [
+          {
+            "node": "Reject Strategy Insight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reject Strategy Insight": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond": {
+      "main": []
+    }
+  },
+  "settings": {}
+}

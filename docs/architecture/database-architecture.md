@@ -1,22 +1,27 @@
 # Database Architecture
 
-Status: **implemented (Step 3), extended through Step 11.** PostgreSQL
+Status: **implemented (Step 3), extended through Step 13.** PostgreSQL
 domain schema, real migrations, role separation, and channel isolation
 are live and tested. Step 4 added the workflow-runtime SQL layer, Step 5
 added topic intake, Step 6 added versioned research plans/packages, Step
 7 added script grounding/QC/versioning, Step 8 added voiceover
 versioning/chunk-identity/QC, Step 9 added visual shot-list/asset
 versioning and licensing, Step 10 added scene-manifest versioning/
-idempotency and render-job QC, and Step 11 added the versioned
+idempotency and render-job QC, Step 11 added the versioned
 publication-package entity, thumbnail concepts, and title/thumbnail
-pair scoring — see
+pair scoring, Step 12 added resumable-upload/OAuth/scheduling state, and
+Step 13 added checkpointed analytics collection, performance
+benchmarking, the strategy insight lifecycle, and the platform's first
+real `audit_logs` writers — see
 [research-pipeline.md](research-pipeline.md),
 [script-pipeline.md](script-pipeline.md),
 [voiceover-pipeline.md](voiceover-pipeline.md),
 [visual-asset-pipeline.md](visual-asset-pipeline.md),
-[video-render-pipeline.md](video-render-pipeline.md), and
-[publication-package-pipeline.md](publication-package-pipeline.md) for
-the workflows that consume the additions described below.
+[video-render-pipeline.md](video-render-pipeline.md),
+[publication-package-pipeline.md](publication-package-pipeline.md),
+[youtube-publication-pipeline.md](youtube-publication-pipeline.md), and
+[analytics-strategy-pipeline.md](analytics-strategy-pipeline.md) for the
+workflows that consume the additions described below.
 
 ## Migration system
 
@@ -519,6 +524,74 @@ rather than replacing them, and adds three new tables for concerns Step
   at $1.00 hard for Channel 1) — unlike Step 10's local-FFmpeg-only
   rendering, this step has a real (small) paid surface: the occasional
   generated-image thumbnail plus three LLM calls per run.
+
+### Step 12 additions: `published_videos` extension, OAuth/resumable-upload/scheduling state
+
+Step 3 scaffolded `published_videos` as a minimal single-attempt record
+— Step 12 extends it into a full resumable-upload/idempotency/side-
+effect-tracking entity (`upload_session_uri`, `bytes_uploaded`/
+`total_bytes`, `upload_attempt`, `upload_identity_checksum`,
+`youtube_credential_reference`, `last_provider_response`,
+`pinned_comment_status`/`community_post_status`,
+`requires_public_confirmation`/`public_publish_confirmed_at`, and
+per-side-effect `*_applied_at` columns for metadata/thumbnail/captions/
+playlist). See
+[youtube-publication-pipeline.md](youtube-publication-pipeline.md).
+
+### Step 13 additions: `analytics_collection_jobs`, retention/traffic child tables, `video_benchmarks`, strategy insight lifecycle, `strategy_profile_versions`, real `audit_logs` writers
+
+`analytics_snapshots`, `strategy_insights`, and `channel_strategy_profiles`
+were Step-3 scaffolds (minimal columns, never written to) — Step 13
+extends all three into the full checkpointed-collection/benchmark/
+insight-lifecycle model, and adds five genuinely new tables:
+
+- `analytics_collection_jobs` (new) — the restart-safe, `FOR UPDATE SKIP
+  LOCKED`-claimable checkpoint scheduling queue (1h/24h/72h/7d/28d per
+  video), unique on `(channel_id, published_video_id, checkpoint)`.
+  Bounded exponential backoff on failure; `reclaim_abandoned_analytics_jobs()`
+  mirrors the existing `reclaim_abandoned_workflow_runs()` pattern for
+  jobs stuck `claimed`/`collecting` after a worker crash.
+- `analytics_snapshots` gains `checkpoint`/`intended_checkpoint_at`/
+  `lateness_seconds` (generated column)/`snapshot_status`/
+  `core_metrics_availability`/`retention_status`/`traffic_status`/
+  `revenue_status`/`is_test_data`/`methodology_version`/`is_current`/
+  `supersedes_snapshot_id` plus four missing core-metric columns
+  (`subscribers_lost`, `shares`, `monetized_playbacks`,
+  `unique_viewers`). A partial unique index enforces exactly one
+  *current* snapshot per `(published_video_id, checkpoint)` — corrections
+  version rather than overwrite.
+- `analytics_retention_points` / `analytics_traffic_sources` (new) —
+  normalized, queryable child tables so retention/traffic analysis
+  doesn't have to parse opaque JSONB.
+- `video_benchmarks` (new) — one auditable row per (benchmark_group ×
+  metric) comparison, median-based (outlier-resistant), sample-size-
+  gated confidence.
+- `strategy_insights` gains the full lifecycle (`insight_kind`,
+  `status`, `observation` distinct from `recommendation`,
+  `confidence_label`, evidence via the new `strategy_insight_evidence`
+  table replacing the Step-3 scaffold's unstructured id-array column,
+  `is_test_data`, `methodology_version`) — the scaffold's single
+  `active` boolean is replaced by a `draft`/`pending_review`/`active`/
+  `rejected`/`expired`/`superseded` status column.
+- `strategy_profile_versions` (new) — immutable, versioned strategy-
+  profile snapshots; `channel_strategy_profiles` becomes a thin pointer
+  (`current_version_id`) plus its original `analytics_benchmarks`/
+  `strategy_notes` fields.
+- `published_videos` gains publication-state-reconciliation columns
+  (`last_reconciled_at`, `reconciliation_status`,
+  `reconciliation_discrepancies`, `reconciliation_requires_review`) —
+  never overwrites approved local metadata; only records discrepancies
+  against YouTube's actual state for human review.
+- `audit_logs` (indexed since Step 11, never written to) gets its first
+  real writers via the canonical `record_audit_log()` function (which
+  sanitizes `before_state`/`after_state` server-side) and an
+  action-allowlist CHECK constraint — wired into both new Step 13
+  actions and, via a point-fix migration, the relevant Step 12
+  publication functions.
+
+See
+[analytics-strategy-pipeline.md](analytics-strategy-pipeline.md) for the
+full collection/benchmark/insight/reconciliation/audit model.
 
 ## Channel isolation
 

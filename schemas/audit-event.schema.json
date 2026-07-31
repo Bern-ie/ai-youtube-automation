@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/audit-event.schema.json",
+  "title": "Audit Event",
+  "description": "The record_audit_log() request/persisted shape. before_state/after_state are sanitized server-side by sanitize_audit_state() (secret-shaped keys stripped) before being written to audit_logs -- never rely on the caller to have sanitized them. See audit_logs in database/schema.sql and docs/architecture/analytics-strategy-pipeline.md#audit-subsystem.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["actor_type", "action", "entity_type"],
+  "properties": {
+    "channel_id": { "type": ["string", "null"], "format": "uuid" },
+    "actor_type": { "type": "string", "enum": ["user", "service", "system"] },
+    "actor_reference": { "type": ["string", "null"] },
+    "actor_reference_type": { "type": ["string", "null"] },
+    "action": {
+      "type": "string",
+      "enum": [
+        "youtube_upload_initialized", "youtube_upload_completed", "publication_privacy_changed",
+        "public_publish_confirmed", "public_publish_rejected", "analytics_snapshot_collected",
+        "publication_state_mismatch_detected", "strategy_insight_activated", "strategy_insight_rejected",
+        "strategy_insight_expired", "strategy_insight_superseded", "strategy_profile_refreshed",
+        "credential_reference_changed"
+      ]
+    },
+    "entity_type": { "type": "string" },
+    "entity_id": { "type": ["string", "null"], "format": "uuid" },
+    "before_state": { "type": ["object", "null"] },
+    "after_state": { "type": ["object", "null"] },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "workflow_run_id": { "type": ["string", "null"], "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

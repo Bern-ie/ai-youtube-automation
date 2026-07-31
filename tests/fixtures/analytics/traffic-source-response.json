@@ -1,0 +1,8 @@
+[
+  { "source_type": "youtube_search", "views": 520, "watch_time_minutes": 1310.5, "proportion": 0.43 },
+  { "source_type": "suggested_videos", "views": 340, "watch_time_minutes": 890.2, "proportion": 0.28 },
+  { "source_type": "external", "views": 170, "watch_time_minutes": 402.0, "proportion": 0.14 },
+  { "source_type": "channel_pages", "views": 110, "watch_time_minutes": 260.75, "proportion": 0.09 },
+  { "source_type": "notifications", "views": 48, "watch_time_minutes": 120.0, "proportion": 0.04 },
+  { "source_type": "playlists", "views": 24, "watch_time_minutes": 61.5, "proportion": 0.02 }
+]

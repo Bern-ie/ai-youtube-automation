@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/publication-reconciliation-result.schema.json",
+  "title": "Publication Reconciliation Result",
+  "description": "Result of reconcile_publication_state() -- compares the local published_videos record against YouTube's current state. Never triggers overwriting approved local metadata or a re-upload; see docs/architecture/analytics-strategy-pipeline.md#publication-state-reconciliation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["published_video_id", "reconciliation_status", "discrepancies", "requires_review"],
+  "properties": {
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "reconciliation_status": { "type": "string", "enum": ["not_checked", "matched", "discrepancy_detected", "requires_review"] },
+    "requires_review": { "type": "boolean" },
+    "discrepancies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "local_value", "remote_value"],
+        "properties": {
+          "field": { "type": "string", "enum": ["existence", "privacy_status", "title", "scheduled_at", "description", "thumbnail", "captions"] },
+          "local_value": {},
+          "remote_value": {}
+        }
+      }
+    }
+  }
+}

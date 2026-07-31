@@ -245,6 +245,13 @@ services:
       # Never overridden in a real deployment.
       YOUTUBE_API_BASE_URL: ${YOUTUBE_API_BASE_URL:-https://www.googleapis.com/youtube/v3}
       YOUTUBE_UPLOAD_API_BASE_URL: ${YOUTUBE_UPLOAD_API_BASE_URL:-https://www.googleapis.com/upload/youtube/v3}
+      # Step 13 — the real YouTube Analytics API v2 base URL by default;
+      # overridden (only for the Step 13 test suite's workflow-dependent
+      # section) to point at the renderer's mock endpoints instead -- see
+      # apps/renderer/src/routes-youtube-analytics-mock.js and
+      # docs/architecture/analytics-strategy-pipeline.md#fixture-and-live-tests.
+      # Never overridden in a real deployment.
+      YOUTUBE_ANALYTICS_API_BASE_URL: ${YOUTUBE_ANALYTICS_API_BASE_URL:-https://youtubeanalytics.googleapis.com/v2}
       # n8n blocks $env access from every node by default (workflow authors
       # are normally untrusted in a shared n8n instance) -- this project's
       # workflows are first-party and authored entirely in this repo, and

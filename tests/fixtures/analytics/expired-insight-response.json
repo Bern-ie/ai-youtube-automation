@@ -1,0 +1,8 @@
+{
+  "insight_type": "hook_structure",
+  "insight_kind": "observation",
+  "status": "expired",
+  "recommendation": "Short cold-open hooks retained better this week.",
+  "expires_at": "2026-07-20T00:00:00Z",
+  "_note": "Represents an insight row past its expires_at after expire_due_strategy_insights() has run -- excluded from every subsequent refresh_channel_strategy_profile() call, never auto-reactivated. See docs/architecture/analytics-strategy-pipeline.md#insight-expiration-and-conflicts."
+}

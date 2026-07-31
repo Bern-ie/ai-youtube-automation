@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/strategy-profile.schema.json",
+  "title": "Strategy Profile",
+  "description": "The shape returned by get_current_strategy_profile() / refresh_channel_strategy_profile() -- an immutable, versioned summary of a channel's currently active strategy guidance. See channel_strategy_profiles/strategy_profile_versions in database/schema.sql and docs/architecture/analytics-strategy-pipeline.md#strategy-profile-versioning.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["channel_id"],
+  "properties": {
+    "channel_id": { "type": "string", "format": "uuid" },
+    "current_version_id": { "type": ["string", "null"], "format": "uuid" },
+    "id": { "type": "string", "format": "uuid", "description": "Present on refresh_channel_strategy_profile()'s direct return (the strategy_profile_versions row id)." },
+    "version": { "type": ["integer", "null"], "minimum": 1 },
+    "profile": {
+      "type": "object",
+      "description": "Object keyed by insight_type, each value an array of active-insight summaries. Never the full historical insight set."
+    },
+    "active_insight_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+    "analytics_benchmarks": { "type": "object" },
+    "strategy_notes": { "type": ["string", "null"] },
+    "methodology_version": { "type": "integer", "minimum": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "superseded_at": { "type": ["string", "null"], "format": "date-time" },
+    "refreshed_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

@@ -12,11 +12,12 @@
 - [architecture/video-render-pipeline.md](architecture/video-render-pipeline.md) — the `Video Render Project` workflow: deterministic scene manifest construction/versioning/idempotency, preview/final rendering, still-image motion and transitions, audio mixing/ducking/loudness, captions, spec-only chart/map/text-card rendering, deterministic render QC, human final-video approval lifecycle (including targeted revision), DB-backed wait/resume, error codes.
 - [architecture/publication-package-pipeline.md](architecture/publication-package-pipeline.md) — the `Publication Package Project` workflow: thumbnail concept generation and FFmpeg composition strategies, thumbnail QC, YouTube metadata generation, deterministic chapter construction and attribution injection, title/thumbnail pair scoring with hard gates, deterministic publication QC, human approval lifecycle (including targeted revision), DB-backed wait/resume, error codes.
 - [architecture/youtube-publication-pipeline.md](architecture/youtube-publication-pipeline.md) — the `YouTube Publish Project` workflow: OAuth setup/scopes/credential isolation, publication preflight, duplicate-upload prevention, resumable chunked upload, state model, metadata/thumbnail/captions/playlist operations, privacy/scheduling, public-publish confirmation, processing polling, quota tracking, retries, restart survival, security, mock-vs-live testing, unsupported API capabilities, error codes.
+- [architecture/analytics-strategy-pipeline.md](architecture/analytics-strategy-pipeline.md) — YouTube analytics ingestion, checkpoint scheduling/job-claiming, normalized metrics/retention/traffic-source collection, publication-state reconciliation, performance benchmarking, deterministic observations, LLM strategy synthesis and QC, strategy insight lifecycle/evidence/expiration, strategy profile versioning, controlled feedback into future workflows, quota tracking, restart survival, the audit subsystem, error codes.
 - [architecture/arm64-compatibility.md](architecture/arm64-compatibility.md) — AMD64/ARM64 support matrix for every service; build approach.
 - [deployment/oracle-deployment-assumptions.md](deployment/oracle-deployment-assumptions.md) — Oracle Always Free topology assumptions, cost controls, security posture.
 - [operations/development-commands.md](operations/development-commands.md) — commands for local dev, database ops, n8n workflow setup, and multi-arch builds.
 
-All of the above are living documents for a project currently at **Step 12
-(YouTube OAuth, resumable upload, scheduling, captions, playlist
-assignment, and publication state)**. See the root [README.md](../README.md)
+All of the above are living documents for a project currently at **Step 13
+(YouTube analytics ingestion, performance benchmarking, strategy
+insights, and audit hardening)**. See the root [README.md](../README.md)
 for overall project status.

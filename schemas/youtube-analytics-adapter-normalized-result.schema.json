@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/youtube-analytics-adapter-normalized-result.schema.json",
+  "title": "YouTube Analytics Adapter — Normalized Result",
+  "description": "The shape the YouTube Analytics/Data API collection workflow must normalize its raw Google response into before calling record_analytics_snapshot(). Keeps Google-specific field names out of the SQL layer and every workflow downstream of collection. This is a distinct, YouTube-Analytics-specific schema -- it is NOT a reuse of provider-adapter-normalized-result.schema.json, which is hard-scoped to the search-provider (Tavily/Brave) adapter shape. See docs/architecture/analytics-strategy-pipeline.md#normalized-metrics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "video_id", "captured_at", "checkpoint", "metrics", "availability"],
+  "properties": {
+    "provider": { "const": "youtube" },
+    "video_id": { "type": "string", "description": "The YouTube video ID (published_videos.youtube_video_id), not an internal UUID." },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "checkpoint": { "type": "string", "enum": ["1h", "24h", "72h", "7d", "28d"] },
+    "snapshot_status": { "type": "string", "enum": ["pending_data", "partial", "complete", "revised"], "default": "complete" },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Every value is either a finite number or null. A null value MUST correspond to a non-'available' entry in `availability` for the same key -- never a fabricated zero for missing data.",
+      "properties": {
+        "impressions": { "type": ["integer", "null"] },
+        "views": { "type": ["integer", "null"] },
+        "ctr_ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Stored and transmitted as a ratio (0-1), never a percent (0-100) -- see docs/architecture/analytics-strategy-pipeline.md#ctr-convention." },
+        "watch_time_minutes": { "type": ["number", "null"] },
+        "average_view_duration_seconds": { "type": ["number", "null"] },
+        "average_percentage_viewed_ratio": { "type": ["number", "null"], "minimum": 0 },
+        "subscribers_gained": { "type": ["integer", "null"] },
+        "subscribers_lost": { "type": ["integer", "null"] },
+        "likes": { "type": ["integer", "null"] },
+        "comments": { "type": ["integer", "null"] },
+        "shares": { "type": ["integer", "null"] },
+        "returning_viewers": { "type": ["integer", "null"] },
+        "unique_viewers": { "type": ["integer", "null"] },
+        "monetized_playbacks": { "type": ["integer", "null"] },
+        "estimated_revenue_usd": { "type": ["number", "null"] }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "description": "One entry per key in `metrics`. See docs/architecture/analytics-strategy-pipeline.md#reporting-delay.",
+      "additionalProperties": { "type": "string", "enum": ["available", "unavailable", "not_authorized", "not_yet_processed", "not_applicable"] }
+    },
+    "retention": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["elapsed_ratio", "audience_watch_ratio"],
+            "properties": {
+              "elapsed_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+              "elapsed_seconds": { "type": ["number", "null"] },
+              "audience_watch_ratio": { "type": "number", "minimum": 0 },
+              "relative_retention": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "traffic_sources": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_type"],
+        "properties": {
+          "source_type": { "type": "string", "enum": ["youtube_search", "browse_features", "suggested_videos", "external", "channel_pages", "notifications", "playlists", "shorts_feed", "other"] },
+          "views": { "type": ["integer", "null"] },
+          "watch_time_minutes": { "type": ["number", "null"] },
+          "proportion": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "provider_request_reference": { "type": ["string", "null"] },
+    "provider_metadata": { "type": "object", "description": "Sanitized, non-secret provider response fragments only -- never raw auth headers." }
+  }
+}

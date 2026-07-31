@@ -1,0 +1,31 @@
+-- Deterministic QC/evidence gate for both rule-based observations and
+-- LLM-synthesized recommendations -- see
+-- docs/architecture/analytics-strategy-pipeline.md#strategy-qc. Rejects
+-- fabricated/cross-channel evidence and caps confidence by sample size.
+-- Observations auto-activate; recommendations default to
+-- pending_review.
+--
+-- Parameters ($1..$21):
+--   $1  channel_id             uuid, required
+--   $2  insight_type           text, required
+--   $3  insight_kind           text, required -- 'observation'|'recommendation'
+--   $4  recommendation         text, required
+--   $5  sample_size            integer, required
+--   $6  evidence               jsonb, required -- array of {evidence_type, evidence_id}, min 1
+--   $7  subject                text, nullable
+--   $8  observation            text, nullable
+--   $9  confidence             numeric, nullable
+--   $10 confidence_label       text, nullable
+--   $11 metric_basis           text, nullable
+--   $12 date_range_start       timestamptz, nullable
+--   $13 date_range_end         timestamptz, nullable
+--   $14 limitations            text, nullable
+--   $15 expires_at             timestamptz, nullable
+--   $16 prompt_id              uuid, nullable
+--   $17 prompt_version_id      uuid, nullable
+--   $18 model_used             text, nullable
+--   $19 is_test_data           boolean, default false
+--   $20 methodology_version    integer, default 1
+--   $21 workflow_run_id        uuid, nullable
+
+SELECT create_strategy_insight($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) AS result;

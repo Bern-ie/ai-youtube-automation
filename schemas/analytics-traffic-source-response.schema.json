@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/analytics-traffic-source-response.schema.json",
+  "title": "Analytics Traffic Source Response",
+  "description": "Normalized traffic-source breakdown, the exact shape record_analytics_traffic_sources() expects as its $3 (sources) parameter. See docs/architecture/analytics-strategy-pipeline.md#traffic-sources.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["source_type"],
+    "properties": {
+      "source_type": { "type": "string", "enum": ["youtube_search", "browse_features", "suggested_videos", "external", "channel_pages", "notifications", "playlists", "shorts_feed", "other"] },
+      "views": { "type": ["integer", "null"] },
+      "watch_time_minutes": { "type": ["number", "null"] },
+      "proportion": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+    }
+  }
+}

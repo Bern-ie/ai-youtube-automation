@@ -1,0 +1,13 @@
+{
+  "rule_id": "ctr_below_median_all_time",
+  "metric_name": "ctr",
+  "benchmark_group": "all_time",
+  "video_metric_value": 0.05,
+  "benchmark_metric_value": null,
+  "percentage_difference": null,
+  "direction": "below",
+  "sample_size": 1,
+  "confidence_label": "insufficient",
+  "video_benchmark_id": null,
+  "statement": "Fewer than 3 comparison videos exist for this channel/checkpoint -- no benchmark conclusion is drawn (compute_video_benchmarks() persists the row for auditability with benchmark_metric_value = NULL)."
+}

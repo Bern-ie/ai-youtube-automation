@@ -1,0 +1,10 @@
+[
+  { "elapsed_ratio": 0.0, "elapsed_seconds": 0, "audience_watch_ratio": 1.0, "relative_retention": 1.05 },
+  { "elapsed_ratio": 0.05, "elapsed_seconds": 20, "audience_watch_ratio": 0.82, "relative_retention": 1.02 },
+  { "elapsed_ratio": 0.1, "elapsed_seconds": 40, "audience_watch_ratio": 0.74, "relative_retention": 0.98 },
+  { "elapsed_ratio": 0.25, "elapsed_seconds": 100, "audience_watch_ratio": 0.61, "relative_retention": 0.95 },
+  { "elapsed_ratio": 0.5, "elapsed_seconds": 200, "audience_watch_ratio": 0.47, "relative_retention": 0.9 },
+  { "elapsed_ratio": 0.75, "elapsed_seconds": 300, "audience_watch_ratio": 0.33, "relative_retention": 0.85 },
+  { "elapsed_ratio": 0.9, "elapsed_seconds": 360, "audience_watch_ratio": 0.22, "relative_retention": 0.8 },
+  { "elapsed_ratio": 1.0, "elapsed_seconds": 400, "audience_watch_ratio": 0.12, "relative_retention": 0.76 }
+]

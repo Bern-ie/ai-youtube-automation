@@ -1,0 +1,7 @@
+{
+  "exists": true,
+  "privacy_status": "private",
+  "title": "How Vesuvius Buried an Empire's Ambitions",
+  "scheduled_publish_time": null,
+  "_note": "local published_videos.privacy_status is 'public' -- this fixture represents a YouTube-side state that disagrees, exercising reconcile_publication_state()'s discrepancy_detected/requires_review path."
+}

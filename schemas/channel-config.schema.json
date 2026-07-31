@@ -189,7 +189,23 @@
       "additionalProperties": false,
       "properties": {
         "analytics_benchmarks": { "type": "object" },
-        "strategy_notes": { "type": ["string", "null"] }
+        "strategy_notes": { "type": ["string", "null"] },
+        "current_strategy_profile_version_id": { "type": ["string", "null"], "format": "uuid", "description": "channel_strategy_profiles.current_version_id — Step 13. Null until refresh_channel_strategy_profile() has run at least once for this channel." },
+        "current_strategy_profile_version": { "type": ["integer", "null"] },
+        "active_insights_summary": {
+          "type": "array",
+          "description": "Compact, bounded summary of currently active/non-expired/non-test strategy insights — never the full insight history. See docs/architecture/analytics-strategy-pipeline.md#controlled-feedback-integration.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "insight_type": { "type": "string" },
+              "subject": { "type": ["string", "null"] },
+              "recommendation": { "type": "string" },
+              "confidence_label": { "type": "string", "enum": ["exploratory", "low", "moderate", "high"] }
+            }
+          }
+        }
       }
     },
     "runtime": { "$ref": "https://schemas.ai-youtube-automation.internal/runtime-context.schema.json" }

@@ -1,0 +1,26 @@
+{
+  "insights": [
+    {
+      "insight_type": "thumbnail_style",
+      "insight_kind": "observation",
+      "subject": "click-through rate",
+      "observation": "CTR is 18% below the channel's all-time median at the 24h checkpoint, while average percentage viewed is close to the channel median.",
+      "recommendation": "Packaging (thumbnail/title) likely underperformed relative to this channel's own history; consider testing an alternative thumbnail concept on the next similar video.",
+      "sample_size": 6,
+      "confidence_label": "moderate",
+      "evidence_rule_ids": ["ctr_below_median_all_time"],
+      "limitations": "Single-video comparison against an all_time median; does not isolate thumbnail vs. title vs. topic effects."
+    },
+    {
+      "insight_type": "video_duration",
+      "insight_kind": "recommendation",
+      "subject": "watch time",
+      "observation": "Total watch time is 22% above the channel's all-time median at the 24h checkpoint.",
+      "recommendation": "Consider similarly-paced runtimes for upcoming videos on this topic cluster.",
+      "sample_size": 6,
+      "confidence_label": "moderate",
+      "evidence_rule_ids": ["watch_time_above_median_all_time"],
+      "limitations": "Correlational only; does not establish that duration itself caused the higher watch time."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/analytics-retention-response.schema.json",
+  "title": "Analytics Retention Response",
+  "description": "Normalized audience-retention curve, the exact shape record_analytics_retention_points() expects as its $3 (points) parameter. See docs/architecture/analytics-strategy-pipeline.md#audience-retention.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["elapsed_ratio", "audience_watch_ratio"],
+    "properties": {
+      "elapsed_ratio": { "type": "number", "minimum": 0, "maximum": 1, "description": "Position in the video as a fraction of total duration (0 = start, 1 = end)." },
+      "elapsed_seconds": { "type": ["number", "null"] },
+      "audience_watch_ratio": { "type": "number", "minimum": 0, "description": "YouTube's absolute audience-retention value at this point (can exceed 1.0 at rewatched/spike points)." },
+      "relative_retention": { "type": ["number", "null"], "description": "Retention relative to similar-length videos, when the provider supplies it." }
+    }
+  },
+  "minItems": 1
+}

@@ -34,6 +34,11 @@ export N8N_STEP12_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step12
 export N8N_DEV_PUBLIC_CONFIRMATIONS_LIST_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/public-publish-confirmations"
 export N8N_DEV_PUBLIC_CONFIRMATION_GET_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/public-publish-confirmation"
 export N8N_DEV_PUBLIC_CONFIRMATION_DECIDE_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/public-publish-confirmation/decide"
+export N8N_STEP13_SCHEDULER_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step13-analytics-collection-scheduler-test"
+export N8N_STEP13_PROCESS_JOB_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step13-process-one-analytics-job-test"
+export N8N_STEP13_BENCHMARKS_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step13-compute-video-benchmarks-project-test"
+export N8N_STEP13_RECONCILE_WEBHOOK_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/step13-reconcile-publication-state-test"
+export N8N_DEV_STRATEGY_INSIGHT_DECIDE_URL="http://127.0.0.1:${N8N_PORT:-5678}/webhook/internal/dev/strategy-insight/decide"
 export N8N_BASE_URL="http://127.0.0.1:${N8N_PORT:-5678}"
 
 cd "$REPO_ROOT/n8n/tests"
@@ -72,9 +77,31 @@ until [[ "$(docker inspect -f '{{.State.Health.Status}}' "$(cd "$REPO_ROOT" && d
 done
 step12_status=0
 node run-step12.js || step12_status=$?
+
+log "Running Step 13 YouTube analytics/strategy pipeline tests..."
+log "  Recreating renderer/n8n with the mock YouTube Data + Analytics APIs enabled for this run..."
+(
+  cd "$REPO_ROOT"
+  ENABLE_YOUTUBE_MOCK=1 \
+  YOUTUBE_API_BASE_URL="http://renderer:3000/youtube-mock/youtube/v3" \
+  YOUTUBE_UPLOAD_API_BASE_URL="http://renderer:3000/youtube-mock/upload/youtube/v3" \
+  YOUTUBE_ANALYTICS_API_BASE_URL="http://renderer:3000/youtube-mock/youtube/analytics/v2" \
+  docker compose up -d --no-deps --force-recreate renderer n8n
+)
+deadline=$((SECONDS + 90))
+until [[ "$(docker inspect -f '{{.State.Health.Status}}' "$(cd "$REPO_ROOT" && docker compose ps -q renderer)" 2>/dev/null)" == "healthy" \
+      && "$(docker inspect -f '{{.State.Health.Status}}' "$(cd "$REPO_ROOT" && docker compose ps -q n8n)" 2>/dev/null)" == "healthy" ]]; do
+  [[ $SECONDS -ge $deadline ]] && fail "renderer/n8n did not become healthy within 90s of enabling the YouTube mock (Step 13)."
+  sleep 2
+done
+step13_status=0
+node run-step13.js || step13_status=$?
+node run-step13-workflow.js || step13_status=$?
+
 log "  Restoring renderer/n8n to their default (non-mock, real-API) configuration..."
 (
   cd "$REPO_ROOT"
   docker compose up -d --no-deps --force-recreate renderer n8n
 )
-exit $step12_status
+if [[ $step12_status -ne 0 ]]; then exit $step12_status; fi
+exit $step13_status

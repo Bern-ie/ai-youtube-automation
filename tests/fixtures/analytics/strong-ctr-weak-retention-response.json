@@ -1,0 +1,12 @@
+{
+  "metrics": { "ctr_ratio": 0.19, "average_percentage_viewed_ratio": 0.22 },
+  "retention": [
+    { "elapsed_ratio": 0.0, "audience_watch_ratio": 1.0 },
+    { "elapsed_ratio": 0.05, "audience_watch_ratio": 0.55 },
+    { "elapsed_ratio": 0.1, "audience_watch_ratio": 0.38 },
+    { "elapsed_ratio": 0.25, "audience_watch_ratio": 0.25 },
+    { "elapsed_ratio": 0.5, "audience_watch_ratio": 0.15 },
+    { "elapsed_ratio": 1.0, "audience_watch_ratio": 0.06 }
+  ],
+  "_note": "High CTR (thumbnail/title packaging works) but a steep early drop-off (weak hook) -- the kind of evidence pair the weak_hook_retention-style deterministic rule and strategy-synthesis prompt are meant to distinguish from a simple below-median-CTR case."
+}

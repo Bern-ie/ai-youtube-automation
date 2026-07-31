@@ -116,6 +116,20 @@ youtubeMockRouter.put('/youtube-mock/youtube/v3/videos', express.json({ limit: '
 // videos.list -- used to poll processing state. Simulates
 // 'processing' for the first 2 polls, then 'succeeded' -- exercises
 // bounded-polling logic without a real multi-minute wait.
+// Step 13 test-only seeding hook -- publication-state reconciliation
+// fixtures are inserted directly into Postgres (bypassing the real
+// upload flow, see n8n/tests/run-step13.js's fixture builder), so the
+// mock's in-memory `videos` map has no entry for them unless seeded
+// explicitly. Idempotent upsert; never mounted/reachable outside
+// ENABLE_YOUTUBE_MOCK=1.
+youtubeMockRouter.post('/youtube-mock/dev/videos/:id', express.json({ limit: '10kb' }), (req, res) => {
+  const { id } = req.params;
+  const { snippet = {}, status = {} } = req.body || {};
+  const existing = videos.get(id) || { processingPollCount: 3 };
+  videos.set(id, { ...existing, snippet: { ...existing.snippet, ...snippet }, status: { ...existing.status, ...status } });
+  res.status(200).json({ id, snippet: videos.get(id).snippet, status: videos.get(id).status });
+});
+
 youtubeMockRouter.get('/youtube-mock/youtube/v3/videos', (req, res) => {
   if (simulateFailure(req, res)) return;
   const videoId = req.query.id;

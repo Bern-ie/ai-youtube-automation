@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/analytics-collection-job.schema.json",
+  "title": "Analytics Collection Job",
+  "description": "One row returned by claim_due_analytics_jobs() -- a checkpoint due for collection, claimed by a worker. See analytics_collection_jobs in database/schema.sql and docs/architecture/analytics-strategy-pipeline.md#scheduling.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "channel_id", "published_video_id", "checkpoint", "due_at", "attempt"],
+  "properties": {
+    "job_id": { "type": "string", "format": "uuid" },
+    "channel_id": { "type": "string", "format": "uuid" },
+    "published_video_id": { "type": "string", "format": "uuid" },
+    "checkpoint": { "type": "string", "enum": ["1h", "24h", "72h", "7d", "28d"] },
+    "due_at": { "type": "string", "format": "date-time" },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "youtube_video_id": { "type": ["string", "null"] },
+    "privacy_status": { "type": ["string", "null"], "enum": ["private", "unlisted", "public", null] },
+    "youtube_credential_reference": { "type": ["string", "null"] }
+  }
+}

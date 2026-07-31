@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.ai-youtube-automation.internal/video-benchmark.schema.json",
+  "title": "Video Benchmark",
+  "description": "One (benchmark_group x metric) comparison result, as computed and persisted by compute_video_benchmarks(). See video_benchmarks in database/schema.sql and docs/architecture/analytics-strategy-pipeline.md#benchmarks.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["benchmark_group", "metric_name", "sample_size", "confidence_label"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "benchmark_group": { "type": "string", "enum": ["all_time", "recent_5", "recent_10", "trailing_90_days", "same_format", "similar_duration", "same_topic_cluster"] },
+    "metric_name": { "type": "string" },
+    "video_metric_value": { "type": ["number", "null"] },
+    "benchmark_metric_value": { "type": ["number", "null"], "description": "Median of the comparison group. Null when sample_size < 3 (insufficient)." },
+    "absolute_difference": { "type": ["number", "null"] },
+    "percentage_difference": { "type": ["number", "null"] },
+    "percentile": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "sample_size": { "type": "integer", "minimum": 0 },
+    "confidence_label": { "type": "string", "enum": ["insufficient", "exploratory", "low", "moderate", "high"] },
+    "methodology_version": { "type": "integer", "minimum": 1 }
+  }
+}

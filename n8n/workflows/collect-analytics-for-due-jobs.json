@@ -1,0 +1,338 @@
+{
+  "name": "Collect Analytics For Due Jobs",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "trigger-1",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $input.first().json;\nreturn [{ json: {\n  worker_id: b.worker_id, _mock_simulate: b._mock_simulate || null,\n  _iteration: (b._iteration || 0) + 1, _max_iterations: b._max_iterations || 20,\n  _processed: b._processed || 0, _errors: b._errors || [],\n} }];"
+      },
+      "id": "code-2",
+      "name": "Normalize Loop Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-3",
+              "leftValue": "={{ $json._iteration > $json._max_iterations }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-4",
+      "name": "Is Iteration Budget Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Reached from TWO different branches (budget-exceeded, and\n// no-job-claimed) whose immediate $input shapes differ -- always read\n// the stable loop-context node by name rather than $input.first(),\n// which would otherwise pick up the claim call's own response shape on\n// the no-job-claimed path and silently lose _processed/_errors.\nconst b = $('Normalize Loop Input').first().json;\nreturn [{ json: { success: true, data: { processed: b._processed, errors: b._errors }, error: null } }];"
+      },
+      "id": "code-5",
+      "name": "Build Loop Summary Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:claim-due-analytics-jobs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-6",
+      "name": "Claim Due Analytics Jobs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nreturn [{ json: { worker_id: ctx.worker_id, limit: 1 } }];"
+      },
+      "id": "code-7",
+      "name": "Prepare Claim Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-8",
+              "leftValue": "={{ $json.success && $json.data.jobs && $json.data.jobs.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-9",
+      "name": "Was A Job Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Normalize Loop Input').first().json;\nconst job = $input.first().json.data.jobs[0];\nreturn [{ json: { channel_id: job.channel_id, job_id: job.job_id, published_video_id: job.published_video_id, checkpoint: job.checkpoint, youtube_video_id: job.youtube_video_id, privacy_status: job.privacy_status, youtube_credential_reference: job.youtube_credential_reference, worker_id: ctx.worker_id, _mock_simulate: ctx._mock_simulate, _loop: ctx } }];"
+      },
+      "id": "code-10",
+      "name": "Extract Claimed Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:process-one-analytics-job.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-11",
+      "name": "Process One Analytics Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Extract Claimed Job').first().json._loop;\nconst r = $input.first().json;\nconst processed = ctx._processed + 1;\nconst errors = r.success ? ctx._errors : [...ctx._errors, { job_id: r.job_id, checkpoint: r.checkpoint, error: r.error }];\nreturn [{ json: { worker_id: ctx.worker_id, _mock_simulate: ctx._mock_simulate, _iteration: ctx._iteration, _max_iterations: ctx._max_iterations, _processed: processed, _errors: errors } }];"
+      },
+      "id": "code-12",
+      "name": "Merge Iteration Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "PLACEHOLDER:collect-analytics-for-due-jobs.json"
+        },
+        "mode": "once",
+        "options": {}
+      },
+      "id": "exec-13",
+      "name": "Collect Analytics For Due Jobs (Recurse)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalize Loop Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Loop Input": {
+      "main": [
+        [
+          {
+            "node": "Is Iteration Budget Exceeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Iteration Budget Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Build Loop Summary Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Claim Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Loop Summary Response": {
+      "main": []
+    },
+    "Claim Due Analytics Jobs": {
+      "main": [
+        [
+          {
+            "node": "Was A Job Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Claim Input": {
+      "main": [
+        [
+          {
+            "node": "Claim Due Analytics Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was A Job Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Extract Claimed Job",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Loop Summary Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Claimed Job": {
+      "main": [
+        [
+          {
+            "node": "Process One Analytics Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One Analytics Job": {
+      "main": [
+        [
+          {
+            "node": "Merge Iteration Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Iteration Result": {
+      "main": [
+        [
+          {
+            "node": "Collect Analytics For Due Jobs (Recurse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Analytics For Due Jobs (Recurse)": {
+      "main": []
+    }
+  },
+  "settings": {}
+}
